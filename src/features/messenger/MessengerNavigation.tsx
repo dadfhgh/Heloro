@@ -194,16 +194,13 @@ export function MessengerSettings({
         </header>
 
         <div className="settings-page-body">
-          <nav className="settings-sidebar" aria-label={ru ? "Категории настроек" : "Settings categories"}>
-            {items.map(({ id, label, Icon }) => (
-              <button type="button" key={id} className={activeSection === id ? "active" : ""} onClick={() => onSectionChange(id)}>
-                <Icon size={18} /><span>{label[locale]}</span>{activeSection === id && <ChevronRight size={15} />}
-              </button>
-            ))}
-          </nav>
-
           <div className="settings-content">
-            <div className="settings-content-heading"><h3>{title}</h3><span>{ru ? "HELORO" : "HELORO"}</span></div>
+            {activeSection !== "account" && (
+              <button type="button" className="settings-back-button" onClick={() => onSectionChange("account")}>
+                <ChevronRight size={18} /><span>{ru ? "Настройки" : "Settings"}</span>
+              </button>
+            )}
+            <div className="settings-content-heading"><h3>{title}</h3><span>HELORO</span></div>
 
             {activeSection === "account" && (
               <div className="settings-section-content">
@@ -214,6 +211,29 @@ export function MessengerSettings({
                 </div>
                 <div className="settings-info-row"><span>{ru ? "Имя профиля" : "Profile name"}</span><strong>{profile.display_name}</strong></div>
                 <div className="settings-info-row"><span>HELORO ID</span><strong>@{profile.username}</strong></div>
+                <div className="settings-menu-list">
+                  {items.filter((item) => item.id !== "account").map(({ id, label, Icon }) => {
+                    const descriptions: Record<string, { ru: string; en: string }> = {
+                      notifications: { ru: "Звуки, уведомления и исключения", en: "Sounds, alerts and exceptions" },
+                      privacy: { ru: "Безопасность и видимость аккаунта", en: "Security and account visibility" },
+                      devices: { ru: "Активные сеансы и устройства", en: "Active sessions and devices" },
+                      appearance: { ru: "Тема и оформление", en: "Theme and appearance" },
+                      language: { ru: "Язык интерфейса", en: "Interface language" },
+                      chats: { ru: "Фон, папки и настройки переписки", en: "Wallpaper, folders and chat settings" },
+                      storage: { ru: "Автозагрузка и использование памяти", en: "Auto-download and storage usage" },
+                      help: { ru: "Поддержка и ответы на вопросы", en: "Support and help" },
+                      plus: { ru: "Награды и праздничные значки", en: "Rewards and holiday badges" },
+                      staff: { ru: "Модерация и управление", en: "Moderation and management" },
+                    };
+                    return (
+                      <button type="button" className={`settings-menu-row settings-menu-${id}`} key={id} onClick={() => onSectionChange(id)}>
+                        <span className="settings-menu-icon"><Icon size={19} /></span>
+                        <span className="settings-menu-copy"><strong>{label[locale]}</strong><small>{descriptions[id]?.[locale] ?? ""}</small></span>
+                        <ChevronRight size={17} />
+                      </button>
+                    );
+                  })}
+                </div>
                 <p className="settings-muted-note">{ru ? "Изменение имени и фотографии профиля будет добавлено отдельно." : "Profile name and photo editing will be added separately."}</p>
                 <button type="button" className="settings-signout" onClick={onSignOut}><span>{ru ? "Выйти из аккаунта" : "Sign out"}</span></button>
               </div>
