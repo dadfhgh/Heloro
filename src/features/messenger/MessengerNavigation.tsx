@@ -97,7 +97,7 @@ export function MessengerNavigation({
           <button type="button" className="navigation-item navigation-item-disabled" disabled><Bookmark size={19} /><span>{ru ? "Избранное" : "Saved Messages"}</span><small>{ru ? "Скоро" : "Soon"}</small></button>
           <button type="button" className="navigation-item navigation-item-disabled" disabled><Folder size={19} /><span>{ru ? "Папки чатов" : "Chat folders"}</span><small>{ru ? "Скоро" : "Soon"}</small></button>
           <button type="button" className="navigation-item navigation-item-disabled" disabled><Bot size={19} /><span>{ru ? "Боты" : "Bots"}</span><small>{ru ? "Скоро" : "Soon"}</small></button>
-          <button type="button" className="navigation-item navigation-item-disabled" disabled><Phone size={19} /><span>{ru ? "Звонки" : "Calls"}</span><small>{ru ? "Скоро" : "Soon"}</small></button>
+          <button type="button" className="navigation-item navigation-item-disabled" disabled><Phone size={19} /><span>{ru ? "Звонки" : "Calls"}</span><small>{ru ? "Ожидают настройки" : "Not enabled"}</small></button>
 
           <div className="navigation-separator" />
           <div className="navigation-group-label">{ru ? "АККАУНТ" : "ACCOUNT"}</div>
@@ -115,6 +115,7 @@ export type SettingsSection =
   | "notifications"
   | "privacy"
   | "devices"
+  | "calls"
   | "appearance"
   | "language"
   | "chats"
@@ -148,6 +149,7 @@ const settingItems: {
   { id: "notifications", label: { ru: "Уведомления", en: "Notifications" }, Icon: Bell, available: false },
   { id: "privacy", label: { ru: "Конфиденциальность", en: "Privacy" }, Icon: LockKeyhole, available: false },
   { id: "devices", label: { ru: "Устройства", en: "Devices" }, Icon: Laptop, available: false },
+  { id: "calls", label: { ru: "Звонки", en: "Calls" }, Icon: Phone, available: false },
   { id: "appearance", label: { ru: "Оформление", en: "Appearance" }, Icon: Palette, available: true },
   { id: "language", label: { ru: "Язык", en: "Language" }, Icon: Cloud, available: true },
   { id: "chats", label: { ru: "Настройки чатов", en: "Chat settings" }, Icon: MessageCircle, available: false },
@@ -224,6 +226,7 @@ export function MessengerSettings({
             {activeSection === "notifications" && <SettingsNotice locale={locale} title={ru ? "Управление уведомлениями" : "Notification controls"} text={ru ? "Звуки, push-уведомления, исключения для чатов и тихий режим ещё не подключены к серверу." : "Sounds, push notifications, chat exceptions and quiet hours are not connected yet."} />}
             {activeSection === "privacy" && <SettingsNotice locale={locale} title={ru ? "Защита аккаунта и приватность" : "Account security and privacy"} text={ru ? "Настройки видимости, блокировки, активных разрешений и управления сессиями пока не реализованы." : "Visibility, blocking, active permissions and session controls are not implemented yet."} />}
             {activeSection === "devices" && <SettingsNotice locale={locale} title={ru ? "Активные устройства" : "Active devices"} text={ru ? "Здесь появится список устройств и возможность завершить отдельные сеансы. Серверный список сессий ещё не подключён." : "A device list and per-session sign-out will appear here. The server-side session list is not connected yet."} />}
+            {activeSection === "calls" && <SettingsNotice locale={locale} title={ru ? "Личные аудио- и видеозвонки" : "Private audio and video calls"} text={ru ? "Звонки запланированы, но пока отключены. Для безопасного соединения нужен медиарелей, который разрешает звонки пользователей HELORO и гарантирует нулевые списания. Прямое соединение без такого релея может раскрыть сетевой адрес собеседнику." : "Calls are planned but remain disabled. A safe media relay is required that permits HELORO users and guarantees zero charges. A direct connection without such a relay can reveal a participant’s network address."} />}
 
             {activeSection === "appearance" && (
               <div className="settings-section-content">
