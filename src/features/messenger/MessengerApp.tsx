@@ -7,6 +7,7 @@ import {
   CheckCheck,
   Flag,
   Headphones,
+  ImagePlus,
   Menu,
   Megaphone,
   MessageCircle,
@@ -15,6 +16,7 @@ import {
   Phone,
   Search,
   Settings2,
+  SmilePlus,
   ShieldCheck,
   Video,
   X,
@@ -25,7 +27,9 @@ import {
   getMessages,
   searchProfiles,
   sendMessage,
+  sendMediaMessage,
   subscribeToMessages,
+  toggleMessageReaction,
 } from "../../lib/messenger";
 import { formatInboxTime, formatMessageTime, initials, messageBodySchema } from "../../lib/domain";
 import type { InboxConversation, Message, Profile, PublicProfile, BadgeType } from "../../lib/types";
@@ -74,6 +78,7 @@ function EmptyChat({ locale }: { locale: Locale }) {
 }
 
 const reportReasons = ["spam", "harassment", "scam", "inappropriate", "other"] as const;
+const reactionChoices = ["👍", "❤️", "😂", "🔥", "😮", "👏"] as const;
 
 const LazyMessengerNavigation = lazy(async () => {
   const module = await import("./MessengerNavigation");
@@ -98,6 +103,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const [loadingInbox, setLoadingInbox] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sending, setSending] = useState(false);
+  const [mediaSending, setMediaSending] = useState(false);
   const [error, setError] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -109,6 +115,8 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const [reportBusy, setReportBusy] = useState(false);
   const [chatFilter, setChatFilter] = useState<"all" | "personal">("all");
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const stickerInputRef = useRef<HTMLInputElement>(null);
+  const gifInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const isStaff = roles.some((role) => role === "owner" || role === "admin" || role === "moderator");
 
@@ -192,14 +200,28 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
       })
       .finally(() => { if (active) setLoadingMessages(false); });
 
-    const channel = subscribeToMessages(activeId, (incoming) => {
-      setMessages((current) => current.some((item) => item.id === incoming.id) ? current : [...current, incoming]);
+    const channel = subscribeToMessages(activeId, () => {
+      void getMessages(activeId).then(setMessages).catch((cause: unknown) => {
+        setError(cause instanceof Error ? cause.message : t(locale, "messagesLoadFailed"));
+      });
       void refreshInbox();
     });
     return () => {
       active = false;
       void client.removeChannel(channel);
     };
+  }, [activeId, client, locale]);
+
+  useEffect(() => {
+    if (!activeId) return;
+    const channel = client.channel(`heloro:reactions:${activeId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "message_reactions" }, () => {
+        void getMessages(activeId).then(setMessages).catch((cause: unknown) => {
+          setError(cause instanceof Error ? cause.message : t(locale, "messagesLoadFailed"));
+        });
+      })
+      .subscribe();
+    return () => { void client.removeChannel(channel); };
   }, [activeId, client, locale]);
 
   useEffect(() => {
@@ -273,6 +295,33 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
       setError(cause instanceof Error ? cause.message : t(locale, "messageSendFailed"));
     } finally {
       setSending(false);
+    }
+  }
+
+  async function handleReaction(messageId: string, emoji: string) {
+    try {
+      await toggleMessageReaction(messageId, user.id, emoji);
+      const refreshed = await getMessages(activeId ?? "");
+      setMessages(refreshed);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : t(locale, "messageSendFailed"));
+    }
+  }
+
+  async function handleMediaSelect(kind: "sticker" | "gif", file?: File) {
+    if (!file || !activeId) return;
+    setMediaSending(true);
+    setError("");
+    try {
+      await sendMediaMessage(activeId, user.id, file, kind);
+      setMessages(await getMessages(activeId));
+      await refreshInbox();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : t(locale, "messageSendFailed"));
+    } finally {
+      setMediaSending(false);
+      if (kind === "sticker" && stickerInputRef.current) stickerInputRef.current.value = "";
+      if (kind === "gif" && gifInputRef.current) gifInputRef.current.value = "";
     }
   }
 
@@ -531,8 +580,34 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                   return (
                     <div className={`message-row ${mine ? "mine" : "theirs"}`} key={message.id}>
                       <div className="message-bubble">
-                        <p>{message.body}</p>
+                        {message.media?.url ? (
+                          <img
+                            className={message.media.kind === "gif" ? "message-media message-gif" : "message-media message-sticker"}
+                            src={message.media.url}
+                            alt={message.media.kind === "gif" ? (locale === "ru" ? "GIF" : "GIF") : (locale === "ru" ? "Стикер" : "Sticker")}
+                            loading="lazy"
+                          />
+                        ) : message.body ? <p>{message.body}</p> : null}
                         <span>{formatMessageTime(message.created_at)} {mine && <CheckCheck size={13} />}</span>
+                      </div>
+                      <div className="message-reactions" aria-label={locale === "ru" ? "Реакции" : "Reactions"}>
+                        {reactionChoices.map((emoji) => {
+                          const users = message.reactions ?? [];
+                          const count = users.filter((item) => item.emoji === emoji).length;
+                          const selected = users.some((item) => item.emoji === emoji && item.user_id === user.id);
+                          return (
+                            <button
+                              key={emoji}
+                              type="button"
+                              className={selected ? "message-reaction active" : "message-reaction"}
+                              aria-pressed={selected}
+                              title={locale === "ru" ? "Поставить реакцию" : "React"}
+                              onClick={() => void handleReaction(message.id, emoji)}
+                            >
+                              {emoji}{count > 0 && <small>{count}</small>}
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
                   );
@@ -541,10 +616,18 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
               </div>
               {error && <div className="inline-error" role="alert">{error}<button onClick={() => setError("")} aria-label={t(locale, "dismiss")}><X size={14} /></button></div>}
               <form className="composer" onSubmit={handleSend}>
+                <button type="button" className="icon-button composer-media-button" onClick={() => stickerInputRef.current?.click()} disabled={mediaSending} aria-label={locale === "ru" ? "Отправить стикер" : "Send sticker"} title={locale === "ru" ? "Стикер из файла" : "Sticker from file"}>
+                  <SmilePlus size={19} />
+                </button>
+                <button type="button" className="icon-button composer-media-button" onClick={() => gifInputRef.current?.click()} disabled={mediaSending} aria-label="GIF" title={locale === "ru" ? "Отправить GIF" : "Send GIF"}>
+                  <ImagePlus size={19} />
+                </button>
+                <input ref={stickerInputRef} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(event) => void handleMediaSelect("sticker", event.target.files?.[0])} />
+                <input ref={gifInputRef} type="file" accept="image/gif" hidden onChange={(event) => void handleMediaSelect("gif", event.target.files?.[0])} />
                 <input
                   value={draft}
                   onChange={(event) => setDraft(event.target.value)}
-                  placeholder={t(locale, "messagePlaceholder")}
+                  placeholder={mediaSending ? (locale === "ru" ? "Отправка медиа…" : "Sending media…") : t(locale, "messagePlaceholder")}
                   aria-label={t(locale, "messagePlaceholder")}
                   maxLength={4000}
                 />
