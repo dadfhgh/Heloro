@@ -525,7 +525,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                 <div className="profile-home-card">
                   <Avatar label={ownProfile.display_name} className="profile-home-avatar" src={ownProfile.avatar_url} />
                   <div className="profile-home-title">
-                    <strong>{ownProfile.display_name}<VerificationMark type={null} title="" /></strong>
+                    <strong>{ownProfile.display_name}</strong>
                     <small>@{ownProfile.username}</small>
                     {roles.includes("owner") && <span className="profile-home-role"><ShieldCheck size={13} /> {t(locale, "ownerRole")}</span>}
                   </div>
@@ -546,7 +546,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                 <p>{locale === "ru" ? "Найдите человека по имени пользователя" : "Find people by username"}</p>
                 <span>{locale === "ru" ? "Введите имя пользователя в строке поиска выше" : "Enter a username in the search field above"}</span>
               </div>
-            ) : {showSearch && search.trim().length > 1 ? (
+            ) : showSearch && search.trim().length > 1 ? (
               <>
                 <div className="section-label">{locale === "ru" ? "Люди" : "People"}</div>
                 {searching ? (
