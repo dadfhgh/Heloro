@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import type { User } from "@supabase/supabase-js";
 import {
   ArrowLeft,
@@ -31,7 +31,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { t, type Locale } from "../../lib/i18n";
 import OfficialPanels from "./OfficialPanels";
 import { submitUserReport } from "../../lib/official";
-import { MessengerNavigation, MessengerSettings, type SettingsSection } from "./MessengerNavigation";
+import type { SettingsSection } from "./MessengerNavigation";
 import type { ThemePreference } from "../../lib/preferences";
 
 type SystemView = "news" | "discussion" | "support" | "admin";
@@ -72,6 +72,16 @@ function EmptyChat({ locale }: { locale: Locale }) {
 }
 
 const reportReasons = ["spam", "harassment", "scam", "inappropriate", "other"] as const;
+
+const LazyMessengerNavigation = lazy(async () => {
+  const module = await import("./MessengerNavigation");
+  return { default: module.MessengerNavigation };
+});
+
+const LazyMessengerSettings = lazy(async () => {
+  const module = await import("./MessengerNavigation");
+  return { default: module.MessengerSettings };
+});
 
 export default function MessengerApp({ client, user, profile, locale, onLocaleChange, roles, theme, onThemeChange }: Props) {
   const [inbox, setInbox] = useState<InboxConversation[]>([]);
@@ -545,35 +555,39 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
       {error && !activeConversation && !systemView && <div className="global-error" role="alert">{error}<button onClick={() => setError("")} aria-label={t(locale, "dismiss")}><X size={14} /></button></div>}
 
       {showNavigation && (
-        <MessengerNavigation
-          profile={profile}
-          locale={locale}
-          roles={roles}
-          onClose={() => setShowNavigation(false)}
-          onOpenInbox={closeConversation}
-          onOpenContacts={openSearch}
-          onOpenNews={() => openSystemView("news")}
-          onOpenSupport={() => openSystemView("support")}
-          onOpenSettings={() => openSettings("account")}
-          onOpenAdmin={() => openSystemView("admin")}
-        />
+        <Suspense fallback={null}>
+          <LazyMessengerNavigation
+            profile={profile}
+            locale={locale}
+            roles={roles}
+            onClose={() => setShowNavigation(false)}
+            onOpenInbox={closeConversation}
+            onOpenContacts={openSearch}
+            onOpenNews={() => openSystemView("news")}
+            onOpenSupport={() => openSystemView("support")}
+            onOpenSettings={() => openSettings("account")}
+            onOpenAdmin={() => openSystemView("admin")}
+          />
+        </Suspense>
       )}
 
       {showSettings && (
-        <MessengerSettings
-          profile={profile}
-          locale={locale}
-          roles={roles}
-          theme={theme}
-          activeSection={settingsSection}
-          onSectionChange={setSettingsSection}
-          onThemeChange={onThemeChange}
-          onLocaleChange={onLocaleChange}
-          onClose={() => setShowSettings(false)}
-          onOpenSupport={() => { setShowSettings(false); openSystemView("support"); }}
-          onOpenAdmin={() => { setShowSettings(false); openSystemView("admin"); }}
-          onSignOut={() => void signOut()}
-        />
+        <Suspense fallback={null}>
+          <LazyMessengerSettings
+            profile={profile}
+            locale={locale}
+            roles={roles}
+            theme={theme}
+            activeSection={settingsSection}
+            onSectionChange={setSettingsSection}
+            onThemeChange={onThemeChange}
+            onLocaleChange={onLocaleChange}
+            onClose={() => setShowSettings(false)}
+            onOpenSupport={() => { setShowSettings(false); openSystemView("support"); }}
+            onOpenAdmin={() => { setShowSettings(false); openSystemView("admin"); }}
+            onSignOut={() => void signOut()}
+          />
+        </Suspense>
       )}
 
       {showReport && activeConversation && (
