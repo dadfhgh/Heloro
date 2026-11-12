@@ -39,6 +39,7 @@ import type { InboxConversation, Message, Profile, PublicProfile, BadgeType } fr
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { t, type Locale } from "../../lib/i18n";
 import OfficialPanels from "./OfficialPanels";
+import CommunityHub from "./CommunityHub";
 import { setVerificationBadge, submitUserReport } from "../../lib/official";
 import type { SettingsSection } from "./MessengerNavigation";
 import type { ThemePreference } from "../../lib/preferences";
@@ -114,6 +115,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const [showSettings, setShowSettings] = useState(false);
   const [showNavigation, setShowNavigation] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [showCommunityHub, setShowCommunityHub] = useState(false);
   const [viewedProfile, setViewedProfile] = useState<PublicProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileBusy, setProfileBusy] = useState(false);
@@ -477,6 +479,9 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
         <aside className="inbox-panel">
           <header className="inbox-topbar telegram-main-topbar">
             <div className="brand-lockup"><div className="brand-symbol">H</div><span>HELORO</span></div>
+            <button className="icon-button communities-button" type="button" title={locale === "ru" ? "Группы и каналы" : "Groups and channels"} aria-label={locale === "ru" ? "Группы и каналы" : "Groups and channels"} onClick={() => setShowCommunityHub(true)}>
+              <Users size={20} />
+            </button>
             <button
               className="icon-button overflow-button"
               title={locale === "ru" ? "Дополнительно" : "More"}
@@ -794,6 +799,8 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
           />
         </Suspense>
       )}
+
+      {showCommunityHub && <CommunityHub client={client} user={user} locale={locale} onClose={() => setShowCommunityHub(false)} />}
 
       {showProfile && (
         <div className="profile-view-overlay" onClick={() => setShowProfile(false)}>
