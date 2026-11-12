@@ -1,10 +1,15 @@
 import { useState, type FormEvent } from "react";
-import { ArrowRight, Eye, EyeOff, MessageCircle, ShieldCheck } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, MessageCircle, Search, ShieldCheck } from "lucide-react";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { t, type Locale } from "../../lib/i18n";
 
-type Props = { client: SupabaseClient };
+type Props = {
+  client: SupabaseClient;
+  locale: Locale;
+  onLocaleChange: (next: Locale) => void;
+};
 
-export default function AuthScreen({ client }: Props) {
+export default function AuthScreen({ client, locale, onLocaleChange }: Props) {
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -31,9 +36,9 @@ export default function AuthScreen({ client }: Props) {
         });
         if (authError) throw authError;
         if (!data.session) {
-          setNotice("Check your email for a confirmation link, then come back here to sign in.");
+          setNotice(t(locale, "authEmailNotice"));
         } else {
-          setNotice("Account created. Let's set up your profile.");
+          setNotice(t(locale, "authAccountReady"));
         }
       } else {
         const { error: authError } = await client.auth.signInWithPassword({
@@ -43,7 +48,7 @@ export default function AuthScreen({ client }: Props) {
         if (authError) throw authError;
       }
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Something went wrong. Please try again.");
+      setError(cause instanceof Error ? cause.message : t(locale, "authGenericError"));
     } finally {
       setBusy(false);
     }
@@ -55,51 +60,58 @@ export default function AuthScreen({ client }: Props) {
       <div className="auth-orb auth-orb-b" />
       <header className="auth-topbar">
         <div className="brand-lockup"><div className="brand-symbol">H</div><span>HELORO</span></div>
-        <span className="topbar-caption">A little closer, every day</span>
+        <div className="language-toggle" role="group" aria-label={t(locale, "language")}>
+          <button type="button" className={locale === "ru" ? "active" : ""} aria-pressed={locale === "ru"} onClick={() => onLocaleChange("ru")}>RU</button>
+          <button type="button" className={locale === "en" ? "active" : ""} aria-pressed={locale === "en"} onClick={() => onLocaleChange("en")}>EN</button>
+        </div>
       </header>
       <div className="auth-layout">
         <section className="auth-intro">
-          <div className="eyebrow"><span className="eyebrow-dot" /> YOUR SPACE, YOUR PEOPLE</div>
-          <h1>Stay close.<br /><span>Feel connected.</span></h1>
-          <p>Simple conversations, thoughtful details, and a little more room to breathe.</p>
+          <div className="eyebrow">HELORO</div>
+          <h1>{t(locale, mode === "signin" ? "authLoginTitle" : "authRegisterTitle")}</h1>
+          <p>{t(locale, "authIntroText")}</p>
           <div className="intro-points">
-            <span><MessageCircle size={16} /> Conversations that matter</span>
-            <span><ShieldCheck size={16} /> Private by design</span>
-          </div>
-          <div className="floating-glass-card">
-            <div className="mini-avatar mini-avatar-blue">H</div>
-            <div><strong>A calmer inbox</strong><small>Everything in its place.</small></div>
-            <span className="tiny-live-dot" />
+            <span><MessageCircle size={16} /> {t(locale, "authFeatureMessages")}</span>
+            <span><Search size={16} /> {t(locale, "authFeatureSearch")}</span>
           </div>
         </section>
         <section className="auth-card glass-panel">
           <div className="auth-card-heading">
             <div className="auth-card-icon"><MessageCircle size={20} /></div>
-            <div><h2>{mode === "signin" ? "Welcome back" : "Create your account"}</h2><p>{mode === "signin" ? "Pick up where you left off." : "Your HELORO space starts here."}</p></div>
+            <div>
+              <h2>{t(locale, mode === "signin" ? "authLogin" : "authSignup")}</h2>
+              <p>{t(locale, mode === "signin" ? "authLoginDescription" : "authSignupDescription")}</p>
+            </div>
           </div>
-          <div className="auth-tabs" role="tablist" aria-label="Account access">
-            <button type="button" role="tab" aria-selected={mode === "signin"} className={mode === "signin" ? "active" : ""} onClick={() => { setMode("signin"); setError(""); setNotice(""); }}>Sign in</button>
-            <button type="button" role="tab" aria-selected={mode === "signup"} className={mode === "signup" ? "active" : ""} onClick={() => { setMode("signup"); setError(""); setNotice(""); }}>Sign up</button>
+          <div className="auth-tabs" role="tablist" aria-label={t(locale, "settingsAccount")}>
+            <button type="button" role="tab" aria-selected={mode === "signin"} className={mode === "signin" ? "active" : ""} onClick={() => { setMode("signin"); setError(""); setNotice(""); }}>{t(locale, "authLogin")}</button>
+            <button type="button" role="tab" aria-selected={mode === "signup"} className={mode === "signup" ? "active" : ""} onClick={() => { setMode("signup"); setError(""); setNotice(""); }}>{t(locale, "authSignup")}</button>
           </div>
           <form className="auth-form" onSubmit={handleSubmit}>
-            {mode === "signup" && <label>Display name<input autoComplete="name" value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="How should we call you?" maxLength={48} required /></label>}
-            <label>Email address<input type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" required /></label>
-            <label>Password
+            {mode === "signup" && (
+              <label>{t(locale, "authDisplayName")}
+                <input autoComplete="name" value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder={t(locale, "authDisplayNamePlaceholder")} maxLength={48} required />
+              </label>
+            )}
+            <label>{t(locale, "authEmail")}
+              <input type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder={t(locale, "authEmailPlaceholder")} required />
+            </label>
+            <label>{t(locale, "authPassword")}
               <div className="password-wrap">
-                <input type={showPassword ? "text" : "password"} autoComplete={mode === "signin" ? "current-password" : "new-password"} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="At least 8 characters" minLength={8} required />
-                <button type="button" className="icon-button password-toggle" aria-label={showPassword ? "Hide password" : "Show password"} onClick={() => setShowPassword((value) => !value)}>{showPassword ? <EyeOff size={17} /> : <Eye size={17} />}</button>
+                <input type={showPassword ? "text" : "password"} autoComplete={mode === "signin" ? "current-password" : "new-password"} value={password} onChange={(event) => setPassword(event.target.value)} placeholder={t(locale, "authPasswordPlaceholder")} minLength={8} required />
+                <button type="button" className="icon-button password-toggle" aria-label={showPassword ? t(locale, "dismiss") : t(locale, "authPassword")} onClick={() => setShowPassword((value) => !value)}>{showPassword ? <EyeOff size={17} /> : <Eye size={17} />}</button>
               </div>
             </label>
             {error && <p className="form-message error-message" role="alert">{error}</p>}
             {notice && <p className="form-message success-message" role="status">{notice}</p>}
             <button className="primary-button full-button" type="submit" disabled={busy}>
-              {busy ? "Please wait…" : mode === "signin" ? "Sign in" : "Create account"} <ArrowRight size={17} />
+              {busy ? t(locale, "authWait") : mode === "signin" ? t(locale, "authLogin") : t(locale, "authCreateAccount")} <ArrowRight size={17} />
             </button>
           </form>
-          <div className="auth-legal"><ShieldCheck size={14} /> Your account and conversations are protected by server-side access rules.</div>
+          <div className="auth-legal"><ShieldCheck size={14} /> {t(locale, "authLegal")}</div>
         </section>
       </div>
-      <footer className="auth-footer"><span>HELORO</span><span>Thoughtfully connected.</span><span>© 2026</span></footer>
+      <footer className="auth-footer"><span>HELORO</span><span>© 2026</span></footer>
     </main>
   );
 }
