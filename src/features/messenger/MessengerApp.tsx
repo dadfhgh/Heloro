@@ -18,24 +18,28 @@ import {
   Settings2,
   SmilePlus,
   ShieldCheck,
+  Trash2,
   Video,
   X,
 } from "lucide-react";
 import {
   createDirectConversation,
+  deleteDirectMessage,
   getInbox,
   getMessages,
+  getPublicProfile,
   searchProfiles,
   sendMessage,
   sendMediaMessage,
   subscribeToMessages,
+  uploadAvatar,
 } from "../../lib/messenger";
 import { formatInboxTime, formatMessageTime, initials, messageBodySchema } from "../../lib/domain";
 import type { InboxConversation, Message, Profile, PublicProfile, BadgeType } from "../../lib/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { t, type Locale } from "../../lib/i18n";
 import OfficialPanels from "./OfficialPanels";
-import { submitUserReport } from "../../lib/official";
+import { setVerificationBadge, submitUserReport } from "../../lib/official";
 import type { SettingsSection } from "./MessengerNavigation";
 import type { ThemePreference } from "../../lib/preferences";
 
@@ -52,8 +56,10 @@ type Props = {
   onThemeChange: (next: ThemePreference) => void;
 };
 
-function Avatar({ label, className = "" }: { label: string; className?: string }) {
-  return <div className={`avatar ${className}`} aria-hidden="true">{initials(label)}</div>;
+function Avatar({ label, className = "", src }: { label: string; className?: string; src?: string | null }) {
+  return <div className={`avatar ${className}`} aria-hidden="true">
+    {src ? <img src={src} alt="" loading="lazy" /> : initials(label)}
+  </div>;
 }
 
 function VerificationMark({ type, title }: { type?: BadgeType | null; title: string }) {
@@ -90,6 +96,7 @@ const LazyMessengerSettings = lazy(async () => {
 
 export default function MessengerApp({ client, user, profile, locale, onLocaleChange, roles, theme, onThemeChange }: Props) {
   const [inbox, setInbox] = useState<InboxConversation[]>([]);
+  const [ownProfile, setOwnProfile] = useState(profile);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [systemView, setSystemView] = useState<SystemView | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -106,6 +113,12 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const [showSearch, setShowSearch] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showNavigation, setShowNavigation] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
+  const [viewedProfile, setViewedProfile] = useState<PublicProfile | null>(null);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileBusy, setProfileBusy] = useState(false);
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const [profileError, setProfileError] = useState("");
   const [settingsSection, setSettingsSection] = useState<SettingsSection>("account");
   const [showReport, setShowReport] = useState(false);
   const [reportReason, setReportReason] = useState<(typeof reportReasons)[number]>("other");
@@ -115,8 +128,10 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const searchInputRef = useRef<HTMLInputElement>(null);
   const stickerInputRef = useRef<HTMLInputElement>(null);
   const gifInputRef = useRef<HTMLInputElement>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const isStaff = roles.some((role) => role === "owner" || role === "admin" || role === "moderator");
+  const canManageBadges = roles.includes("owner") || roles.includes("admin");
 
   const activeConversation = useMemo(
     () => inbox.find((item) => item.conversation_id === activeId) ?? null,
@@ -198,12 +213,16 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
       })
       .finally(() => { if (active) setLoadingMessages(false); });
 
-    const channel = subscribeToMessages(activeId, () => {
-      void getMessages(activeId).then(setMessages).catch((cause: unknown) => {
-        setError(cause instanceof Error ? cause.message : t(locale, "messagesLoadFailed"));
-      });
-      void refreshInbox();
-    });
+    const channel = subscribeToMessages(activeId,
+      () => {
+        void getMessages(activeId).then(setMessages).catch((cause: unknown) => setError(cause instanceof Error ? cause.message : t(locale, "messagesLoadFailed")));
+        void refreshInbox();
+      },
+      () => {
+        void getMessages(activeId).then(setMessages).catch((cause: unknown) => setError(cause instanceof Error ? cause.message : t(locale, "messagesLoadFailed")));
+        void refreshInbox();
+      },
+    );
     return () => {
       active = false;
       void client.removeChannel(channel);
@@ -235,17 +254,18 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   }, [search, user.id, locale]);
 
   useEffect(() => {
-    if (!showSettings && !showReport && !showNavigation) return;
+    if (!showSettings && !showReport && !showNavigation && !showProfile) return;
     function closeOnEscape(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setShowSettings(false);
         setShowNavigation(false);
         setShowReport(false);
+        setShowProfile(false);
       }
     }
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [showSettings, showNavigation, showReport]);
+  }, [showSettings, showNavigation, showReport, showProfile]);
 
   useEffect(() => {
     if (showSearch) searchInputRef.current?.focus();
@@ -281,6 +301,71 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
       setError(cause instanceof Error ? cause.message : t(locale, "messageSendFailed"));
     } finally {
       setSending(false);
+    }
+  }
+
+  async function openUserProfile(userId: string) {
+    setShowProfile(true);
+    setViewedProfile(null);
+    setProfileLoading(true);
+    setProfileError("");
+    try {
+      const target = await getPublicProfile(userId);
+      if (!target) throw new Error("Profile not found.");
+      setViewedProfile(target);
+    } catch {
+      setProfileError(t(locale, "profileLoadError"));
+    } finally {
+      setProfileLoading(false);
+    }
+  }
+
+  async function handleAvatarSelect(file?: File) {
+    if (!file) return;
+    setAvatarBusy(true);
+    setProfileError("");
+    try {
+      const updated = await uploadAvatar(user.id, file);
+      setOwnProfile(updated);
+      setViewedProfile((current) => current?.id === updated.id ? { ...current, avatar_url: updated.avatar_url } : current);
+      setInbox((current) => current.map((item) => item.other_user_id === updated.id ? { ...item, avatar_url: updated.avatar_url } : item));
+    } catch {
+      setProfileError(t(locale, "profilePhotoError"));
+    } finally {
+      setAvatarBusy(false);
+      if (avatarInputRef.current) avatarInputRef.current.value = "";
+    }
+  }
+
+  async function removeProfileBadge() {
+    if (!viewedProfile || !canManageBadges || !viewedProfile.badge_type) return;
+    if (!window.confirm(t(locale, "profileBadgeRemoveConfirm"))) return;
+    setProfileBusy(true);
+    setProfileError("");
+    try {
+      await setVerificationBadge(client, viewedProfile.id, user.id, null);
+      setViewedProfile((current) => current ? { ...current, badge_type: null } : current);
+      setBadgeMap((current) => {
+        const next = { ...current };
+        delete next[viewedProfile.id];
+        return next;
+      });
+    } catch {
+      setProfileError(t(locale, "profileBadgeRemoveError"));
+    } finally {
+      setProfileBusy(false);
+    }
+  }
+
+  async function removeDirectMessage(message: Message) {
+    if (message.sender_id !== user.id || !window.confirm(t(locale, "messageDeleteConfirm"))) return;
+    setError("");
+    try {
+      await deleteDirectMessage(message, user.id);
+      setMessages((current) => current.filter((item) => item.id !== message.id));
+      await refreshInbox();
+    } catch {
+      setError(t(locale, "messageDeleteError"));
     }
   }
 
@@ -416,7 +501,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                   <p className="muted small-copy">{t(locale, "inboxNoResults")}</p>
                 ) : results.map((person) => (
                   <button className="person-result" key={person.id} onClick={() => void startConversation(person)}>
-                    <Avatar label={person.display_name || person.username} />
+                    <Avatar label={person.display_name || person.username} src={person.avatar_url} />
                     <span><strong>{person.display_name || person.username}<VerificationMark type={person.badge_type} title={locale === "ru" ? "Аккаунт подтверждён HELORO" : "Verified by HELORO"} /></strong><small>@{person.username}</small></span>
                     <MessageCircle size={17} />
                   </button>
@@ -471,7 +556,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                       key={item.conversation_id}
                       onClick={() => { setActiveId(item.conversation_id); setSystemView(null); setShowSearch(false); }}
                     >
-                      <Avatar label={label} />
+                      <Avatar label={label} src={item.avatar_url} />
                       <span className="conversation-copy">
                         <span className="conversation-title-line">
                           <strong>{label}<VerificationMark type={badgeMap[item.other_user_id]} title={locale === "ru" ? "Аккаунт подтверждён HELORO" : "Verified by HELORO"} /></strong>
@@ -490,15 +575,12 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
           </section>
 
           <footer className="inbox-profile">
-            <Avatar label={profile.display_name} className="profile-avatar" />
-            <span className="profile-summary">
-              <strong>{profile.display_name}</strong>
-              <small>@{profile.username}</small>
-            </span>
-            {roles.includes("owner") && <span className="owner-mini-mark" title={t(locale, "ownerRole")}><ShieldCheck size={15} /></span>}
-            <button className="icon-button profile-menu-button" title={t(locale, "settings")} aria-label={t(locale, "settings")} onClick={() => openSettings("account")}>
-              <Settings2 size={18} />
+            <button className="inbox-own-profile" type="button" onClick={() => void openUserProfile(user.id)} aria-label={t(locale, "profileViewTitle")}>
+              <Avatar label={ownProfile.display_name} className="profile-avatar" src={ownProfile.avatar_url} />
+              <span className="profile-summary"><strong>{ownProfile.display_name}</strong><small>@{ownProfile.username}</small></span>
             </button>
+            {roles.includes("owner") && <span className="owner-mini-mark" title={t(locale, "ownerRole")}><ShieldCheck size={15} /></span>}
+            <button className="icon-button profile-menu-button" title={t(locale, "settings")} aria-label={t(locale, "settings")} onClick={() => openSettings("account")}><Settings2 size={18} /></button>
           </footer>
         </aside>
 
@@ -521,11 +603,13 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                 <button className="icon-button mobile-back" aria-label={t(locale, "inboxBack")} onClick={closeConversation}>
                   <ArrowLeft size={20} />
                 </button>
-                <Avatar label={activeConversation.display_name || activeConversation.username} className="chat-header-avatar" />
-                <div className="chat-person">
-                  <strong>{activeConversation.display_name || activeConversation.username}<VerificationMark type={badgeMap[activeConversation.other_user_id]} title={locale === "ru" ? "Аккаунт подтверждён HELORO" : "Verified by HELORO"} /></strong>
-                  <small>@{activeConversation.username}</small>
-                </div>
+                <button type="button" className="chat-profile-trigger" onClick={() => void openUserProfile(activeConversation.other_user_id)} aria-label={t(locale, "profileViewTitle")}>
+                  <Avatar label={activeConversation.display_name || activeConversation.username} className="chat-header-avatar" src={activeConversation.avatar_url} />
+                  <span className="chat-person">
+                    <strong>{activeConversation.display_name || activeConversation.username}<VerificationMark type={badgeMap[activeConversation.other_user_id]} title={locale === "ru" ? "Аккаунт подтверждён HELORO" : "Verified by HELORO"} /></strong>
+                    <small>@{activeConversation.username}</small>
+                  </span>
+                </button>
                 <div className="chat-header-actions">
                   <button className="icon-button" aria-label={t(locale, "chatSearch")} title={t(locale, "chatSearch")} onClick={() => openSearch()}>
                     <Search size={20} />
@@ -564,7 +648,10 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                             loading="lazy"
                           />
                         ) : message.body ? <p>{message.body}</p> : null}
-                        <span>{formatMessageTime(message.created_at)} {mine && <CheckCheck size={13} />}</span>
+                        <div className="message-meta">
+                          <span>{formatMessageTime(message.created_at)} {mine && <CheckCheck size={13} />}</span>
+                          {mine && <button type="button" className="message-delete-button" onClick={() => void removeDirectMessage(message)} aria-label={t(locale, "messageDelete")} title={t(locale, "messageDelete")}><Trash2 size={13} /></button>}
+                        </div>
                       </div>
                     </div>
                   );
@@ -605,7 +692,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
       {showNavigation && (
         <Suspense fallback={null}>
           <LazyMessengerNavigation
-            profile={profile}
+            profile={ownProfile}
             locale={locale}
             roles={roles}
             onClose={() => setShowNavigation(false)}
@@ -622,7 +709,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
       {showSettings && (
         <Suspense fallback={null}>
           <LazyMessengerSettings
-            profile={profile}
+            profile={ownProfile}
             locale={locale}
             roles={roles}
             theme={theme}
@@ -636,6 +723,28 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
             onSignOut={() => void signOut()}
           />
         </Suspense>
+      )}
+
+      {showProfile && (
+        <div className="profile-view-overlay" onClick={() => setShowProfile(false)}>
+          <section className="profile-view-card" role="dialog" aria-modal="true" aria-labelledby="profile-view-title" onClick={(event) => event.stopPropagation()}>
+            <div className="profile-view-cover" />
+            <div className="profile-view-content">
+              <div className="profile-view-heading"><span>{t(locale, "profileViewTitle")}</span><button className="icon-button" type="button" onClick={() => setShowProfile(false)} aria-label={t(locale, "settingsClose")}><X size={18} /></button></div>
+              {profileLoading ? <p className="profile-view-loading">{t(locale, "appLoading")}</p> : viewedProfile ? <>
+                <Avatar label={viewedProfile.display_name || viewedProfile.username} className="profile-view-avatar" src={viewedProfile.avatar_url} />
+                <h2 id="profile-view-title">{viewedProfile.display_name || viewedProfile.username}<VerificationMark type={viewedProfile.badge_type} title={locale === "ru" ? "Аккаунт подтверждён HELORO" : "Verified by HELORO"} /></h2>
+                <p className="profile-view-username">@{viewedProfile.username}</p>
+                {viewedProfile.id === user.id && <>
+                  <input ref={avatarInputRef} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(event) => void handleAvatarSelect(event.target.files?.[0])} />
+                  <button className="profile-view-action" type="button" disabled={avatarBusy} onClick={() => avatarInputRef.current?.click()}><ImagePlus size={16} />{avatarBusy ? t(locale, "profilePhotoUploading") : t(locale, "profilePhotoChange")}</button>
+                </>}
+                {canManageBadges && viewedProfile.badge_type && <button className="profile-view-remove-badge" type="button" disabled={profileBusy} onClick={() => void removeProfileBadge()}><ShieldCheck size={16} />{profileBusy ? t(locale, "profileBadgeRemoving") : t(locale, "profileBadgeRemove")}</button>}
+              </> : <p className="profile-view-loading">{profileError || t(locale, "profileLoadError")}</p>}
+              {profileError && viewedProfile && <p className="profile-view-error" role="alert">{profileError}</p>}
+            </div>
+          </section>
+        </div>
       )}
 
       {showReport && activeConversation && (

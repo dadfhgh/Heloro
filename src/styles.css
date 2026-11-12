@@ -143,7 +143,8 @@ a { color: inherit; }
 .conversation-item, .person-result { display: flex; align-items: center; width: 100%; gap: 11px; padding: 10px 9px; border: 0; border-radius: 14px; text-align: left; background: transparent; transition: background .16s ease; }
 .conversation-item:hover, .person-result:hover { background: rgba(230,244,247,.8); }
 .conversation-item.selected { background: rgba(222,242,244,.88); }
-.avatar { display: grid; place-items: center; flex: 0 0 auto; width: 42px; height: 42px; border-radius: 15px; color: #fff; font: 700 13px "Manrope", sans-serif; background: linear-gradient(145deg, #84cfc8, #6a9fc2); box-shadow: 0 5px 12px rgba(80,154,168,.12); }
+.avatar { display: grid; place-items: center; flex: 0 0 auto; width: 42px; height: 42px; overflow: hidden; border-radius: 15px; color: #fff; font: 700 13px "Manrope", sans-serif; background: linear-gradient(145deg, #84cfc8, #6a9fc2); box-shadow: 0 5px 12px rgba(80,154,168,.12); }
+.avatar img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
 .avatar.small-avatar { width: 34px; height: 34px; border-radius: 12px; font-size: 11px; }
 .conversation-copy { display: grid; min-width: 0; flex: 1; gap: 4px; }
 .conversation-copy strong { overflow: hidden; color: #35556a; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
@@ -169,6 +170,8 @@ a { color: inherit; }
 .signed-user small { color: #9aadb5; font-size: 9px; }
 .conversation-panel { display: flex; flex-direction: column; background: rgba(255,255,255,.53); }
 .chat-header { display: flex; align-items: center; gap: 12px; min-height: 78px; padding: 14px 23px; border-bottom: 1px solid rgba(147,183,195,.17); background: rgba(255,255,255,.48); }
+.chat-profile-trigger { min-width: 0; display: flex; align-items: center; gap: 12px; padding: 0; border: 0; color: inherit; background: transparent; text-align: left; font: inherit; cursor: pointer; }
+.chat-profile-trigger:focus-visible, .inbox-own-profile:focus-visible { outline: 2px solid #69b9ca; outline-offset: 3px; border-radius: 11px; }
 .chat-person { display: grid; gap: 4px; }
 .chat-person strong { color: #2e5064; font-size: 13px; }
 .chat-person small { color: #91a7b0; font-size: 10px; }
@@ -182,8 +185,11 @@ a { color: inherit; }
 .message-bubble { max-width: min(78%, 460px); padding: 11px 14px 8px; border: 1px solid rgba(150,184,196,.16); border-radius: 16px 16px 16px 5px; background: rgba(255,255,255,.82); box-shadow: 0 3px 10px rgba(73,127,149,.04); }
 .message-row.mine .message-bubble { color: #fff; border-color: transparent; border-radius: 16px 16px 5px 16px; background: linear-gradient(130deg, #5ca9c8, #6abeb5); box-shadow: 0 5px 14px rgba(83,168,180,.14); }
 .message-bubble p { margin: 0; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; white-space: pre-wrap; }
-.message-bubble > span { display: flex; justify-content: flex-end; align-items: center; gap: 4px; margin-top: 4px; color: rgba(255,255,255,.72); font-size: 9px; }
-.message-row.theirs .message-bubble > span { color: #a3b3ba; }
+.message-meta { display: flex; justify-content: flex-end; align-items: center; gap: 7px; margin-top: 4px; }
+.message-meta > span { display: flex; align-items: center; gap: 4px; color: rgba(255,255,255,.72); font-size: 9px; }
+.message-row.theirs .message-meta > span { color: #a3b3ba; }
+.message-delete-button { display: inline-grid; place-items: center; width: 24px; height: 22px; padding: 0; border: 0; border-radius: 7px; color: rgba(255,255,255,.86); background: rgba(28,80,95,.18); cursor: pointer; }
+.message-delete-button:hover { background: rgba(28,80,95,.35); }
 .first-message, .message-loading { display: grid; justify-items: center; gap: 9px; margin-top: 90px; color: #7e9ba8; text-align: center; }
 .first-message-icon { display: grid; place-items: center; width: 43px; height: 43px; border-radius: 15px; color: #62b4b4; background: rgba(221,244,240,.8); }
 .first-message strong { color: #4c6d7f; font-size: 13px; }
@@ -476,6 +482,7 @@ a { color: inherit; }
   border-top: 1px solid #edf1f4;
   background: #fbfdfe;
 }
+.inbox-own-profile { min-width: 0; flex: 1; display: flex; align-items: center; gap: 10px; padding: 0; border: 0; color: inherit; background: transparent; text-align: left; font: inherit; cursor: pointer; }
 .profile-avatar { width: 38px; height: 38px; flex-basis: 38px; font-size: 11px; }
 .profile-summary { min-width: 0; flex: 1; display: grid; gap: 3px; }
 .profile-summary strong {
@@ -1197,3 +1204,35 @@ html[data-theme="dark"] .setup-lead { color: #a5bac4; }
 
 .auth-password-hint { color: #8da5af; font-size: 10px; font-weight: 400; line-height: 1.45; }
 html[data-theme="dark"] .auth-password-hint { color: #9eb5bf; }
+
+
+/* Telegram-style profile card, user avatars and message deletion controls */
+.profile-view-overlay { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 18px; background: rgba(16, 39, 53, .42); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.profile-view-card { width: min(100%, 420px); overflow: hidden; border: 1px solid rgba(255,255,255,.85); border-radius: 22px; color: #345467; background: #fff; box-shadow: 0 26px 90px rgba(25,65,86,.24); }
+.profile-view-cover { height: 112px; background: linear-gradient(130deg, #4f9fc1, #69c5ba 70%, #9bd6c7); }
+.profile-view-content { position: relative; display: flex; flex-direction: column; align-items: center; padding: 0 22px 25px; }
+.profile-view-heading { width: 100%; display: flex; justify-content: flex-end; margin: 10px 0 0; }
+.profile-view-heading > span { margin-right: auto; align-self: center; color: #7e9ca8; font-size: 10px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
+.profile-view-avatar { width: 94px; height: 94px; margin-top: -54px; border: 4px solid white; border-radius: 28px; font-size: 27px; }
+.profile-view-content h2 { display: flex; align-items: center; gap: 5px; margin: 13px 0 4px; color: #294b60; font: 750 20px "Manrope", sans-serif; text-align: center; }
+.profile-view-username { margin: 0 0 18px; color: #8aa4ae; font-size: 12px; }
+.profile-view-action, .profile-view-remove-badge { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 41px; width: 100%; margin-top: 8px; padding: 0 14px; border: 1px solid #d9edf0; border-radius: 11px; color: #3e91a4; background: #f1fafb; font-size: 11px; font-weight: 700; }
+.profile-view-remove-badge { border-color: #f0dddd; color: #a55c62; background: #fff7f7; }
+.profile-view-action:disabled, .profile-view-remove-badge:disabled { opacity: .6; }
+.profile-view-loading { margin: 34px 0; color: #8ba4ad; font-size: 12px; }
+.profile-view-error { width: 100%; margin: 12px 0 0; color: #ae5b63; font-size: 11px; text-align: center; }
+html[data-theme="dark"] .profile-view-card { border-color: #354957; color: #d8e5eb; background: #223440; }
+html[data-theme="dark"] .profile-view-content h2 { color: #e0ebef; }
+html[data-theme="dark"] .profile-view-heading > span, html[data-theme="dark"] .profile-view-username, html[data-theme="dark"] .profile-view-loading { color: #9eb5bf; }
+html[data-theme="dark"] .profile-view-avatar { border-color: #223440; }
+html[data-theme="dark"] .profile-view-action { border-color: #355763; color: #9ed9e2; background: #294653; }
+html[data-theme="dark"] .profile-view-remove-badge { border-color: #60444a; color: #efafb3; background: #493239; }
+@media (max-width: 560px) {
+  .profile-view-overlay { align-items: flex-end; padding: 10px; }
+  .profile-view-card { width: 100%; border-radius: 21px 21px 16px 16px; }
+  .profile-view-cover { height: 92px; }
+  .profile-view-content { padding-bottom: max(22px, env(safe-area-inset-bottom)); }
+  .chat-profile-trigger { gap: 9px; }
+  .chat-header { gap: 8px; padding-left: 12px; padding-right: 10px; }
+  .chat-header-actions { gap: 5px; }
+}
