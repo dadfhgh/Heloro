@@ -94,9 +94,8 @@ export default function CommunityHub({ client, user, locale, onClose }: Props) {
         const item = payload.new as RoomMessage;
         setMessages((current) => current.some((row) => row.id === item.id) ? current : [...current, item]);
       })
-      .on("postgres_changes", { event: "DELETE", schema: "public", table: "community_room_messages" }, (payload) => {
-        const deleted = payload.old as Partial<RoomMessage>;
-        if (deleted.room_id === room.id) void loadMessages(room.id);
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "community_room_messages" }, () => {
+        void loadMessages(room.id);
       }).subscribe();
     return () => { active = false; void client.removeChannel(channel); };
   }, [client, room, memberRole]);
