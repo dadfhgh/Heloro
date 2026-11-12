@@ -74,8 +74,9 @@ export async function getChannelPosts(client: SupabaseClient, channelId: string)
 }
 
 export async function deleteChannelPost(client: SupabaseClient, postId: string) {
-  const { error } = await client.from("channel_posts").delete().eq("id", postId);
+  const { data, error } = await client.from("channel_posts").delete().eq("id", postId).select("id").maybeSingle();
   if (error) throw error;
+  if (!data) throw new Error("Публикация не найдена или у вас нет прав на её удаление.");
 }
 
 export async function createChannelPost(client: SupabaseClient, channelId: string, authorId: string, body: string) {
@@ -114,8 +115,9 @@ export async function sendChannelComment(client: SupabaseClient, postId: string,
 }
 
 export async function deleteChannelComment(client: SupabaseClient, commentId: string) {
-  const { error } = await client.from("channel_comments").delete().eq("id", commentId);
+  const { data, error } = await client.from("channel_comments").delete().eq("id", commentId).select("id").maybeSingle();
   if (error) throw error;
+  if (!data) throw new Error("Комментарий не найден или у вас нет прав на его удаление.");
 }
 
 export async function getDiscussionMessages(client: SupabaseClient) {
@@ -141,8 +143,9 @@ export async function sendDiscussionMessage(client: SupabaseClient, userId: stri
 }
 
 export async function deleteDiscussionMessage(client: SupabaseClient, messageId: string) {
-  const { error } = await client.from("channel_discussion_messages").delete().eq("id", messageId);
+  const { data, error } = await client.from("channel_discussion_messages").delete().eq("id", messageId).select("id").maybeSingle();
   if (error) throw error;
+  if (!data) throw new Error("Сообщение не найдено или у вас нет прав на его удаление.");
 }
 
 export async function getOrCreateSupportThread(client: SupabaseClient, userId: string) {
