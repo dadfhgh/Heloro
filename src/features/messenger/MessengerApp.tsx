@@ -3,9 +3,13 @@ import type { User } from "@supabase/supabase-js";
 import {
   ArrowLeft,
   ArrowUp,
+  BadgeCheck,
   CheckCheck,
+  Flag,
+  Headphones,
   LogOut,
   Menu,
+  Megaphone,
   MessageCircle,
   MoreHorizontal,
   PencilLine,
@@ -23,9 +27,13 @@ import {
   subscribeToMessages,
 } from "../../lib/messenger";
 import { formatInboxTime, formatMessageTime, initials, messageBodySchema } from "../../lib/domain";
-import type { InboxConversation, Message, Profile, PublicProfile } from "../../lib/types";
+import type { InboxConversation, Message, Profile, PublicProfile, BadgeType } from "../../lib/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { t, type Locale } from "../../lib/i18n";
+import OfficialPanels from "./OfficialPanels";
+import { submitUserReport } from "../../lib/official";
+
+type SystemView = "news" | "discussion" | "support" | "admin";
 
 type Props = {
   client: SupabaseClient;
@@ -33,11 +41,21 @@ type Props = {
   profile: Profile;
   locale: Locale;
   onLocaleChange: (next: Locale) => void;
-  isOwner: boolean;
+  roles: string[];
 };
 
 function Avatar({ label, className = "" }: { label: string; className?: string }) {
   return <div className={`avatar ${className}`} aria-hidden="true">{initials(label)}</div>;
+}
+
+function VerificationMark({ type, title }: { type?: BadgeType | null; title: string }) {
+  if (!type) return null;
+  const label = type === "blue" ? "blue" : type === "gold" ? "gold" : "creator";
+  return (
+    <span className={`verification-mark verification-${label}`} title={title} aria-label={title}>
+      <BadgeCheck size={14} strokeWidth={2.8} />
+    </span>
+  );
 }
 
 function EmptyChat({ locale }: { locale: Locale }) {
@@ -50,13 +68,17 @@ function EmptyChat({ locale }: { locale: Locale }) {
   );
 }
 
-export default function MessengerApp({ client, user, profile, locale, onLocaleChange, isOwner }: Props) {
+const reportReasons = ["spam", "harassment", "scam", "inappropriate", "other"] as const;
+
+export default function MessengerApp({ client, user, profile, locale, onLocaleChange, roles }: Props) {
   const [inbox, setInbox] = useState<InboxConversation[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [systemView, setSystemView] = useState<SystemView | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState("");
   const [search, setSearch] = useState("");
   const [results, setResults] = useState<PublicProfile[]>([]);
+  const [badgeMap, setBadgeMap] = useState<Record<string, BadgeType>>({});
   const [searching, setSearching] = useState(false);
   const [loadingInbox, setLoadingInbox] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
@@ -64,9 +86,16 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const [error, setError] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showReport, setShowReport] = useState(false);
+  const [reportReason, setReportReason] = useState<(typeof reportReasons)[number]>("other");
+  const [reportDetails, setReportDetails] = useState("");
+  const [reportBusy, setReportBusy] = useState(false);
   const [chatFilter, setChatFilter] = useState<"all" | "personal">("all");
   const searchInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const isStaff = roles.some((role) => role === "owner" || role === "admin" || role === "moderator");
+  const isOwnerOrAdmin = roles.some((role) => role === "owner" || role === "admin");
+
   const activeConversation = useMemo(
     () => inbox.find((item) => item.conversation_id === activeId) ?? null,
     [inbox, activeId],
@@ -86,8 +115,12 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   async function refreshInbox(selectId?: string) {
     const updated = await getInbox();
     setInbox(updated);
-    if (selectId) setActiveId(selectId);
-    else if (activeId && !updated.some((item) => item.conversation_id === activeId)) setActiveId(null);
+    if (selectId) {
+      setActiveId(selectId);
+      setSystemView(null);
+    } else if (activeId && !updated.some((item) => item.conversation_id === activeId)) {
+      setActiveId(null);
+    }
   }
 
   useEffect(() => {
@@ -101,6 +134,32 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
       .finally(() => { if (active) setLoadingInbox(false); });
     return () => { active = false; };
   }, [locale]);
+
+  useEffect(() => {
+    if (inbox.length === 0) {
+      setBadgeMap({});
+      return;
+    }
+    let active = true;
+    client.from("verification_badges")
+      .select("user_id, badge_type")
+      .in("user_id", inbox.map((item) => item.other_user_id))
+      .then(({ data, error: badgeError }) => {
+        if (!active) return;
+        if (badgeError) {
+          console.warn("HELORO badge lookup failed:", badgeError.message);
+          return;
+        }
+        const next: Record<string, BadgeType> = {};
+        for (const row of data ?? []) {
+          if (row.badge_type === "blue" || row.badge_type === "gold" || row.badge_type === "creator") {
+            next[row.user_id] = row.badge_type;
+          }
+        }
+        setBadgeMap(next);
+      });
+    return () => { active = false; };
+  }, [client, inbox]);
 
   useEffect(() => {
     if (!activeId) {
@@ -152,13 +211,16 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   }, [search, user.id, locale]);
 
   useEffect(() => {
-    if (!showSettings) return;
+    if (!showSettings && !showReport) return;
     function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") setShowSettings(false);
+      if (event.key === "Escape") {
+        setShowSettings(false);
+        setShowReport(false);
+      }
     }
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [showSettings]);
+  }, [showSettings, showReport]);
 
   useEffect(() => {
     if (showSearch) searchInputRef.current?.focus();
@@ -197,6 +259,24 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
     }
   }
 
+  async function submitReport(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!activeConversation) return;
+    setReportBusy(true);
+    setError("");
+    try {
+      await submitUserReport(client, user.id, activeConversation.other_user_id, reportReason, reportDetails);
+      setShowReport(false);
+      setReportDetails("");
+      setReportReason("other");
+      setError(locale === "ru" ? "Жалоба отправлена модераторам." : "Your report was sent to the moderation team.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : (locale === "ru" ? "Не удалось отправить жалобу." : "Could not send the report."));
+    } finally {
+      setReportBusy(false);
+    }
+  }
+
   async function signOut() {
     const { error: signOutError } = await client.auth.signOut();
     if (signOutError) setError(signOutError.message);
@@ -204,13 +284,37 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   }
 
   function openSearch() {
+    setSystemView(null);
+    setActiveId(null);
     setShowSearch(true);
     setSearch("");
     setResults([]);
   }
 
+  function openSystemView(view: SystemView) {
+    setActiveId(null);
+    setSystemView(view);
+    setShowSearch(false);
+    setSearch("");
+    setResults([]);
+    setError("");
+  }
+
+  function closeConversation() {
+    setActiveId(null);
+    setSystemView(null);
+    setShowSearch(false);
+    setSearch("");
+  }
+
+  const systemHeading = systemView === "news" ? "Heloro New"
+    : systemView === "discussion" ? "Heloro New"
+    : systemView === "support" ? "Support Heloro"
+    : systemView === "admin" ? "HELORO S"
+    : "";
+
   return (
-    <main className={`messenger-stage ${activeConversation ? "chat-selected" : ""}`}>
+    <main className={`messenger-stage ${activeConversation || systemView ? "chat-selected" : ""}`}>
       <div className="messenger-shell">
         <aside className="inbox-panel">
           <header className="inbox-topbar">
@@ -240,12 +344,12 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                 ref={searchInputRef}
                 value={search}
                 onChange={(event) => { setSearch(event.target.value); setShowSearch(true); }}
-                onFocus={() => setShowSearch(true)}
-                placeholder={t(locale, "inboxSearchPlaceholder")}
-                aria-label={t(locale, "inboxSearchPlaceholder")}
+                onFocus={() => { setSystemView(null); setActiveId(null); setShowSearch(true); }}
+                placeholder={locale === "ru" ? "Поиск" : "Search"}
+                aria-label={locale === "ru" ? "Поиск пользователей и чатов" : "Search people and chats"}
               />
               {search && (
-                <button className="clear-search" onClick={() => { setSearch(""); setResults([]); }} aria-label={t(locale, "inboxClear")}>
+                <button className="clear-search" type="button" onClick={() => { setSearch(""); setResults([]); }} aria-label={t(locale, "inboxClear")}>
                   <X size={15} />
                 </button>
               )}
@@ -264,7 +368,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
           <section className="conversation-list">
             {showSearch && search.trim().length > 1 ? (
               <>
-                <div className="section-label">{t(locale, "inboxPeople")}</div>
+                <div className="section-label">{locale === "ru" ? "Люди" : "People"}</div>
                 {searching ? (
                   <p className="muted small-copy">{t(locale, "inboxSearching")}</p>
                 ) : results.length === 0 ? (
@@ -272,7 +376,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                 ) : results.map((person) => (
                   <button className="person-result" key={person.id} onClick={() => void startConversation(person)}>
                     <Avatar label={person.display_name || person.username} />
-                    <span><strong>{person.display_name || person.username}</strong><small>@{person.username}</small></span>
+                    <span><strong>{person.display_name || person.username}<VerificationMark type={person.badge_type} title={locale === "ru" ? "Аккаунт подтверждён HELORO" : "Verified by HELORO"} /></strong><small>@{person.username}</small></span>
                     <MessageCircle size={17} />
                   </button>
                 ))}
@@ -282,6 +386,33 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
               </>
             ) : (
               <>
+                {chatFilter === "all" && (
+                  <div className="pinned-system-list">
+                    <button className={`conversation-item pinned-system-item ${systemView === "news" || systemView === "discussion" ? "selected" : ""}`} onClick={() => openSystemView("news")}>
+                      <div className="system-avatar system-news-avatar"><Megaphone size={19} /></div>
+                      <span className="conversation-copy">
+                        <span className="conversation-title-line"><strong>Heloro New <BadgeCheck size={14} className="system-verified-mark" /></strong><time>{locale === "ru" ? "Канал" : "Channel"}</time></span>
+                        <span className="conversation-preview-line"><small>{locale === "ru" ? "Новости и обновления" : "News and updates"}</small></span>
+                      </span>
+                    </button>
+                    <button className={`conversation-item pinned-system-item ${systemView === "support" ? "selected" : ""}`} onClick={() => openSystemView("support")}>
+                      <div className="system-avatar system-support-avatar"><Headphones size={19} /></div>
+                      <span className="conversation-copy">
+                        <span className="conversation-title-line"><strong>Support Heloro</strong><time>{locale === "ru" ? "Поддержка" : "Support"}</time></span>
+                        <span className="conversation-preview-line"><small>{locale === "ru" ? "Личный чат с поддержкой" : "Private support chat"}</small></span>
+                      </span>
+                    </button>
+                    {isStaff && (
+                      <button className={`conversation-item pinned-system-item ${systemView === "admin" ? "selected" : ""}`} onClick={() => openSystemView("admin")}>
+                        <div className="system-avatar system-admin-icon"><ShieldCheck size={19} /></div>
+                        <span className="conversation-copy">
+                          <span className="conversation-title-line"><strong>HELORO S</strong><time>Staff</time></span>
+                          <span className="conversation-preview-line"><small>{locale === "ru" ? "Модерация и управление" : "Moderation and admin"}</small></span>
+                        </span>
+                      </button>
+                    )}
+                  </div>
+                )}
                 {loadingInbox ? (
                   <div className="list-placeholder"><span /><span /><span /><span /></div>
                 ) : visibleInbox.length === 0 ? (
@@ -297,12 +428,12 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                     <button
                       className={`conversation-item ${activeId === item.conversation_id ? "selected" : ""}`}
                       key={item.conversation_id}
-                      onClick={() => { setActiveId(item.conversation_id); setShowSearch(false); }}
+                      onClick={() => { setActiveId(item.conversation_id); setSystemView(null); setShowSearch(false); }}
                     >
                       <Avatar label={label} />
                       <span className="conversation-copy">
                         <span className="conversation-title-line">
-                          <strong>{label}</strong>
+                          <strong>{label}<VerificationMark type={badgeMap[item.other_user_id]} title={locale === "ru" ? "Аккаунт подтверждён HELORO" : "Verified by HELORO"} /></strong>
                           <time>{formatInboxTime(item.last_message_at)}</time>
                         </span>
                         <span className="conversation-preview-line">
@@ -323,7 +454,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
               <strong>{profile.display_name}</strong>
               <small>@{profile.username}</small>
             </span>
-            {isOwner && <span className="owner-mini-mark" title={t(locale, "ownerRole")}><ShieldCheck size={15} /></span>}
+            {roles.includes("owner") && <span className="owner-mini-mark" title={t(locale, "ownerRole")}><ShieldCheck size={15} /></span>}
             <button className="icon-button profile-menu-button" title={t(locale, "settings")} aria-label={t(locale, "settings")} onClick={() => setShowSettings(true)}>
               <Settings2 size={18} />
             </button>
@@ -331,22 +462,34 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
         </aside>
 
         <section className="conversation-panel">
-          {activeConversation ? (
+          {systemView ? (
+            <div className="system-screen">
+              <button className="system-mobile-back" onClick={closeConversation} aria-label={t(locale, "inboxBack")}><ArrowLeft size={19} /></button>
+              <OfficialPanels
+                view={systemView}
+                client={client}
+                user={user}
+                locale={locale}
+                roles={roles}
+                onOpenDiscussion={() => openSystemView("discussion")}
+              />
+            </div>
+          ) : activeConversation ? (
             <>
               <header className="chat-header">
-                <button className="icon-button mobile-back" aria-label={t(locale, "inboxBack")} onClick={() => setActiveId(null)}>
+                <button className="icon-button mobile-back" aria-label={t(locale, "inboxBack")} onClick={closeConversation}>
                   <ArrowLeft size={20} />
                 </button>
                 <Avatar label={activeConversation.display_name || activeConversation.username} className="chat-header-avatar" />
                 <div className="chat-person">
-                  <strong>{activeConversation.display_name || activeConversation.username}</strong>
+                  <strong>{activeConversation.display_name || activeConversation.username}<VerificationMark type={badgeMap[activeConversation.other_user_id]} title={locale === "ru" ? "Аккаунт подтверждён HELORO" : "Verified by HELORO"} /></strong>
                   <small>@{activeConversation.username}</small>
                 </div>
                 <div className="chat-header-actions">
                   <button className="icon-button" aria-label={t(locale, "chatSearch")} title={t(locale, "chatSearch")} onClick={() => openSearch()}>
                     <Search size={20} />
                   </button>
-                  <button className="icon-button" aria-label={t(locale, "chatOptions")} title={t(locale, "chatOptions")} onClick={() => setError(t(locale, "chatOptionsUnavailable"))}>
+                  <button className="icon-button" aria-label={locale === "ru" ? "Пожаловаться" : "Report"} title={locale === "ru" ? "Пожаловаться" : "Report"} onClick={() => setShowReport(true)}>
                     <MoreHorizontal size={21} />
                   </button>
                 </div>
@@ -395,7 +538,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
         </section>
       </div>
 
-      {error && !activeConversation && <div className="global-error" role="alert">{error}<button onClick={() => setError("")} aria-label={t(locale, "dismiss")}><X size={14} /></button></div>}
+      {error && !activeConversation && !systemView && <div className="global-error" role="alert">{error}<button onClick={() => setError("")} aria-label={t(locale, "dismiss")}><X size={14} /></button></div>}
 
       {showSettings && (
         <div className="settings-overlay" onClick={() => setShowSettings(false)}>
@@ -408,7 +551,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
               <Avatar label={profile.display_name} />
               <span><strong>{profile.display_name}</strong><small>@{profile.username}</small></span>
             </div>
-            {isOwner && <div className="settings-owner"><ShieldCheck size={15} /><span>{t(locale, "ownerRole")}</span></div>}
+            {roles.includes("owner") && <div className="settings-owner"><ShieldCheck size={15} /><span>{t(locale, "ownerRole")}</span></div>}
             <div className="settings-row">
               <span>{t(locale, "language")}</span>
               <div className="settings-language" role="group" aria-label={t(locale, "language")}>
@@ -416,7 +559,38 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                 <button type="button" className={locale === "en" ? "active" : ""} aria-pressed={locale === "en"} onClick={() => onLocaleChange("en")}>{t(locale, "languageEn")}</button>
               </div>
             </div>
+            <div className="settings-reward">
+              <strong>HELORO PLUS</strong>
+              <span>{locale === "ru" ? "Награда новогоднего события" : "New Year event reward"}</span>
+              <small>{locale === "ru" ? "Условия получения будут объявлены отдельно." : "Reward requirements will be announced separately."}</small>
+            </div>
+            {isStaff && <button className="settings-admin-link" onClick={() => { setShowSettings(false); openSystemView("admin"); }}><ShieldCheck size={16} /> HELORO S</button>}
             <button className="settings-signout" onClick={() => void signOut()}><LogOut size={16} /> {t(locale, "settingsSignOut")}</button>
+          </section>
+        </div>
+      )}
+
+      {showReport && activeConversation && (
+        <div className="settings-overlay" onClick={() => setShowReport(false)}>
+          <section className="settings-card glass-panel report-card" role="dialog" aria-modal="true" aria-labelledby="report-title" onClick={(event) => event.stopPropagation()}>
+            <div className="settings-heading">
+              <h2 id="report-title">{locale === "ru" ? "Пожаловаться на пользователя" : "Report user"}</h2>
+              <button className="icon-button" onClick={() => setShowReport(false)} aria-label={t(locale, "settingsClose")}><X size={18} /></button>
+            </div>
+            <p className="muted small-copy">{activeConversation.display_name || activeConversation.username} · @{activeConversation.username}</p>
+            <form className="report-form" onSubmit={submitReport}>
+              <label>{locale === "ru" ? "Причина" : "Reason"}
+                <select value={reportReason} onChange={(event) => setReportReason(event.target.value as (typeof reportReasons)[number])}>
+                  {reportReasons.map((reason) => <option value={reason} key={reason}>{locale === "ru"
+                    ? ({ spam: "Спам", harassment: "Оскорбления", scam: "Мошенничество", inappropriate: "Неподходящий контент", other: "Другое" } as const)[reason]
+                    : ({ spam: "Spam", harassment: "Harassment", scam: "Scam", inappropriate: "Inappropriate content", other: "Other" } as const)[reason]}</option>)}
+                </select>
+              </label>
+              <label>{locale === "ru" ? "Подробности (необязательно)" : "Details (optional)"}
+                <textarea value={reportDetails} onChange={(event) => setReportDetails(event.target.value)} maxLength={1500} placeholder={locale === "ru" ? "Опишите проблему…" : "Describe the issue…"} />
+              </label>
+              <button className="primary-button" type="submit" disabled={reportBusy}>{reportBusy ? (locale === "ru" ? "Отправка…" : "Sending…") : (locale === "ru" ? "Отправить жалобу" : "Send report")} <Flag size={15} /></button>
+            </form>
           </section>
         </div>
       )}
