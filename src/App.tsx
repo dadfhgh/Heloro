@@ -64,17 +64,23 @@ function AuthenticatedApp({
 }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
-  const [isOwner, setIsOwner] = useState(false);
+  const [roles, setRoles] = useState<string[]>([]);
   const [profileError, setProfileError] = useState("");
 
   useEffect(() => {
     let active = true;
     setLoadingProfile(true);
     setProfileError("");
-    setIsOwner(false);
+    setRoles([]);
     void client.from("user_roles").select("role").eq("user_id", session.user.id)
       .then(({ data, error }) => {
-        if (active && !error) setIsOwner((data ?? []).some((row) => row.role === "owner"));
+        if (!active) return;
+        if (error) {
+          console.error("HELORO role lookup failed:", error.message);
+          setRoles([]);
+        } else {
+          setRoles((data ?? []).map((row) => String(row.role)));
+        }
       });
     void getProfile(session.user.id)
       .then((value) => { if (active) setProfile(value); })
@@ -100,7 +106,7 @@ function AuthenticatedApp({
   if (!profile?.username) {
     return <ProfileSetup client={client} userId={session.user.id} onSaved={setProfile} locale={locale} />;
   }
-  return <MessengerApp client={client} user={session.user} profile={profile} locale={locale} onLocaleChange={onLocaleChange} isOwner={isOwner} />;
+  return <MessengerApp client={client} user={session.user} profile={profile} locale={locale} onLocaleChange={onLocaleChange} roles={roles} />;
 }
 
 export default function App() {
