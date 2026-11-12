@@ -100,36 +100,35 @@ export async function getMessages(
 ): Promise<Message[]> {
   const { data, error } = await client()
     .from("messages")
-    .select("id, conversation_id, sender_id, body, created_at, message_reactions(id, user_id, emoji)")
+    .select("id, conversation_id, sender_id, body, created_at")
     .eq("conversation_id", conversationId)
     .order("created_at", { ascending: false })
     .limit(limit);
 
   if (error) throw error;
-  const rows = ((data ?? []) as Array<Message & { message_reactions?: Message["reactions"] }>).reverse();
+  const rows = ((data ?? []) as Message[]).reverse();
   return await Promise.all(rows.map(async (row): Promise<Message> => {
     const mediaPrefix = "HELORO_MEDIA:";
     if (!row.body.startsWith(mediaPrefix)) {
-      return { ...row, reactions: row.message_reactions ?? [] };
+      return { ...row };
     }
     try {
       const payload = JSON.parse(row.body.slice(mediaPrefix.length)) as { kind?: string; path?: string };
       if ((payload.kind !== "sticker" && payload.kind !== "gif") || typeof payload.path !== "string") {
-        return { ...row, body: "Media unavailable.", reactions: row.message_reactions ?? [], media: null };
+        return { ...row, body: "Media unavailable.", media: null };
       }
       const { data: signed, error: signError } = await client()
         .storage.from("message-media").createSignedUrl(payload.path, 3600);
       if (signError || !signed?.signedUrl) {
-        return { ...row, body: "Media unavailable.", reactions: row.message_reactions ?? [], media: null };
+        return { ...row, body: "Media unavailable.", media: null };
       }
       return {
         ...row,
         body: "",
-        reactions: row.message_reactions ?? [],
         media: { kind: payload.kind, url: signed.signedUrl },
       };
     } catch {
-      return { ...row, body: "Media unavailable.", reactions: row.message_reactions ?? [], media: null };
+      return { ...row, body: "Media unavailable.", media: null };
     }
   }));
 }
@@ -154,30 +153,6 @@ export async function sendMessage(
 
   if (error) throw error;
   return data as Message;
-}
-
-export async function toggleMessageReaction(messageId: string, userId: string, emoji: string): Promise<void> {
-  const allowed = ["👍", "❤️", "😂", "🔥", "😮", "👏"];
-  if (!allowed.includes(emoji)) throw new Error("Unsupported reaction.");
-  const existing = await client()
-    .from("message_reactions")
-    .select("id")
-    .eq("message_id", messageId)
-    .eq("user_id", userId)
-    .eq("emoji", emoji)
-    .maybeSingle();
-  if (existing.error) throw existing.error;
-  if (existing.data) {
-    const { error } = await client().from("message_reactions").delete().eq("id", existing.data.id);
-    if (error) throw error;
-    return;
-  }
-  const { error } = await client().from("message_reactions").insert({
-    message_id: messageId,
-    user_id: userId,
-    emoji,
-  });
-  if (error) throw error;
 }
 
 export async function sendMediaMessage(
