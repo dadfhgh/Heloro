@@ -84,6 +84,18 @@
 - [ ] Add dark theme coverage for the messenger, settings, menus, and modal surfaces.
 - [ ] Verify mobile breakpoints, focus indicators, and reduced motion.
 
+### Task 6: Calling capability (blocked pending approved infrastructure)
+
+**Files:** follow-on task; do not enable call controls in this foundation PR.
+
+- [ ] Identify an age-compatible media/signalling provider with a hard no-charge ceiling or a self-hosted relay the project can operate without expense.
+- [ ] Require relay-only media paths; do not fall back to direct peer-to-peer paths that expose one participant’s public network address to another.
+- [ ] Keep room invitations scoped to authenticated HELORO direct-conversation participants and enforce one-to-one call scope.
+- [ ] Implement incoming/outgoing audio/video call UI, permission handling, mute/camera controls, call termination, disconnect recovery, and abuse/rate-limit protections.
+- [ ] Test two independent accounts on separate networks and confirm that no direct ICE candidates are used.
+
+**Current blocker:** no approved media relay meets the project’s audience and zero-spend constraints. Do not ship a working-call claim until this blocker is resolved.
+
 ### Task 5: Verification and handoff
 
 **Files:** no additional application files.
