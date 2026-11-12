@@ -334,8 +334,8 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
           <header className="inbox-topbar">
             <button
               className="icon-button menu-button"
-              title={t(locale, "settings")}
-              aria-label={t(locale, "settings")}
+              title={locale === "ru" ? "Меню" : "Menu"}
+              aria-label={locale === "ru" ? "Открыть меню" : "Open menu"}
               onClick={() => setShowNavigation(true)}
             >
               <Menu size={21} />
