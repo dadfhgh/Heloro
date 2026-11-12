@@ -188,7 +188,7 @@ export function MessengerSettings({
   const title = items.find((item) => item.id === activeSection)?.label[locale] ?? (ru ? "Настройки" : "Settings");
 
   return (
-    <div className="settings-overlay" onClick={onClose}>
+    <div className="settings-overlay settings-page-overlay" onClick={onClose}>
       <section className="settings-page-card" role="dialog" aria-modal="true" aria-labelledby="settings-title" onClick={(event) => event.stopPropagation()}>
         <header className="settings-page-header">
           <div><span className="settings-page-eyebrow">HELORO</span><h2 id="settings-title">{ru ? "Настройки" : "Settings"}</h2></div>
