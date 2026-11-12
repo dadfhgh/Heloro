@@ -860,7 +860,7 @@ a { color: inherit; }
 
 /* HELORO navigation drawer and Telegram-inspired settings information architecture */
 .navigation-overlay,
-.settings-overlay {
+.settings-page-overlay {
   position: fixed;
   inset: 0;
   z-index: 80;
@@ -929,7 +929,7 @@ a { color: inherit; }
 .navigation-footer span { font-size: 10px; font-weight: 800; letter-spacing: .16em; }
 .navigation-footer small { color: #9aadb6; font-size: 10px; }
 
-.settings-overlay { align-items: center; justify-content: center; padding: 18px; }
+.settings-page-overlay { align-items: center; justify-content: center; padding: 18px; }
 .settings-page-card {
   display: flex;
   flex-direction: column;
@@ -1164,7 +1164,7 @@ html[data-theme="dark"] .setup-lead { color: #a5bac4; }
 
 @media (max-width: 760px) {
   .navigation-drawer { width: min(340px, 88vw); padding-bottom: env(safe-area-inset-bottom); }
-  .settings-overlay { align-items: stretch; justify-content: stretch; padding: 0; }
+  .settings-page-overlay { align-items: stretch; justify-content: stretch; padding: 0; }
   .settings-page-card { width: 100%; height: 100dvh; max-height: none; border: 0; border-radius: 0; }
   .settings-page-header { min-height: 66px; padding: max(10px, env(safe-area-inset-top)) 15px 10px; }
   .settings-page-body { display: flex; flex-direction: column; }
