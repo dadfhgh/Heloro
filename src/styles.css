@@ -1193,3 +1193,7 @@ html[data-theme="dark"] .setup-lead { color: #a5bac4; }
 .composer-media-button { flex: 0 0 34px; color: #6992a3; }
 .composer-media-button:disabled { opacity: .45; }
 
+
+
+.auth-password-hint { color: #8da5af; font-size: 10px; font-weight: 400; line-height: 1.45; }
+html[data-theme="dark"] .auth-password-hint { color: #9eb5bf; }
