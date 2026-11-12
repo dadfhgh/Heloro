@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import type { User } from "@supabase/supabase-js";
-import { ArrowLeft, ArrowUp, CheckCheck, CircleHelp, LogOut, MessageCircle, MoreHorizontal, Plus, Search, Send, Settings2, Sparkles, UserRound, X } from "lucide-react";
+import { ArrowLeft, ArrowUp, CheckCheck, CircleHelp, LogOut, MessageCircle, MoreHorizontal, Plus, Search, Settings2, Sparkles, X } from "lucide-react";
 import { createDirectConversation, getInbox, getMessages, searchProfiles, sendMessage, subscribeToMessages } from "../../lib/messenger";
 import { formatInboxTime, formatMessageTime, initials, messageBodySchema } from "../../lib/domain";
 import type { InboxConversation, Message, Profile, PublicProfile } from "../../lib/types";
@@ -88,6 +88,7 @@ export default function MessengerApp({ client, user, profile }: Props) {
     const normalized = search.trim();
     if (normalized.replace(/^@/, "").length < 2) {
       setResults([]);
+      setSearching(false);
       return;
     }
     let active = true;
@@ -114,7 +115,7 @@ export default function MessengerApp({ client, user, profile }: Props) {
     }
   }
 
-  async function handleSend(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSend(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const parsed = messageBodySchema.safeParse(draft);
     if (!parsed.success || !activeId) return;
