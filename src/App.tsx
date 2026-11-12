@@ -64,12 +64,18 @@ function AuthenticatedApp({
 }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
+  const [isOwner, setIsOwner] = useState(false);
   const [profileError, setProfileError] = useState("");
 
   useEffect(() => {
     let active = true;
     setLoadingProfile(true);
     setProfileError("");
+    setIsOwner(false);
+    void client.from("user_roles").select("role").eq("user_id", session.user.id)
+      .then(({ data, error }) => {
+        if (active && !error) setIsOwner((data ?? []).some((row) => row.role === "owner"));
+      });
     void getProfile(session.user.id)
       .then((value) => { if (active) setProfile(value); })
       .catch((error: unknown) => {
@@ -77,7 +83,7 @@ function AuthenticatedApp({
       })
       .finally(() => { if (active) setLoadingProfile(false); });
     return () => { active = false; };
-  }, [session.user.id, locale]);
+  }, [session.user.id, locale, client]);
 
   if (loadingProfile) return <LoadingScreen locale={locale} />;
   if (profileError) {
@@ -94,7 +100,7 @@ function AuthenticatedApp({
   if (!profile?.username) {
     return <ProfileSetup client={client} userId={session.user.id} onSaved={setProfile} locale={locale} />;
   }
-  return <MessengerApp client={client} user={session.user} profile={profile} locale={locale} onLocaleChange={onLocaleChange} />;
+  return <MessengerApp client={client} user={session.user} profile={profile} locale={locale} onLocaleChange={onLocaleChange} isOwner={isOwner} />;
 }
 
 export default function App() {
