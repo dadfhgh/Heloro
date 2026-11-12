@@ -32,6 +32,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { t, type Locale } from "../../lib/i18n";
 import OfficialPanels from "./OfficialPanels";
 import { submitUserReport } from "../../lib/official";
+import { MessengerNavigation, MessengerSettings, type SettingsSection } from "./MessengerNavigation";
+import type { ThemePreference } from "../../lib/preferences";
 
 type SystemView = "news" | "discussion" | "support" | "admin";
 
@@ -42,6 +44,8 @@ type Props = {
   locale: Locale;
   onLocaleChange: (next: Locale) => void;
   roles: string[];
+  theme: ThemePreference;
+  onThemeChange: (next: ThemePreference) => void;
 };
 
 function Avatar({ label, className = "" }: { label: string; className?: string }) {
@@ -70,7 +74,7 @@ function EmptyChat({ locale }: { locale: Locale }) {
 
 const reportReasons = ["spam", "harassment", "scam", "inappropriate", "other"] as const;
 
-export default function MessengerApp({ client, user, profile, locale, onLocaleChange, roles }: Props) {
+export default function MessengerApp({ client, user, profile, locale, onLocaleChange, roles, theme, onThemeChange }: Props) {
   const [inbox, setInbox] = useState<InboxConversation[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [systemView, setSystemView] = useState<SystemView | null>(null);
@@ -86,6 +90,8 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const [error, setError] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showNavigation, setShowNavigation] = useState(false);
+  const [settingsSection, setSettingsSection] = useState<SettingsSection>("account");
   const [showReport, setShowReport] = useState(false);
   const [reportReason, setReportReason] = useState<(typeof reportReasons)[number]>("other");
   const [reportDetails, setReportDetails] = useState("");
@@ -210,16 +216,17 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   }, [search, user.id, locale]);
 
   useEffect(() => {
-    if (!showSettings && !showReport) return;
+    if (!showSettings && !showReport && !showNavigation) return;
     function closeOnEscape(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setShowSettings(false);
+        setShowNavigation(false);
         setShowReport(false);
       }
     }
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [showSettings, showReport]);
+  }, [showSettings, showNavigation, showReport]);
 
   useEffect(() => {
     if (showSearch) searchInputRef.current?.focus();
@@ -306,6 +313,11 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
     setSearch("");
   }
 
+  function openSettings(section: SettingsSection = "account") {
+    setSettingsSection(section);
+    setShowSettings(true);
+  }
+
   return (
     <main className={`messenger-stage ${activeConversation || systemView ? "chat-selected" : ""}`}>
       <div className="messenger-shell">
@@ -315,7 +327,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
               className="icon-button menu-button"
               title={t(locale, "settings")}
               aria-label={t(locale, "settings")}
-              onClick={() => setShowSettings(true)}
+              onClick={() => setShowNavigation(true)}
             >
               <Menu size={21} />
             </button>
@@ -448,7 +460,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
               <small>@{profile.username}</small>
             </span>
             {roles.includes("owner") && <span className="owner-mini-mark" title={t(locale, "ownerRole")}><ShieldCheck size={15} /></span>}
-            <button className="icon-button profile-menu-button" title={t(locale, "settings")} aria-label={t(locale, "settings")} onClick={() => setShowSettings(true)}>
+            <button className="icon-button profile-menu-button" title={t(locale, "settings")} aria-label={t(locale, "settings")} onClick={() => openSettings("account")}>
               <Settings2 size={18} />
             </button>
           </footer>
@@ -533,34 +545,36 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
 
       {error && !activeConversation && !systemView && <div className="global-error" role="alert">{error}<button onClick={() => setError("")} aria-label={t(locale, "dismiss")}><X size={14} /></button></div>}
 
+      {showNavigation && (
+        <MessengerNavigation
+          profile={profile}
+          locale={locale}
+          roles={roles}
+          onClose={() => setShowNavigation(false)}
+          onOpenInbox={closeConversation}
+          onOpenContacts={openSearch}
+          onOpenNews={() => openSystemView("news")}
+          onOpenSupport={() => openSystemView("support")}
+          onOpenSettings={() => openSettings("account")}
+          onOpenAdmin={() => openSystemView("admin")}
+        />
+      )}
+
       {showSettings && (
-        <div className="settings-overlay" onClick={() => setShowSettings(false)}>
-          <section className="settings-card glass-panel" role="dialog" aria-modal="true" aria-labelledby="settings-title" onClick={(event) => event.stopPropagation()}>
-            <div className="settings-heading">
-              <h2 id="settings-title">{t(locale, "settingsTitle")}</h2>
-              <button className="icon-button" onClick={() => setShowSettings(false)} aria-label={t(locale, "settingsClose")}><X size={18} /></button>
-            </div>
-            <div className="settings-account">
-              <Avatar label={profile.display_name} />
-              <span><strong>{profile.display_name}</strong><small>@{profile.username}</small></span>
-            </div>
-            {roles.includes("owner") && <div className="settings-owner"><ShieldCheck size={15} /><span>{t(locale, "ownerRole")}</span></div>}
-            <div className="settings-row">
-              <span>{t(locale, "language")}</span>
-              <div className="settings-language" role="group" aria-label={t(locale, "language")}>
-                <button type="button" className={locale === "ru" ? "active" : ""} aria-pressed={locale === "ru"} onClick={() => onLocaleChange("ru")}>{t(locale, "languageRu")}</button>
-                <button type="button" className={locale === "en" ? "active" : ""} aria-pressed={locale === "en"} onClick={() => onLocaleChange("en")}>{t(locale, "languageEn")}</button>
-              </div>
-            </div>
-            <div className="settings-reward">
-              <strong>HELORO PLUS</strong>
-              <span>{locale === "ru" ? "Награда новогоднего события" : "New Year event reward"}</span>
-              <small>{locale === "ru" ? "Условия получения будут объявлены отдельно." : "Reward requirements will be announced separately."}</small>
-            </div>
-            {isStaff && <button className="settings-admin-link" onClick={() => { setShowSettings(false); openSystemView("admin"); }}><ShieldCheck size={16} /> HELORO S</button>}
-            <button className="settings-signout" onClick={() => void signOut()}><LogOut size={16} /> {t(locale, "settingsSignOut")}</button>
-          </section>
-        </div>
+        <MessengerSettings
+          profile={profile}
+          locale={locale}
+          roles={roles}
+          theme={theme}
+          activeSection={settingsSection}
+          onSectionChange={setSettingsSection}
+          onThemeChange={onThemeChange}
+          onLocaleChange={onLocaleChange}
+          onClose={() => setShowSettings(false)}
+          onOpenSupport={() => { setShowSettings(false); openSystemView("support"); }}
+          onOpenAdmin={() => { setShowSettings(false); openSystemView("admin"); }}
+          onSignOut={() => void signOut()}
+        />
       )}
 
       {showReport && activeConversation && (
