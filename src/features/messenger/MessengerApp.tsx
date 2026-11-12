@@ -94,7 +94,6 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const searchInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const isStaff = roles.some((role) => role === "owner" || role === "admin" || role === "moderator");
-  const isOwnerOrAdmin = roles.some((role) => role === "owner" || role === "admin");
 
   const activeConversation = useMemo(
     () => inbox.find((item) => item.conversation_id === activeId) ?? null,
@@ -306,12 +305,6 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
     setShowSearch(false);
     setSearch("");
   }
-
-  const systemHeading = systemView === "news" ? "Heloro New"
-    : systemView === "discussion" ? "Heloro New"
-    : systemView === "support" ? "Support Heloro"
-    : systemView === "admin" ? "HELORO S"
-    : "";
 
   return (
     <main className={`messenger-stage ${activeConversation || systemView ? "chat-selected" : ""}`}>
