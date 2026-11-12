@@ -38,16 +38,44 @@ export async function searchProfiles(query: string, currentUserId: string): Prom
   const normalized = query.trim().replace(/^@/, "").toLowerCase();
   if (normalized.length < 2) return [];
 
-  const { data, error } = await client()
-    .from("profiles")
-    .select("id, username, display_name, avatar_url")
-    .neq("id", currentUserId)
-    .ilike("username", `%${normalized}%`)
-    .not("username", "is", null)
-    .limit(8);
+  const safeQuery = normalized.replace(/[%,_]/g, "");
+  if (safeQuery.length < 2) return [];
 
-  if (error) throw error;
-  return (data ?? []) as PublicProfile[];
+  const [usernameResult, nameResult] = await Promise.all([
+    client()
+      .from("profiles")
+      .select("id, username, display_name, avatar_url")
+      .neq("id", currentUserId)
+      .ilike("username", `%${safeQuery}%`)
+      .not("username", "is", null)
+      .limit(8),
+    client()
+      .from("profiles")
+      .select("id, username, display_name, avatar_url")
+      .neq("id", currentUserId)
+      .ilike("display_name", `%${safeQuery}%`)
+      .not("username", "is", null)
+      .limit(8),
+  ]);
+
+  if (usernameResult.error) throw usernameResult.error;
+  if (nameResult.error) throw nameResult.error;
+
+  const profiles = [...(usernameResult.data ?? []), ...(nameResult.data ?? [])];
+  const uniqueProfiles = Array.from(new Map(profiles.map((profile) => [profile.id, profile])).values()).slice(0, 8);
+  if (uniqueProfiles.length === 0) return [];
+
+  const { data: badges, error: badgeError } = await client()
+    .from("verification_badges")
+    .select("user_id, badge_type")
+    .in("user_id", uniqueProfiles.map((profile) => profile.id));
+  if (badgeError) throw badgeError;
+
+  const badgeByUser = new Map((badges ?? []).map((badge) => [badge.user_id, badge.badge_type]));
+  return uniqueProfiles.map((profile) => ({
+    ...profile,
+    badge_type: (badgeByUser.get(profile.id) as PublicProfile["badge_type"]) ?? null,
+  })) as PublicProfile[];
 }
 
 export async function createDirectConversation(username: string): Promise<string> {
