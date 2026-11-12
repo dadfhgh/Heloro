@@ -212,6 +212,7 @@ function NewsChannel({
   }
 
   async function removeComment(commentId: string) {
+    if (!window.confirm(ru ? "Удалить комментарий для всех?" : "Delete this comment for everyone?")) return;
     setBusy(true);
     setError("");
     try {
