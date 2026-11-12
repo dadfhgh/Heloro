@@ -24,7 +24,10 @@ export default function AuthScreen({ client }: Props) {
         const { data, error: authError } = await client.auth.signUp({
           email: email.trim(),
           password,
-          options: { data: { display_name: displayName.trim() } },
+          options: {
+            data: { display_name: displayName.trim() },
+            emailRedirectTo: new URL(import.meta.env.BASE_URL, window.location.origin).toString(),
+          },
         });
         if (authError) throw authError;
         if (!data.session) {
