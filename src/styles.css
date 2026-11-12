@@ -1175,3 +1175,55 @@ html[data-theme="dark"] .setup-lead { color: #a5bac4; }
   .settings-content-heading h3 { font-size: 16px; }
   .settings-coming-card { padding: 13px; }
 }
+
+
+/* Message reactions and private media attachments */
+.message-reactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+  max-width: min(100%, 360px);
+}
+.message-reaction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 29px;
+  min-height: 25px;
+  padding: 2px 7px;
+  border: 1px solid rgba(109, 158, 180, .2);
+  border-radius: 999px;
+  color: #547486;
+  background: rgba(255,255,255,.76);
+  font-size: 13px;
+  line-height: 1;
+}
+.message-reaction small { color: #78909e; font-size: 10px; font-weight: 700; }
+.message-reaction.active {
+  border-color: rgba(60, 157, 190, .55);
+  color: #287ea9;
+  background: rgba(94, 185, 205, .16);
+}
+.message-media {
+  display: block;
+  max-width: min(100%, 280px);
+  object-fit: contain;
+  border-radius: 13px;
+}
+.message-sticker { width: auto; max-height: 190px; padding: 2px; }
+.message-gif { width: auto; max-height: 260px; }
+.composer-media-button { flex: 0 0 34px; color: #6992a3; }
+.composer-media-button:disabled { opacity: .45; }
+
+html[data-theme="dark"] .message-reaction {
+  border-color: #405966;
+  color: #d4e5eb;
+  background: #263e4b;
+}
+html[data-theme="dark"] .message-reaction.active {
+  border-color: #4c9eb0;
+  color: #a6e4ed;
+  background: #294d58;
+}
