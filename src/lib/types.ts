@@ -1,3 +1,5 @@
+export type BadgeType = "blue" | "gold" | "creator";
+
 export interface Profile {
   id: string;
   username: string | null;
@@ -29,4 +31,5 @@ export interface PublicProfile {
   username: string;
   display_name: string;
   avatar_url: string | null;
+  badge_type?: BadgeType | null;
 }
