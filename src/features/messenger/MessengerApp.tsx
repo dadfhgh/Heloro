@@ -33,6 +33,7 @@ type Props = {
   profile: Profile;
   locale: Locale;
   onLocaleChange: (next: Locale) => void;
+  isOwner: boolean;
 };
 
 function Avatar({ label, className = "" }: { label: string; className?: string }) {
@@ -49,7 +50,7 @@ function EmptyChat({ locale }: { locale: Locale }) {
   );
 }
 
-export default function MessengerApp({ client, user, profile, locale, onLocaleChange }: Props) {
+export default function MessengerApp({ client, user, profile, locale, onLocaleChange, isOwner }: Props) {
   const [inbox, setInbox] = useState<InboxConversation[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -293,6 +294,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
               <Avatar label={profile.display_name} />
               <span><strong>{profile.display_name}</strong><small>@{profile.username}</small></span>
             </div>
+            {isOwner && <div className="settings-owner"><ShieldCheck size={15} /><span>{t(locale, "ownerRole")}</span></div>}
             <div className="settings-row">
               <span>{t(locale, "language")}</span>
               <div className="settings-language" role="group" aria-label={t(locale, "language")}>
