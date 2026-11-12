@@ -14,7 +14,9 @@ export default function AuthScreen({ client, locale, onLocaleChange }: Props) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -23,6 +25,20 @@ export default function AuthScreen({ client, locale, onLocaleChange }: Props) {
     event.preventDefault();
     setError("");
     setNotice("");
+    if (mode === "signup") {
+      if (!displayName.trim()) {
+        setError(t(locale, "authNameRequired"));
+        return;
+      }
+      if (password.length < 8) {
+        setError(t(locale, "authPasswordMinLength"));
+        return;
+      }
+      if (password !== confirmPassword) {
+        setError(t(locale, "authPasswordMismatch"));
+        return;
+      }
+    }
     setBusy(true);
     try {
       if (mode === "signup") {
@@ -84,8 +100,8 @@ export default function AuthScreen({ client, locale, onLocaleChange }: Props) {
             </div>
           </div>
           <div className="auth-tabs" role="tablist" aria-label={t(locale, "settingsAccount")}>
-            <button type="button" role="tab" aria-selected={mode === "signin"} className={mode === "signin" ? "active" : ""} onClick={() => { setMode("signin"); setError(""); setNotice(""); }}>{t(locale, "authLogin")}</button>
-            <button type="button" role="tab" aria-selected={mode === "signup"} className={mode === "signup" ? "active" : ""} onClick={() => { setMode("signup"); setError(""); setNotice(""); }}>{t(locale, "authSignup")}</button>
+            <button type="button" role="tab" aria-selected={mode === "signin"} className={mode === "signin" ? "active" : ""} onClick={() => { setMode("signin"); setConfirmPassword(""); setError(""); setNotice(""); }}>{t(locale, "authLogin")}</button>
+            <button type="button" role="tab" aria-selected={mode === "signup"} className={mode === "signup" ? "active" : ""} onClick={() => { setMode("signup"); setConfirmPassword(""); setError(""); setNotice(""); }}>{t(locale, "authSignup")}</button>
           </div>
           <form className="auth-form" onSubmit={handleSubmit}>
             {mode === "signup" && (
@@ -98,10 +114,21 @@ export default function AuthScreen({ client, locale, onLocaleChange }: Props) {
             </label>
             <label>{t(locale, "authPassword")}
               <div className="password-wrap">
-                <input type={showPassword ? "text" : "password"} autoComplete={mode === "signin" ? "current-password" : "new-password"} value={password} onChange={(event) => setPassword(event.target.value)} placeholder={t(locale, "authPasswordPlaceholder")} minLength={8} required />
-                <button type="button" className="icon-button password-toggle" aria-label={showPassword ? t(locale, "dismiss") : t(locale, "authPassword")} onClick={() => setShowPassword((value) => !value)}>{showPassword ? <EyeOff size={17} /> : <Eye size={17} />}</button>
+                <input type={showPassword ? "text" : "password"} autoComplete={mode === "signin" ? "current-password" : "new-password"} value={password} onChange={(event) => setPassword(event.target.value)} placeholder={t(locale, "authPasswordPlaceholder")} minLength={mode === "signup" ? 8 : undefined} required />
+                <button type="button" className="icon-button password-toggle" aria-label={showPassword ? t(locale, "authHidePassword") : t(locale, "authShowPassword")} onClick={() => setShowPassword((value) => !value)}>{showPassword ? <EyeOff size={17} /> : <Eye size={17} />}</button>
               </div>
+              {mode === "signup" && <small className="auth-password-hint">{t(locale, "authPasswordHint")}</small>}
             </label>
+            {mode === "signup" && (
+              <label>{t(locale, "authConfirmPassword")}
+                <div className="password-wrap">
+                  <input type={showConfirmPassword ? "text" : "password"} autoComplete="new-password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} placeholder={t(locale, "authConfirmPasswordPlaceholder")} minLength={8} required />
+                  <button type="button" className="icon-button password-toggle" aria-label={showConfirmPassword ? t(locale, "authHidePassword") : t(locale, "authShowPassword")} onClick={() => setShowConfirmPassword((value) => !value)}>
+                    {showConfirmPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                  </button>
+                </div>
+              </label>
+            )}
             {error && <p className="form-message error-message" role="alert">{error}</p>}
             {notice && <p className="form-message success-message" role="status">{notice}</p>}
             <button className="primary-button full-button" type="submit" disabled={busy}>
