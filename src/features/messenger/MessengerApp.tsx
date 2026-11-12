@@ -8,7 +8,7 @@ import {
   Flag,
   Headphones,
   ImagePlus,
-  Menu,
+  MoreVertical,
   Megaphone,
   MessageCircle,
   MoreHorizontal,
@@ -18,6 +18,8 @@ import {
   SmilePlus,
   ShieldCheck,
   Trash2,
+  UserRound,
+  Users,
   X,
 } from "lucide-react";
 import {
@@ -123,6 +125,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const [reportDetails, setReportDetails] = useState("");
   const [reportBusy, setReportBusy] = useState(false);
   const [chatFilter, setChatFilter] = useState<"all" | "personal">("all");
+  const [homeTab, setHomeTab] = useState<"chats" | "contacts" | "settings" | "profile">("chats");
   const searchInputRef = useRef<HTMLInputElement>(null);
   const stickerInputRef = useRef<HTMLInputElement>(null);
   const gifInputRef = useRef<HTMLInputElement>(null);
@@ -409,6 +412,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   }
 
   function openSearch() {
+    setHomeTab("contacts");
     setSystemView(null);
     setActiveId(null);
     setShowSearch(true);
@@ -416,7 +420,36 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
     setResults([]);
   }
 
+  function switchHomeTab(tab: "chats" | "contacts" | "settings" | "profile") {
+    setHomeTab(tab);
+    setActiveId(null);
+    setSystemView(null);
+    setError("");
+    setShowNavigation(false);
+    setShowProfile(false);
+    if (tab === "chats") {
+      setShowSearch(false);
+      setSearch("");
+      setResults([]);
+      setShowSettings(false);
+    } else if (tab === "contacts") {
+      setShowSearch(true);
+      setSearch("");
+      setResults([]);
+      setShowSettings(false);
+    } else if (tab === "settings") {
+      setShowSettings(false);
+      openSettings("account");
+    } else {
+      setShowSearch(false);
+      setSearch("");
+      setResults([]);
+      setShowSettings(false);
+    }
+  }
+
   function openSystemView(view: SystemView) {
+    setHomeTab("chats");
     setActiveId(null);
     setSystemView(view);
     setShowSearch(false);
@@ -426,6 +459,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   }
 
   function closeConversation() {
+    setHomeTab("chats");
     setActiveId(null);
     setSystemView(null);
     setShowSearch(false);
@@ -438,26 +472,20 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   }
 
   return (
-    <main className={`messenger-stage ${activeConversation || systemView ? "chat-selected" : ""}`}>
+    <main className={`messenger-stage home-${homeTab} ${activeConversation || systemView ? "chat-selected" : ""}`}>
       <div className="messenger-shell">
         <aside className="inbox-panel">
-          <header className="inbox-topbar">
-            <button
-              className="icon-button menu-button"
-              title={locale === "ru" ? "Меню" : "Menu"}
-              aria-label={locale === "ru" ? "Открыть меню" : "Open menu"}
-              onClick={() => setShowNavigation(true)}
-            >
-              <Menu size={21} />
-            </button>
+          <header className="inbox-topbar telegram-main-topbar">
             <div className="brand-lockup"><div className="brand-symbol">H</div><span>HELORO</span></div>
             <button
-              className="icon-button compose-button"
-              title={t(locale, "inboxStartConversation")}
-              aria-label={t(locale, "inboxStartConversation")}
-              onClick={openSearch}
+              className="icon-button overflow-button"
+              title={locale === "ru" ? "Дополнительно" : "More"}
+              aria-label={locale === "ru" ? "Открыть меню" : "Open menu"}
+              aria-haspopup="menu"
+              aria-expanded={showNavigation}
+              onClick={() => setShowNavigation(true)}
             >
-              <PencilLine size={19} />
+              <MoreVertical size={21} />
             </button>
           </header>
 
@@ -480,17 +508,45 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
             </label>
           </div>
 
-          <div className="chat-filter-tabs" role="tablist" aria-label={t(locale, "inboxTitle")}>
-            <button type="button" role="tab" aria-selected={chatFilter === "all"} className={chatFilter === "all" ? "active" : ""} onClick={() => setChatFilter("all")}>
-              {t(locale, "chatAll")}
-            </button>
-            <button type="button" role="tab" aria-selected={chatFilter === "personal"} className={chatFilter === "personal" ? "active" : ""} onClick={() => setChatFilter("personal")}>
-              {t(locale, "chatPersonal")}
-            </button>
-          </div>
+          {homeTab === "chats" && !showSearch && (
+            <div className="chat-filter-tabs" role="tablist" aria-label={t(locale, "inboxTitle")}>
+              <button type="button" role="tab" aria-selected={chatFilter === "all"} className={chatFilter === "all" ? "active" : ""} onClick={() => setChatFilter("all")}>
+                {t(locale, "chatAll")}
+              </button>
+              <button type="button" role="tab" aria-selected={chatFilter === "personal"} className={chatFilter === "personal" ? "active" : ""} onClick={() => setChatFilter("personal")}>
+                {t(locale, "chatPersonal")}
+              </button>
+            </div>
+          )}
 
           <section className="conversation-list">
-            {showSearch && search.trim().length > 1 ? (
+            {homeTab === "profile" ? (
+              <div className="profile-home-page">
+                <div className="profile-home-card">
+                  <Avatar label={ownProfile.display_name} className="profile-home-avatar" src={ownProfile.avatar_url} />
+                  <div className="profile-home-title">
+                    <strong>{ownProfile.display_name}<VerificationMark type={null} title="" /></strong>
+                    <small>@{ownProfile.username}</small>
+                    {roles.includes("owner") && <span className="profile-home-role"><ShieldCheck size={13} /> {t(locale, "ownerRole")}</span>}
+                  </div>
+                  <button type="button" className="profile-home-edit" onClick={() => void openUserProfile(user.id)}>
+                    {locale === "ru" ? "Мой профиль" : "My profile"}
+                  </button>
+                </div>
+                <div className="profile-home-section">
+                  <button type="button" onClick={() => switchHomeTab("settings")}><Settings2 size={19} /><span>{locale === "ru" ? "Настройки" : "Settings"}</span><MoreVertical size={17} /></button>
+                  <button type="button" onClick={() => openSystemView("support")}><Headphones size={19} /><span>Support Heloro</span><MoreVertical size={17} /></button>
+                  {isStaff && <button type="button" onClick={() => openSystemView("admin")}><ShieldCheck size={19} /><span>HELORO S</span><MoreVertical size={17} /></button>}
+                </div>
+              </div>
+            ) : homeTab === "contacts" && !(showSearch && search.trim().length > 1) ? (
+              <div className="contacts-landing">
+                <div className="contacts-landing-icon"><Users size={27} /></div>
+                <strong>{locale === "ru" ? "Контакты" : "Contacts"}</strong>
+                <p>{locale === "ru" ? "Найдите человека по имени пользователя" : "Find people by username"}</p>
+                <span>{locale === "ru" ? "Введите имя пользователя в строке поиска выше" : "Enter a username in the search field above"}</span>
+              </div>
+            ) : {showSearch && search.trim().length > 1 ? (
               <>
                 <div className="section-label">{locale === "ru" ? "Люди" : "People"}</div>
                 {searching ? (
@@ -572,6 +628,11 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
             )}
           </section>
 
+          {homeTab === "chats" && !activeConversation && !systemView && (
+            <button className="new-chat-fab" type="button" onClick={openSearch} aria-label={t(locale, "inboxStartConversation")} title={t(locale, "inboxStartConversation")}>
+              <PencilLine size={21} />
+            </button>
+          )}
           <footer className="inbox-profile">
             <button className="inbox-own-profile" type="button" onClick={() => void openUserProfile(user.id)} aria-label={t(locale, "profileViewTitle")}>
               <Avatar label={ownProfile.display_name} className="profile-avatar" src={ownProfile.avatar_url} />
@@ -679,6 +740,23 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
         </section>
       </div>
 
+      {!activeConversation && !systemView && (
+        <nav className="bottom-navigation" aria-label={locale === "ru" ? "Основная навигация" : "Main navigation"}>
+          <button type="button" className={homeTab === "chats" ? "active" : ""} aria-current={homeTab === "chats" ? "page" : undefined} onClick={() => switchHomeTab("chats")}>
+            <MessageCircle size={21} /><span>{locale === "ru" ? "Чаты" : "Chats"}</span>
+          </button>
+          <button type="button" className={homeTab === "contacts" ? "active" : ""} aria-current={homeTab === "contacts" ? "page" : undefined} onClick={() => switchHomeTab("contacts")}>
+            <Users size={21} /><span>{locale === "ru" ? "Контакты" : "Contacts"}</span>
+          </button>
+          <button type="button" className={homeTab === "settings" ? "active" : ""} aria-current={homeTab === "settings" ? "page" : undefined} onClick={() => switchHomeTab("settings")}>
+            <Settings2 size={21} /><span>{locale === "ru" ? "Настройки" : "Settings"}</span>
+          </button>
+          <button type="button" className={homeTab === "profile" ? "active" : ""} aria-current={homeTab === "profile" ? "page" : undefined} onClick={() => switchHomeTab("profile")}>
+            <UserRound size={21} /><span>{locale === "ru" ? "Профиль" : "Profile"}</span>
+          </button>
+        </nav>
+      )}
+
       {error && !activeConversation && !systemView && <div className="global-error" role="alert">{error}<button onClick={() => setError("")} aria-label={t(locale, "dismiss")}><X size={14} /></button></div>}
 
       {showNavigation && (
@@ -688,11 +766,11 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
             locale={locale}
             roles={roles}
             onClose={() => setShowNavigation(false)}
-            onOpenInbox={closeConversation}
-            onOpenContacts={openSearch}
+            onOpenInbox={() => switchHomeTab("chats")}
+            onOpenContacts={() => switchHomeTab("contacts")}
             onOpenNews={() => openSystemView("news")}
             onOpenSupport={() => openSystemView("support")}
-            onOpenSettings={() => openSettings("account")}
+            onOpenSettings={() => switchHomeTab("settings")}
             onOpenAdmin={() => openSystemView("admin")}
           />
         </Suspense>
@@ -709,7 +787,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
             onSectionChange={setSettingsSection}
             onThemeChange={onThemeChange}
             onLocaleChange={onLocaleChange}
-            onClose={() => setShowSettings(false)}
+            onClose={() => { setShowSettings(false); setHomeTab("chats"); }}
             onOpenSupport={() => { setShowSettings(false); openSystemView("support"); }}
             onOpenAdmin={() => { setShowSettings(false); openSystemView("admin"); }}
             onSignOut={() => void signOut()}
