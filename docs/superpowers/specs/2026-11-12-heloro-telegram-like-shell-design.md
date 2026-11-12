@@ -36,6 +36,16 @@
 - Theme preference is versioned and stored in browser local storage; it is device-local, not synchronized to other devices.
 - Future server-backed capabilities are separate deliverables with migrations, RLS, Realtime, abuse controls, and end-to-end tests.
 
+## Calls — User-confirmed request / Blocked (2026-11-12)
+
+- User-confirmed: add calling to HELORO.
+- Proposed first scope: one-to-one audio and video calls; group calls are a later, separate scope.
+- Privacy requirement: do not enable direct peer-to-peer media until relay-only transport can prevent participants from learning each other’s public network addresses.
+- Cost requirement: no paid service, no automatic overage, and no billing risk. A free allowance is not sufficient if usage can silently become billable.
+- Age/terms requirement: media/signalling providers must permit the intended HELORO audience. Do not use services whose terms restrict all end users to adults.
+- Current Supabase Realtime is a signalling/event channel, not a media relay. The current stack does not provide a secure, age-compatible, guaranteed-zero-cost media relay.
+- Status: planned and blocked; no audio/video media call is implemented or tested. Calls remain visibly disabled in the interface until the infrastructure requirements are met.
+
 ## Follow-on capability groups
 
 1. Core chat experience: folders, Saved Messages, pinning, reactions, polls, message search and formatting.
