@@ -755,6 +755,10 @@ a { color: inherit; }
 .system-comment { padding: 10px 12px; border-radius: 10px; background: #f5f9fa; }
 .system-comment strong { color: #567486; font-size: 11px; }
 .system-comment p { margin: 5px 0; color: #466273; font-size: 12px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.system-comment-meta, .system-message-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.system-message-meta { justify-content: flex-end; margin-top: 3px; }
+.system-delete-button { display: inline-flex; align-items: center; gap: 4px; padding: 3px 0; border: 0; color: #b35c68; background: transparent; font-size: 10px; cursor: pointer; }
+.system-delete-button:disabled { opacity: .55; cursor: wait; }
 .system-publish-form {
   display: grid; gap: 10px; max-width: 760px; margin: 0 auto 15px; padding: 14px;
   border: 1px solid #e2edf1; border-radius: 14px; background: #fff;
