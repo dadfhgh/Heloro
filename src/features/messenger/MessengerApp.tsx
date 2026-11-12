@@ -7,7 +7,6 @@ import {
   CheckCheck,
   Flag,
   Headphones,
-  LogOut,
   Menu,
   Megaphone,
   MessageCircle,
