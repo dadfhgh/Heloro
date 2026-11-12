@@ -13,13 +13,11 @@ import {
   MessageCircle,
   MoreHorizontal,
   PencilLine,
-  Phone,
   Search,
   Settings2,
   SmilePlus,
   ShieldCheck,
   Trash2,
-  Video,
   X,
 } from "lucide-react";
 import {
@@ -613,12 +611,6 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                 <div className="chat-header-actions">
                   <button className="icon-button" aria-label={t(locale, "chatSearch")} title={t(locale, "chatSearch")} onClick={() => openSearch()}>
                     <Search size={20} />
-                  </button>
-                  <button className="icon-button" type="button" disabled title={locale === "ru" ? "Голосовые звонки пока не подключены" : "Voice calls are not enabled yet"} aria-label={locale === "ru" ? "Голосовые звонки недоступны" : "Voice calls unavailable"}>
-                    <Phone size={19} />
-                  </button>
-                  <button className="icon-button" type="button" disabled title={locale === "ru" ? "Видеозвонки пока не подключены" : "Video calls are not enabled yet"} aria-label={locale === "ru" ? "Видеозвонки недоступны" : "Video calls unavailable"}>
-                    <Video size={19} />
                   </button>
                   <button className="icon-button" aria-label={locale === "ru" ? "Пожаловаться" : "Report"} title={locale === "ru" ? "Пожаловаться" : "Report"} onClick={() => setShowReport(true)}>
                     <MoreHorizontal size={21} />
