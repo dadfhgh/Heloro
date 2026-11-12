@@ -18,19 +18,12 @@ export interface InboxConversation {
   last_message_at: string | null;
 }
 
-export interface MessageReaction {
-  id: string;
-  user_id: string;
-  emoji: string;
-}
-
 export interface Message {
   id: string;
   conversation_id: string;
   sender_id: string;
   body: string;
   created_at: string;
-  reactions?: MessageReaction[];
   media?: { kind: "sticker" | "gif"; url: string } | null;
 }
 
