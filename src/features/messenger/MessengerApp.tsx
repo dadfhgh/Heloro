@@ -4,7 +4,6 @@ import {
   ArrowLeft,
   ArrowUp,
   CheckCheck,
-  CircleHelp,
   LogOut,
   Menu,
   MessageCircle,
