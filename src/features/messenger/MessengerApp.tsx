@@ -6,9 +6,10 @@ import {
   CheckCheck,
   CircleHelp,
   LogOut,
+  Menu,
   MessageCircle,
   MoreHorizontal,
-  Plus,
+  PencilLine,
   Search,
   Settings2,
   ShieldCheck,
@@ -43,7 +44,7 @@ function Avatar({ label, className = "" }: { label: string; className?: string }
 function EmptyChat({ locale }: { locale: Locale }) {
   return (
     <div className="empty-chat">
-      <div className="empty-chat-icon"><MessageCircle size={30} /></div>
+      <div className="empty-chat-icon"><MessageCircle size={28} /></div>
       <h2>{t(locale, "chatSelectTitle")}</h2>
       <p>{t(locale, "chatSelectDescription")}</p>
     </div>
@@ -64,8 +65,24 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const [error, setError] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [chatFilter, setChatFilter] = useState<"all" | "personal">("all");
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const activeConversation = useMemo(() => inbox.find((item) => item.conversation_id === activeId) ?? null, [inbox, activeId]);
+  const activeConversation = useMemo(
+    () => inbox.find((item) => item.conversation_id === activeId) ?? null,
+    [inbox, activeId],
+  );
+
+  const visibleInbox = useMemo(() => {
+    const query = search.trim().toLocaleLowerCase();
+    const base = chatFilter === "personal" ? inbox : inbox;
+    if (!query) return base;
+    return base.filter((item) =>
+      (item.display_name || "").toLocaleLowerCase().includes(query) ||
+      (item.username || "").toLocaleLowerCase().includes(query) ||
+      (item.last_message || "").toLocaleLowerCase().includes(query),
+    );
+  }, [inbox, search, chatFilter]);
 
   async function refreshInbox(selectId?: string) {
     const updated = await getInbox();
@@ -79,7 +96,9 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
     setLoadingInbox(true);
     getInbox()
       .then((items) => { if (active) setInbox(items); })
-      .catch((cause: unknown) => { if (active) setError(cause instanceof Error ? cause.message : t(locale, "inboxLoadFailed")); })
+      .catch((cause: unknown) => {
+        if (active) setError(cause instanceof Error ? cause.message : t(locale, "inboxLoadFailed"));
+      })
       .finally(() => { if (active) setLoadingInbox(false); });
     return () => { active = false; };
   }, [locale]);
@@ -94,7 +113,9 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
     setError("");
     getMessages(activeId)
       .then((items) => { if (active) setMessages(items); })
-      .catch((cause: unknown) => { if (active) setError(cause instanceof Error ? cause.message : t(locale, "messagesLoadFailed")); })
+      .catch((cause: unknown) => {
+        if (active) setError(cause instanceof Error ? cause.message : t(locale, "messagesLoadFailed"));
+      })
       .finally(() => { if (active) setLoadingMessages(false); });
 
     const channel = subscribeToMessages(activeId, (incoming) => {
@@ -123,7 +144,9 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
     const timeout = window.setTimeout(() => {
       searchProfiles(normalized, user.id)
         .then((items) => { if (active) setResults(items); })
-        .catch((cause: unknown) => { if (active) setError(cause instanceof Error ? cause.message : t(locale, "searchFailed")); })
+        .catch((cause: unknown) => {
+          if (active) setError(cause instanceof Error ? cause.message : t(locale, "searchFailed"));
+        })
         .finally(() => { if (active) setSearching(false); });
     }, 220);
     return () => { active = false; window.clearTimeout(timeout); };
@@ -137,6 +160,10 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [showSettings]);
+
+  useEffect(() => {
+    if (showSearch) searchInputRef.current?.focus();
+  }, [showSearch]);
 
   async function startConversation(target: PublicProfile) {
     setError("");
@@ -177,89 +204,172 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
     else setShowSettings(false);
   }
 
+  function openSearch() {
+    setShowSearch(true);
+    setSearch("");
+    setResults([]);
+  }
+
   return (
     <main className={`messenger-stage ${activeConversation ? "chat-selected" : ""}`}>
-      <div className="messenger-backdrop messenger-backdrop-a" />
-      <div className="messenger-backdrop messenger-backdrop-b" />
       <div className="messenger-shell">
-        <aside className="inbox-panel glass-panel">
-          <div className="inbox-brand-row">
+        <aside className="inbox-panel">
+          <header className="inbox-topbar">
+            <button
+              className="icon-button menu-button"
+              title={t(locale, "settings")}
+              aria-label={t(locale, "settings")}
+              onClick={() => setShowSettings(true)}
+            >
+              <Menu size={21} />
+            </button>
             <div className="brand-lockup"><div className="brand-symbol">H</div><span>HELORO</span></div>
-            <button className="icon-button" title={t(locale, "inboxStartConversation")} aria-label={t(locale, "inboxStartConversation")} onClick={() => setShowSearch((value) => !value)}><Plus size={19} /></button>
-          </div>
-          <div className="inbox-welcome">
-            <span className="eyebrow">HELORO</span>
-            <h1>{t(locale, "inboxTitle")}</h1>
-          </div>
-          <div className="search-box">
-            <Search size={16} />
-            <input value={search} onChange={(event) => { setSearch(event.target.value); setShowSearch(true); }} placeholder={t(locale, "inboxSearchPlaceholder")} aria-label={t(locale, "inboxSearchPlaceholder")} />
-            {search && <button className="clear-search" onClick={() => { setSearch(""); setResults([]); }} aria-label={t(locale, "inboxClear")}><X size={15} /></button>}
-          </div>
-          {showSearch && search.trim().length > 1 ? (
-            <section className="search-results">
-              <div className="section-label">{t(locale, "inboxPeople")}</div>
-              {searching ? <p className="muted small-copy">{t(locale, "inboxSearching")}</p> : results.length === 0 ? <p className="muted small-copy">{t(locale, "inboxNoResults")}</p> : results.map((person) => (
-                <button className="person-result" key={person.id} onClick={() => void startConversation(person)}>
-                  <Avatar label={person.display_name || person.username} />
-                  <span><strong>{person.display_name || person.username}</strong><small>@{person.username}</small></span>
-                  <Plus size={16} />
+            <button
+              className="icon-button compose-button"
+              title={t(locale, "inboxStartConversation")}
+              aria-label={t(locale, "inboxStartConversation")}
+              onClick={openSearch}
+            >
+              <PencilLine size={19} />
+            </button>
+          </header>
+
+          <div className="inbox-search-area">
+            <label className="telegram-search">
+              <Search size={18} />
+              <input
+                ref={searchInputRef}
+                value={search}
+                onChange={(event) => { setSearch(event.target.value); setShowSearch(true); }}
+                onFocus={() => setShowSearch(true)}
+                placeholder={t(locale, "inboxSearchPlaceholder")}
+                aria-label={t(locale, "inboxSearchPlaceholder")}
+              />
+              {search && (
+                <button className="clear-search" onClick={() => { setSearch(""); setResults([]); }} aria-label={t(locale, "inboxClear")}>
+                  <X size={15} />
                 </button>
-              ))}
-              <button className="cancel-search" onClick={() => { setShowSearch(false); setSearch(""); setResults([]); }}>{t(locale, "inboxBack")}</button>
-            </section>
-          ) : (
-            <section className="conversation-list">
-              <div className="section-label">{t(locale, "inboxRecent")}</div>
-              {loadingInbox ? <div className="list-placeholder"><span /><span /><span /></div> : inbox.length === 0 ? (
-                <div className="inbox-empty">
-                  <div className="inbox-empty-icon"><MessageCircle size={20} /></div>
-                  <strong>{t(locale, "inboxEmptyTitle")}</strong>
-                  <p>{t(locale, "inboxEmptyDescription")}</p>
-                  <button onClick={() => setShowSearch(true)}>{t(locale, "inboxFindSomeone")} <ArrowUp size={14} /></button>
-                </div>
-              ) : inbox.map((item) => {
-                const label = item.display_name || item.username;
-                return (
-                  <button className={`conversation-item ${activeId === item.conversation_id ? "selected" : ""}`} key={item.conversation_id} onClick={() => setActiveId(item.conversation_id)}>
-                    <Avatar label={label} />
-                    <span className="conversation-copy"><strong>{label}</strong><small>{item.last_message || t(locale, "inboxSayHello")}</small></span>
-                    <time>{formatInboxTime(item.last_message_at)}</time>
-                  </button>
-                );
-              })}
-            </section>
-          )}
-          <div className="inbox-bottom">
-            <div className="signed-user">
-              <Avatar label={profile.display_name} className="small-avatar" />
-              <span><strong>{profile.display_name}</strong><small>@{profile.username}</small></span>
-              <button className="icon-button" title={t(locale, "settings")} aria-label={t(locale, "settings")} onClick={() => setShowSettings(true)}><Settings2 size={17} /></button>
-              <button className="icon-button" title={t(locale, "signOut")} aria-label={t(locale, "signOut")} onClick={() => void signOut()}><LogOut size={17} /></button>
-            </div>
+              )}
+            </label>
           </div>
+
+          <div className="chat-filter-tabs" role="tablist" aria-label={t(locale, "inboxTitle")}>
+            <button type="button" role="tab" aria-selected={chatFilter === "all"} className={chatFilter === "all" ? "active" : ""} onClick={() => setChatFilter("all")}>
+              {t(locale, "chatAll")}
+            </button>
+            <button type="button" role="tab" aria-selected={chatFilter === "personal"} className={chatFilter === "personal" ? "active" : ""} onClick={() => setChatFilter("personal")}>
+              {t(locale, "chatPersonal")}
+            </button>
+          </div>
+
+          <section className="conversation-list">
+            {showSearch && search.trim().length > 1 ? (
+              <>
+                <div className="section-label">{t(locale, "inboxPeople")}</div>
+                {searching ? (
+                  <p className="muted small-copy">{t(locale, "inboxSearching")}</p>
+                ) : results.length === 0 ? (
+                  <p className="muted small-copy">{t(locale, "inboxNoResults")}</p>
+                ) : results.map((person) => (
+                  <button className="person-result" key={person.id} onClick={() => void startConversation(person)}>
+                    <Avatar label={person.display_name || person.username} />
+                    <span><strong>{person.display_name || person.username}</strong><small>@{person.username}</small></span>
+                    <MessageCircle size={17} />
+                  </button>
+                ))}
+                <button className="cancel-search" onClick={() => { setShowSearch(false); setSearch(""); setResults([]); }}>
+                  {t(locale, "inboxBack")}
+                </button>
+              </>
+            ) : (
+              <>
+                {loadingInbox ? (
+                  <div className="list-placeholder"><span /><span /><span /><span /></div>
+                ) : visibleInbox.length === 0 ? (
+                  <div className="inbox-empty">
+                    <div className="inbox-empty-icon"><MessageCircle size={21} /></div>
+                    <strong>{t(locale, "inboxEmptyTitle")}</strong>
+                    <p>{t(locale, "inboxEmptyDescription")}</p>
+                    <button onClick={openSearch}>{t(locale, "inboxFindSomeone")}</button>
+                  </div>
+                ) : visibleInbox.map((item) => {
+                  const label = item.display_name || item.username;
+                  return (
+                    <button
+                      className={`conversation-item ${activeId === item.conversation_id ? "selected" : ""}`}
+                      key={item.conversation_id}
+                      onClick={() => { setActiveId(item.conversation_id); setShowSearch(false); }}
+                    >
+                      <Avatar label={label} />
+                      <span className="conversation-copy">
+                        <span className="conversation-title-line">
+                          <strong>{label}</strong>
+                          <time>{formatInboxTime(item.last_message_at)}</time>
+                        </span>
+                        <span className="conversation-preview-line">
+                          <small>{item.last_message || t(locale, "inboxSayHello")}</small>
+                          {item.last_message && <CheckCheck className="preview-check" size={15} />}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </>
+            )}
+          </section>
+
+          <footer className="inbox-profile">
+            <Avatar label={profile.display_name} className="profile-avatar" />
+            <span className="profile-summary">
+              <strong>{profile.display_name}</strong>
+              <small>@{profile.username}</small>
+            </span>
+            {isOwner && <span className="owner-mini-mark" title={t(locale, "ownerRole")}><ShieldCheck size={15} /></span>}
+            <button className="icon-button profile-menu-button" title={t(locale, "settings")} aria-label={t(locale, "settings")} onClick={() => setShowSettings(true)}>
+              <Settings2 size={18} />
+            </button>
+          </footer>
         </aside>
-        <section className="conversation-panel glass-panel">
+
+        <section className="conversation-panel">
           {activeConversation ? (
             <>
               <header className="chat-header">
-                <button className="icon-button mobile-back" aria-label={t(locale, "inboxBack")} onClick={() => setActiveId(null)}><ArrowLeft size={19} /></button>
-                <Avatar label={activeConversation.display_name || activeConversation.username} />
-                <div className="chat-person"><strong>{activeConversation.display_name || activeConversation.username}</strong><small>@{activeConversation.username}</small></div>
+                <button className="icon-button mobile-back" aria-label={t(locale, "inboxBack")} onClick={() => setActiveId(null)}>
+                  <ArrowLeft size={20} />
+                </button>
+                <Avatar label={activeConversation.display_name || activeConversation.username} className="chat-header-avatar" />
+                <div className="chat-person">
+                  <strong>{activeConversation.display_name || activeConversation.username}</strong>
+                  <small>@{activeConversation.username}</small>
+                </div>
                 <div className="chat-header-actions">
-                  <span className="secure-caption"><span /> {t(locale, "chatPrivate")}</span>
-                  <button className="icon-button" aria-label={t(locale, "chatOptions")} title={t(locale, "chatOptions")} onClick={() => setError(t(locale, "chatOptionsUnavailable"))}><MoreHorizontal size={19} /></button>
+                  <button className="icon-button" aria-label={t(locale, "chatSearch")} title={t(locale, "chatSearch")} onClick={() => openSearch()}>
+                    <Search size={20} />
+                  </button>
+                  <button className="icon-button" aria-label={t(locale, "chatOptions")} title={t(locale, "chatOptions")} onClick={() => setError(t(locale, "chatOptionsUnavailable"))}>
+                    <MoreHorizontal size={21} />
+                  </button>
                 </div>
               </header>
               <div className="message-stream">
                 <div className="chat-date-pill">{t(locale, "chatConversationLabel")}</div>
-                {loadingMessages ? <div className="message-loading">{t(locale, "chatLoading")}</div> : messages.length === 0 ? (
-                  <div className="first-message"><div className="first-message-icon"><MessageCircle size={19} /></div><strong>{t(locale, "chatFirstMessageTitle")}</strong><p>{t(locale, "chatFirstMessageDescription")}</p></div>
+                {loadingMessages ? (
+                  <div className="message-loading">{t(locale, "chatLoading")}</div>
+                ) : messages.length === 0 ? (
+                  <div className="first-message">
+                    <div className="first-message-icon"><MessageCircle size={20} /></div>
+                    <strong>{t(locale, "chatFirstMessageTitle")}</strong>
+                    <p>{t(locale, "chatFirstMessageDescription")}</p>
+                  </div>
                 ) : messages.map((message) => {
                   const mine = message.sender_id === user.id;
                   return (
                     <div className={`message-row ${mine ? "mine" : "theirs"}`} key={message.id}>
-                      <div className="message-bubble"><p>{message.body}</p><span>{formatMessageTime(message.created_at)} {mine && <CheckCheck size={12} />}</span></div>
+                      <div className="message-bubble">
+                        <p>{message.body}</p>
+                        <span>{formatMessageTime(message.created_at)} {mine && <CheckCheck size={13} />}</span>
+                      </div>
                     </div>
                   );
                 })}
@@ -267,9 +377,16 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
               </div>
               {error && <div className="inline-error" role="alert">{error}<button onClick={() => setError("")} aria-label={t(locale, "dismiss")}><X size={14} /></button></div>}
               <form className="composer" onSubmit={handleSend}>
-                <input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder={t(locale, "messagePlaceholder")} aria-label={t(locale, "messagePlaceholder")} maxLength={4000} />
-                <span className="composer-hint">{t(locale, "messageEnterHint")}</span>
-                <button type="submit" disabled={sending || !draft.trim()} aria-label={t(locale, "messageSend")} className="send-button">{sending ? <span className="button-spinner" /> : <ArrowUp size={19} />}</button>
+                <input
+                  value={draft}
+                  onChange={(event) => setDraft(event.target.value)}
+                  placeholder={t(locale, "messagePlaceholder")}
+                  aria-label={t(locale, "messagePlaceholder")}
+                  maxLength={4000}
+                />
+                <button type="submit" disabled={sending || !draft.trim()} aria-label={t(locale, "messageSend")} className="send-button">
+                  {sending ? <span className="button-spinner" /> : <ArrowUp size={20} />}
+                </button>
               </form>
               <div className="chat-footnote"><ShieldCheck size={13} /> {t(locale, "messageSecurityNote")}</div>
             </>
@@ -278,11 +395,9 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
           )}
         </section>
       </div>
-      <footer className="messenger-footer">
-        <span>HELORO</span>
-        <button onClick={() => setError(t(locale, "helpUnavailable"))}><CircleHelp size={14} /> {t(locale, "help")}</button>
-      </footer>
+
       {error && !activeConversation && <div className="global-error" role="alert">{error}<button onClick={() => setError("")} aria-label={t(locale, "dismiss")}><X size={14} /></button></div>}
+
       {showSettings && (
         <div className="settings-overlay" onClick={() => setShowSettings(false)}>
           <section className="settings-card glass-panel" role="dialog" aria-modal="true" aria-labelledby="settings-title" onClick={(event) => event.stopPropagation()}>
