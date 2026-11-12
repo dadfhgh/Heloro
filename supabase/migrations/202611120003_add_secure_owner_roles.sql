@@ -34,7 +34,5 @@ $$;
 revoke all on function private.is_heloro_owner() from public, anon;
 grant execute on function private.is_heloro_owner() to authenticated;
 
--- Seeded only from the confirmed Auth user ID verified before this migration.
-insert into public.user_roles (user_id, role)
-values ('2102b732-4a25-4b29-a25b-04c5147ee8ec', 'owner')
-on conflict (user_id, role) do nothing;
+-- Initial owner grants are intentionally applied only in the private live database
+-- after confirming the Auth user ID. Never commit user IDs or grant by email here.
