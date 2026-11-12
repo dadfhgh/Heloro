@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { ArrowRight, AtSign, UserRound } from "lucide-react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { displayNameSchema, usernameSchema } from "../../lib/domain";
@@ -16,7 +16,7 @@ export default function ProfileSetup({ client, userId, onSaved }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
     const checkedName = displayNameSchema.safeParse(displayName);
