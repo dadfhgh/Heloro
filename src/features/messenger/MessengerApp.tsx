@@ -29,7 +29,6 @@ import {
   sendMessage,
   sendMediaMessage,
   subscribeToMessages,
-  toggleMessageReaction,
 } from "../../lib/messenger";
 import { formatInboxTime, formatMessageTime, initials, messageBodySchema } from "../../lib/domain";
 import type { InboxConversation, Message, Profile, PublicProfile, BadgeType } from "../../lib/types";
@@ -78,7 +77,6 @@ function EmptyChat({ locale }: { locale: Locale }) {
 }
 
 const reportReasons = ["spam", "harassment", "scam", "inappropriate", "other"] as const;
-const reactionChoices = ["👍", "❤️", "😂", "🔥", "😮", "👏"] as const;
 
 const LazyMessengerNavigation = lazy(async () => {
   const module = await import("./MessengerNavigation");
@@ -213,18 +211,6 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   }, [activeId, client, locale]);
 
   useEffect(() => {
-    if (!activeId) return;
-    const channel = client.channel(`heloro:reactions:${activeId}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "message_reactions" }, () => {
-        void getMessages(activeId).then(setMessages).catch((cause: unknown) => {
-          setError(cause instanceof Error ? cause.message : t(locale, "messagesLoadFailed"));
-        });
-      })
-      .subscribe();
-    return () => { void client.removeChannel(channel); };
-  }, [activeId, client, locale]);
-
-  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages]);
 
@@ -295,16 +281,6 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
       setError(cause instanceof Error ? cause.message : t(locale, "messageSendFailed"));
     } finally {
       setSending(false);
-    }
-  }
-
-  async function handleReaction(messageId: string, emoji: string) {
-    try {
-      await toggleMessageReaction(messageId, user.id, emoji);
-      const refreshed = await getMessages(activeId ?? "");
-      setMessages(refreshed);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : t(locale, "messageSendFailed"));
     }
   }
 
@@ -589,25 +565,6 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                           />
                         ) : message.body ? <p>{message.body}</p> : null}
                         <span>{formatMessageTime(message.created_at)} {mine && <CheckCheck size={13} />}</span>
-                      </div>
-                      <div className="message-reactions" aria-label={locale === "ru" ? "Реакции" : "Reactions"}>
-                        {reactionChoices.map((emoji) => {
-                          const users = message.reactions ?? [];
-                          const count = users.filter((item) => item.emoji === emoji).length;
-                          const selected = users.some((item) => item.emoji === emoji && item.user_id === user.id);
-                          return (
-                            <button
-                              key={emoji}
-                              type="button"
-                              className={selected ? "message-reaction active" : "message-reaction"}
-                              aria-pressed={selected}
-                              title={locale === "ru" ? "Поставить реакцию" : "React"}
-                              onClick={() => void handleReaction(message.id, emoji)}
-                            >
-                              {emoji}{count > 0 && <small>{count}</small>}
-                            </button>
-                          );
-                        })}
                       </div>
                     </div>
                   );
