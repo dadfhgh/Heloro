@@ -1,0 +1,230 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { User } from "@supabase/supabase-js";
+import { ArrowLeft, ArrowUp, CheckCheck, CircleHelp, LogOut, MessageCircle, MoreHorizontal, Plus, Search, Send, Settings2, Sparkles, UserRound, X } from "lucide-react";
+import { createDirectConversation, getInbox, getMessages, searchProfiles, sendMessage, subscribeToMessages } from "../../lib/messenger";
+import { formatInboxTime, formatMessageTime, initials, messageBodySchema } from "../../lib/domain";
+import type { InboxConversation, Message, Profile, PublicProfile } from "../../lib/types";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+type Props = { client: SupabaseClient; user: User; profile: Profile };
+
+function Avatar({ label, className = "" }: { label: string; className?: string }) {
+  return <div className={`avatar ${className}`} aria-hidden="true">{initials(label)}</div>;
+}
+
+function EmptyChat() {
+  return (
+    <div className="empty-chat">
+      <div className="empty-chat-icon"><MessageCircle size={30} /></div>
+      <h2>Room for a good conversation.</h2>
+      <p>Choose someone from your inbox or start a new chat.</p>
+      <span className="empty-chat-line" />
+      <small>HELORO · STAY CLOSE</small>
+    </div>
+  );
+}
+
+export default function MessengerApp({ client, user, profile }: Props) {
+  const [inbox, setInbox] = useState<InboxConversation[]>([]);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [draft, setDraft] = useState("");
+  const [search, setSearch] = useState("");
+  const [results, setResults] = useState<PublicProfile[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [loadingInbox, setLoadingInbox] = useState(true);
+  const [loadingMessages, setLoadingMessages] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState("");
+  const [showSearch, setShowSearch] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const activeConversation = useMemo(() => inbox.find((item) => item.conversation_id === activeId) ?? null, [inbox, activeId]);
+
+  async function refreshInbox(selectId?: string) {
+    const updated = await getInbox();
+    setInbox(updated);
+    if (selectId) setActiveId(selectId);
+    else if (activeId && !updated.some((item) => item.conversation_id === activeId)) setActiveId(null);
+  }
+
+  useEffect(() => {
+    let active = true;
+    setLoadingInbox(true);
+    getInbox()
+      .then((items) => { if (active) setInbox(items); })
+      .catch((cause: unknown) => { if (active) setError(cause instanceof Error ? cause.message : "Inbox could not be loaded."); })
+      .finally(() => { if (active) setLoadingInbox(false); });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!activeId) {
+      setMessages([]);
+      return;
+    }
+    let active = true;
+    setLoadingMessages(true);
+    setError("");
+    getMessages(activeId)
+      .then((items) => { if (active) setMessages(items); })
+      .catch((cause: unknown) => { if (active) setError(cause instanceof Error ? cause.message : "Messages could not be loaded."); })
+      .finally(() => { if (active) setLoadingMessages(false); });
+
+    const channel = subscribeToMessages(activeId, (incoming) => {
+      setMessages((current) => current.some((item) => item.id === incoming.id) ? current : [...current, incoming]);
+      void refreshInbox();
+    });
+    return () => {
+      active = false;
+      void client.removeChannel(channel);
+    };
+  }, [activeId, client]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [messages]);
+
+  useEffect(() => {
+    const normalized = search.trim();
+    if (normalized.replace(/^@/, "").length < 2) {
+      setResults([]);
+      return;
+    }
+    let active = true;
+    setSearching(true);
+    const timeout = window.setTimeout(() => {
+      searchProfiles(normalized, user.id)
+        .then((items) => { if (active) setResults(items); })
+        .catch((cause: unknown) => { if (active) setError(cause instanceof Error ? cause.message : "Search failed."); })
+        .finally(() => { if (active) setSearching(false); });
+    }, 220);
+    return () => { active = false; window.clearTimeout(timeout); };
+  }, [search, user.id]);
+
+  async function startConversation(target: PublicProfile) {
+    setError("");
+    try {
+      const conversationId = await createDirectConversation(target.username);
+      await refreshInbox(conversationId);
+      setSearch("");
+      setResults([]);
+      setShowSearch(false);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not start this conversation.");
+    }
+  }
+
+  async function handleSend(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const parsed = messageBodySchema.safeParse(draft);
+    if (!parsed.success || !activeId) return;
+    setSending(true);
+    setError("");
+    const currentDraft = parsed.data;
+    setDraft("");
+    try {
+      const saved = await sendMessage(activeId, user.id, currentDraft);
+      setMessages((current) => current.some((item) => item.id === saved.id) ? current : [...current, saved]);
+      await refreshInbox();
+    } catch (cause) {
+      setDraft(currentDraft);
+      setError(cause instanceof Error ? cause.message : "Message could not be sent. Try again.");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function signOut() {
+    const { error: signOutError } = await client.auth.signOut();
+    if (signOutError) setError(signOutError.message);
+  }
+
+  return (
+    <main className={`messenger-stage ${activeConversation ? "chat-selected" : ""}`}>
+      <div className="messenger-backdrop messenger-backdrop-a" />
+      <div className="messenger-backdrop messenger-backdrop-b" />
+      <div className="messenger-shell">
+        <aside className="inbox-panel glass-panel">
+          <div className="inbox-brand-row">
+            <div className="brand-lockup"><div className="brand-symbol">H</div><span>HELORO</span></div>
+            <button className="icon-button" title="Start a conversation" aria-label="Start a conversation" onClick={() => setShowSearch((value) => !value)}><Plus size={19} /></button>
+          </div>
+          <div className="inbox-welcome"><span className="eyebrow">YOUR SPACE</span><h1>Messages<span>.</span></h1><p>A little closer, every day.</p></div>
+          <div className="search-box"><Search size={16} /><input value={search} onChange={(event) => { setSearch(event.target.value); setShowSearch(true); }} placeholder="Find people by username" aria-label="Find people by username" />{search && <button className="clear-search" onClick={() => { setSearch(""); setResults([]); }} aria-label="Clear search"><X size={15} /></button>}</div>
+          {showSearch && search.trim().length > 1 ? (
+            <section className="search-results">
+              <div className="section-label">PEOPLE</div>
+              {searching ? <p className="muted small-copy">Looking for people…</p> : results.length === 0 ? <p className="muted small-copy">No matching usernames yet.</p> : results.map((person) => (
+                <button className="person-result" key={person.id} onClick={() => void startConversation(person)}>
+                  <Avatar label={person.display_name || person.username} />
+                  <span><strong>{person.display_name || person.username}</strong><small>@{person.username}</small></span>
+                  <Plus size={16} />
+                </button>
+              ))}
+              <button className="cancel-search" onClick={() => { setShowSearch(false); setSearch(""); setResults([]); }}>Back to inbox</button>
+            </section>
+          ) : (
+            <section className="conversation-list">
+              <div className="section-label">RECENT</div>
+              {loadingInbox ? <div className="list-placeholder"><span /><span /><span /></div> : inbox.length === 0 ? (
+                <div className="inbox-empty"><div className="inbox-empty-icon"><MessageCircle size={20} /></div><strong>Your inbox is clear.</strong><p>Search for a username to start your first conversation.</p><button onClick={() => setShowSearch(true)}>Find someone <ArrowRightIcon /></button></div>
+              ) : inbox.map((item) => {
+                const label = item.display_name || item.username;
+                return (
+                  <button className={`conversation-item ${activeId === item.conversation_id ? "selected" : ""}`} key={item.conversation_id} onClick={() => setActiveId(item.conversation_id)}>
+                    <Avatar label={label} />
+                    <span className="conversation-copy"><strong>{label}</strong><small>{item.last_message || "Say hello"}</small></span>
+                    <time>{formatInboxTime(item.last_message_at)}</time>
+                  </button>
+                );
+              })}
+            </section>
+          )}
+          <div className="inbox-bottom">
+            <div className="signed-user"><Avatar label={profile.display_name} className="small-avatar" /><span><strong>{profile.display_name}</strong><small>@{profile.username}</small></span><button className="icon-button" title="Sign out" aria-label="Sign out" onClick={() => void signOut()}><LogOut size={17} /></button></div>
+          </div>
+        </aside>
+        <section className="conversation-panel glass-panel">
+          {activeConversation ? (
+            <>
+              <header className="chat-header">
+                <button className="icon-button mobile-back" aria-label="Back to inbox" onClick={() => setActiveId(null)}><ArrowLeft size={19} /></button>
+                <Avatar label={activeConversation.display_name || activeConversation.username} />
+                <div className="chat-person"><strong>{activeConversation.display_name || activeConversation.username}</strong><small>@{activeConversation.username}</small></div>
+                <div className="chat-header-actions"><span className="secure-caption"><span /> Private chat</span><button className="icon-button" aria-label="More conversation options" title="More options" onClick={() => setError("Conversation options will be added after the MVP.")}><MoreHorizontal size={19} /></button></div>
+              </header>
+              <div className="message-stream">
+                <div className="chat-date-pill">A conversation between you two</div>
+                {loadingMessages ? <div className="message-loading">Loading your conversation…</div> : messages.length === 0 ? (
+                  <div className="first-message"><div className="first-message-icon"><Sparkles size={19} /></div><strong>This is the beginning.</strong><p>Send a little hello to start the conversation.</p></div>
+                ) : messages.map((message) => {
+                  const mine = message.sender_id === user.id;
+                  return (
+                    <div className={`message-row ${mine ? "mine" : "theirs"}`} key={message.id}>
+                      <div className="message-bubble"><p>{message.body}</p><span>{formatMessageTime(message.created_at)} {mine && <CheckCheck size={12} />}</span></div>
+                    </div>
+                  );
+                })}
+                <div ref={messagesEndRef} />
+              </div>
+              {error && <div className="inline-error" role="alert">{error}<button onClick={() => setError("")} aria-label="Dismiss"><X size={14} /></button></div>}
+              <form className="composer" onSubmit={handleSend}>
+                <input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Write a message…" aria-label="Write a message" maxLength={4000} />
+                <span className="composer-hint">Enter to send</span>
+                <button type="submit" disabled={sending || !draft.trim()} aria-label="Send message" className="send-button">{sending ? <span className="button-spinner" /> : <ArrowUp size={19} />}</button>
+              </form>
+              <div className="chat-footnote"><ShieldCheckIcon /> Your messages are protected by conversation membership rules.</div>
+            </>
+          ) : (
+            <EmptyChat />
+          )}
+        </section>
+      </div>
+      <footer className="messenger-footer"><span>HELORO</span><span>Thoughtfully connected.</span><button onClick={() => setError("Help and safety tools are part of the next release.")}><CircleHelp size={14} /> Help</button></footer>
+      {error && !activeConversation && <div className="global-error" role="alert">{error}<button onClick={() => setError("")}><X size={14} /></button></div>}
+    </main>
+  );
+}
+
+function ArrowRightIcon() { return <ArrowUp size={14} />; }
+function ShieldCheckIcon() { return <Settings2 size={13} />; }
