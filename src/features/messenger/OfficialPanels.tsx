@@ -384,6 +384,30 @@ function HeloroSPanel({ client, user, locale, roles }: Omit<Props, "view" | "onO
   }, [client, tab]);
 
   useEffect(() => {
+    if (tab !== "reports") return;
+    const channel = client.channel("heloro:staff:reports")
+      .on("postgres_changes", { event: "*", schema: "public", table: "user_reports" }, () => {
+        void getUserReports(client)
+          .then(setReports)
+          .catch((cause: unknown) => setError(cause instanceof Error ? cause.message : "Could not refresh reports."));
+      })
+      .subscribe();
+    return () => { void client.removeChannel(channel); };
+  }, [client, tab]);
+
+  useEffect(() => {
+    if (tab !== "support") return;
+    const channel = client.channel("heloro:staff:support-threads")
+      .on("postgres_changes", { event: "*", schema: "public", table: "support_threads" }, () => {
+        void getSupportThreads(client)
+          .then(setThreads)
+          .catch((cause: unknown) => setError(cause instanceof Error ? cause.message : "Could not refresh support threads."));
+      })
+      .subscribe();
+    return () => { void client.removeChannel(channel); };
+  }, [client, tab]);
+
+  useEffect(() => {
     if (!selectedThread) {
       setSupportMessages([]);
       return;
