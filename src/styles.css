@@ -1,0 +1,256 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap");
+
+:root {
+  font-family: "DM Sans", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #173347;
+  background: #eaf5fa;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  --ink: #173347;
+  --muted: #78909e;
+  --blue: #55a9d1;
+  --blue-dark: #287ea9;
+  --teal: #67c8c2;
+  --gold: #d7b879;
+  --line: rgba(131, 173, 192, 0.22);
+  --glass: rgba(255, 255, 255, 0.72);
+  --glass-strong: rgba(255, 255, 255, 0.86);
+  --shadow: 0 24px 80px rgba(64, 122, 151, 0.13), 0 2px 10px rgba(64, 122, 151, 0.05);
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; min-height: 100vh; }
+button, input { font: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: .65; }
+a { color: inherit; }
+#root { min-height: 100vh; }
+.glass-panel { background: var(--glass); border: 1px solid rgba(255,255,255,.82); box-shadow: var(--shadow); backdrop-filter: blur(24px) saturate(145%); -webkit-backdrop-filter: blur(24px) saturate(145%); }
+.muted { color: var(--muted); }
+.eyebrow { color: #6c9aaf; font-size: 10px; font-weight: 700; letter-spacing: .19em; }
+.brand-lockup { display: inline-flex; align-items: center; gap: 10px; color: #264b61; font: 800 14px "Manrope", sans-serif; letter-spacing: .16em; }
+.brand-symbol { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 11px; color: white; font: 800 17px "Manrope", sans-serif; background: linear-gradient(145deg, #82d5d0, #4e9dc9); box-shadow: 0 5px 14px rgba(70, 158, 183, .27); }
+.icon-button { display: grid; place-items: center; width: 36px; height: 36px; border: 0; border-radius: 12px; background: transparent; color: #7692a1; transition: background .18s ease, color .18s ease, transform .18s ease; }
+.icon-button:hover { background: rgba(112, 182, 203, .12); color: #327e9e; }
+.icon-button:focus-visible, button:focus-visible, input:focus-visible { outline: 3px solid rgba(66, 159, 198, .32); outline-offset: 2px; }
+.primary-button { display: inline-flex; justify-content: center; align-items: center; gap: 12px; min-height: 48px; padding: 0 20px; border: 0; border-radius: 15px; color: white; font-weight: 700; background: linear-gradient(110deg, #459bc5, #62c4bd); box-shadow: 0 9px 22px rgba(78, 166, 185, .25); transition: transform .18s ease, box-shadow .18s ease; }
+.primary-button:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 12px 26px rgba(78, 166, 185, .3); }
+.full-button { width: 100%; margin-top: 7px; }
+.form-message { margin: 0; padding: 10px 12px; border-radius: 10px; font-size: 12px; line-height: 1.5; }
+.error-message { color: #9b4b54; background: #fff0f0; border: 1px solid #f5d4d5; }
+.success-message { color: #297b6e; background: #eefaf6; border: 1px solid #d3eee6; }
+.center-stage { min-height: 100vh; display: grid; place-content: center; justify-items: center; gap: 12px; background: linear-gradient(145deg, #eff9fc, #e7f2f8); }
+.loading-mark { display: grid; place-items: center; width: 54px; height: 54px; border-radius: 18px; color: white; font: 800 25px "Manrope", sans-serif; background: linear-gradient(145deg, #82d5d0, #4e9dc9); box-shadow: 0 12px 28px rgba(70, 158, 183, .23); animation: breathe 1.7s ease-in-out infinite; }
+.center-stage p { margin: 0; font-size: 13px; }
+
+.setup-stage { min-height: 100vh; display: grid; place-items: center; padding: 36px 18px 58px; position: relative; overflow: hidden; background: radial-gradient(circle at 17% 14%, #f8ffff 0, transparent 33%), linear-gradient(140deg, #eaf6fa 0%, #e6f1fa 48%, #edf8f5 100%); }
+.setup-glow, .auth-orb, .messenger-backdrop { position: absolute; pointer-events: none; border-radius: 50%; filter: blur(3px); }
+.setup-glow-one { width: 440px; height: 440px; top: -230px; right: -80px; background: radial-gradient(circle, rgba(115,211,205,.32), transparent 68%); }
+.setup-glow-two { width: 520px; height: 520px; bottom: -320px; left: -120px; background: radial-gradient(circle, rgba(90,165,218,.22), transparent 67%); }
+.setup-card { width: min(100%, 560px); padding: 38px 42px 30px; position: relative; z-index: 1; border-radius: 28px; }
+.setup-card .brand-lockup { margin-bottom: 30px; }
+.setup-card h1 { margin: 14px 0 12px; color: #18384b; font: 800 clamp(32px, 6vw, 48px)/1.08 "Manrope", sans-serif; letter-spacing: -.055em; }
+.setup-card h1 span, .auth-intro h1 span, .profile-card h1 span { color: #52aeb7; }
+.setup-lead { color: #6d8795; font-size: 14px; line-height: 1.75; max-width: 450px; }
+.setup-steps { display: grid; gap: 12px; margin: 26px 0 20px; }
+.setup-step { display: flex; align-items: center; gap: 14px; padding: 13px 14px; border: 1px solid rgba(133,179,196,.18); border-radius: 16px; background: rgba(255,255,255,.54); }
+.step-icon { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 13px; color: #4a9eaf; background: linear-gradient(145deg, #e3f8f5, #e7f3fb); }
+.setup-step strong, .setup-step small { display: block; }
+.setup-step strong { font-size: 13px; color: #24475b; }
+.setup-step small { margin-top: 3px; color: #8aa0ac; font-size: 11px; }
+.setup-note { display: flex; align-items: center; gap: 9px; padding: 12px 14px; border-radius: 13px; color: #508b8b; background: rgba(105, 200, 187, .12); font-size: 12px; }
+.setup-footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 23px 0 15px; color: #78939e; font-size: 10px; }
+.setup-footer > span:first-child { display: flex; align-items: center; gap: 6px; }
+.status-pill { display: inline-flex; align-items: center; gap: 6px; padding: 6px 9px; border-radius: 20px; background: rgba(255,255,255,.66); }
+.status-pill > span { width: 6px; height: 6px; border-radius: 50%; background: #d8ae68; }
+.setup-link { display: flex; justify-content: center; align-items: center; gap: 8px; min-height: 46px; border-radius: 14px; color: #347f9c; text-decoration: none; font-size: 13px; font-weight: 700; background: rgba(255,255,255,.62); border: 1px solid rgba(131,177,195,.2); transition: background .18s ease; }
+.setup-link:hover { background: white; }
+.fine-print { margin: 14px 0 0; color: #9aabb4; text-align: center; font-size: 10px; line-height: 1.5; }
+.setup-wordmark { position: absolute; bottom: 19px; color: #9ab2bd; font-size: 9px; letter-spacing: .2em; }
+.compact-card { max-width: 430px; text-align: center; }
+.compact-card h2 { font: 700 23px "Manrope", sans-serif; }
+
+.auth-stage { min-height: 100vh; padding: 28px clamp(18px, 5vw, 76px) 20px; position: relative; overflow: hidden; background: linear-gradient(125deg, #f0fafb, #e9f3fb 55%, #f2faf7); }
+.auth-orb-a { width: 600px; height: 600px; top: -340px; right: 0; background: radial-gradient(circle, rgba(112,209,203,.22), transparent 65%); }
+.auth-orb-b { width: 520px; height: 520px; left: -300px; bottom: -280px; background: radial-gradient(circle, rgba(94,168,215,.18), transparent 67%); }
+.auth-topbar, .auth-footer { display: flex; justify-content: space-between; align-items: center; position: relative; z-index: 1; }
+.topbar-caption, .auth-footer { color: #8ca4b0; font-size: 11px; }
+.auth-layout { width: min(1100px, 100%); min-height: calc(100vh - 145px); margin: 0 auto; display: grid; grid-template-columns: 1fr minmax(330px, 440px); align-items: center; gap: clamp(45px, 9vw, 120px); position: relative; z-index: 1; }
+.auth-intro { max-width: 510px; padding: 30px 0; }
+.auth-intro .eyebrow { display: inline-flex; align-items: center; gap: 9px; }
+.eyebrow-dot { width: 7px; height: 7px; border-radius: 50%; background: #67c6bd; box-shadow: 0 0 0 4px rgba(103,198,189,.13); }
+.auth-intro h1 { margin: 20px 0 17px; color: #18394c; font: 800 clamp(38px, 6vw, 67px)/1.04 "Manrope", sans-serif; letter-spacing: -.065em; }
+.auth-intro > p { max-width: 400px; color: #7b929f; font-size: 15px; line-height: 1.8; }
+.intro-points { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 30px; color: #6e929f; font-size: 12px; }
+.intro-points span { display: flex; align-items: center; gap: 8px; }
+.floating-glass-card { display: flex; align-items: center; gap: 12px; width: fit-content; min-width: 235px; margin-top: 52px; padding: 12px 16px; border: 1px solid rgba(255,255,255,.8); border-radius: 17px; background: rgba(255,255,255,.58); box-shadow: 0 12px 35px rgba(81,142,167,.1); backdrop-filter: blur(18px); }
+.floating-glass-card strong, .floating-glass-card small { display: block; }
+.floating-glass-card strong { font-size: 12px; }
+.floating-glass-card small { margin-top: 3px; color: #8ba1ab; font-size: 10px; }
+.mini-avatar { display: grid; place-items: center; width: 35px; height: 35px; border-radius: 12px; color: white; font-weight: 700; background: linear-gradient(145deg, #81cfc8, #5a9ec4); }
+.mini-avatar-blue { background: linear-gradient(145deg, #82b9dc, #628cc4); }
+.tiny-live-dot { width: 7px; height: 7px; border-radius: 50%; background: #72c9b0; margin-left: auto; }
+.auth-card { padding: 28px; border-radius: 25px; }
+.auth-card-heading { display: flex; align-items: center; gap: 13px; margin-bottom: 24px; }
+.auth-card-icon { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 14px; color: #459fb0; background: linear-gradient(145deg, #e5f8f4, #e5f2fb); }
+.auth-card h2 { margin: 0; font: 700 20px "Manrope", sans-serif; letter-spacing: -.04em; }
+.auth-card-heading p { margin: 4px 0 0; color: #8ba0aa; font-size: 12px; }
+.auth-tabs { display: grid; grid-template-columns: 1fr 1fr; padding: 4px; border-radius: 13px; background: rgba(224,239,245,.64); }
+.auth-tabs button { min-height: 37px; border: 0; border-radius: 10px; color: #88a0ad; background: transparent; font-size: 12px; font-weight: 600; }
+.auth-tabs button.active { color: #347f9d; background: rgba(255,255,255,.94); box-shadow: 0 2px 8px rgba(77,133,157,.1); }
+.auth-form { display: grid; gap: 14px; margin-top: 21px; }
+.auth-form label, .profile-form label { display: grid; gap: 7px; color: #5e7c8b; font-size: 11px; font-weight: 700; }
+.auth-form input, .profile-form input { width: 100%; min-height: 46px; padding: 0 13px; color: #24465a; border: 1px solid rgba(153,185,198,.27); border-radius: 12px; outline: none; background: rgba(255,255,255,.72); font-size: 13px; transition: border .18s ease, box-shadow .18s ease; }
+.auth-form input::placeholder, .profile-form input::placeholder { color: #b1c1c8; }
+.auth-form input:focus, .profile-form input:focus { border-color: #85c7cf; box-shadow: 0 0 0 3px rgba(105,194,194,.13); }
+.password-wrap { position: relative; }
+.password-wrap input { padding-right: 45px; }
+.password-toggle { position: absolute; top: 5px; right: 5px; }
+.auth-legal { display: flex; align-items: center; justify-content: center; gap: 7px; margin-top: 18px; color: #91a5af; font-size: 10px; }
+.auth-footer { width: min(1100px, 100%); margin: 0 auto; padding-top: 8px; }
+.auth-footer span:first-child { letter-spacing: .15em; font-weight: 700; }
+
+.profile-stage { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: radial-gradient(circle at 78% 10%, rgba(104,203,198,.2), transparent 35%), linear-gradient(135deg, #eef8fb, #e8f2fa); }
+.profile-card { width: min(100%, 440px); padding: 30px; border-radius: 26px; }
+.profile-card .brand-lockup { margin-bottom: 33px; }
+.profile-emblem { width: 55px; height: 55px; display: grid; place-items: center; border-radius: 18px; color: #4b9eab; background: linear-gradient(140deg, #e0f8f3, #e4f1fb); margin-bottom: 21px; }
+.profile-card h1 { margin: 10px 0; font: 800 36px/1.08 "Manrope", sans-serif; letter-spacing: -.06em; }
+.profile-card > p { margin: 0; font-size: 13px; line-height: 1.7; }
+.profile-form { display: grid; gap: 16px; margin-top: 25px; }
+.input-with-icon { display: flex; align-items: center; gap: 9px; padding-left: 12px; border: 1px solid rgba(153,185,198,.27); border-radius: 12px; color: #8ba9b5; background: rgba(255,255,255,.72); }
+.input-with-icon:focus-within { border-color: #85c7cf; box-shadow: 0 0 0 3px rgba(105,194,194,.13); }
+.input-with-icon input { border: 0; background: transparent; box-shadow: none !important; }
+.profile-form label small { color: #9aadb6; font-size: 10px; font-weight: 400; }
+
+.messenger-stage { min-height: 100vh; display: flex; flex-direction: column; position: relative; overflow: hidden; padding: 26px clamp(12px, 3vw, 48px) 14px; background: linear-gradient(140deg, #eff9fb, #e8f2fa 54%, #eef8f5); }
+.messenger-backdrop-a { width: 650px; height: 650px; right: -300px; top: -410px; background: radial-gradient(circle, rgba(98,208,197,.19), transparent 68%); }
+.messenger-backdrop-b { width: 580px; height: 580px; bottom: -420px; left: -330px; background: radial-gradient(circle, rgba(90,166,211,.16), transparent 68%); }
+.messenger-shell { display: grid; grid-template-columns: minmax(285px, 350px) minmax(0, 1fr); gap: 14px; width: min(1240px, 100%); height: min(790px, calc(100vh - 72px)); min-height: 500px; margin: auto; position: relative; z-index: 1; }
+.inbox-panel, .conversation-panel { min-width: 0; border-radius: 23px; overflow: hidden; }
+.inbox-panel { display: flex; flex-direction: column; padding: 23px 18px 15px; background: rgba(255,255,255,.7); }
+.inbox-brand-row { display: flex; align-items: center; justify-content: space-between; padding: 0 3px; }
+.inbox-welcome { margin: 30px 5px 20px; }
+.inbox-welcome h1 { margin: 6px 0 3px; color: #1e4358; font: 800 29px "Manrope", sans-serif; letter-spacing: -.06em; }
+.inbox-welcome h1 span { color: #58b8b7; }
+.inbox-welcome p { margin: 0; color: #91a5ad; font-size: 11px; }
+.search-box { display: flex; align-items: center; gap: 9px; min-height: 42px; padding: 0 12px; border: 1px solid rgba(152,184,197,.2); border-radius: 13px; color: #9ab1ba; background: rgba(239,247,250,.8); }
+.search-box input { min-width: 0; width: 100%; border: 0; outline: none; color: #37576a; background: transparent; font-size: 11px; }
+.search-box input::placeholder { color: #a9bac2; }
+.clear-search { display: grid; place-items: center; border: 0; background: transparent; color: #91a6b0; }
+.conversation-list, .search-results { min-height: 0; flex: 1; overflow-y: auto; margin-top: 24px; }
+.section-label { margin: 0 5px 12px; color: #9aafb8; font-size: 9px; font-weight: 700; letter-spacing: .17em; }
+.conversation-item, .person-result { display: flex; align-items: center; width: 100%; gap: 11px; padding: 10px 9px; border: 0; border-radius: 14px; text-align: left; background: transparent; transition: background .16s ease; }
+.conversation-item:hover, .person-result:hover { background: rgba(230,244,247,.8); }
+.conversation-item.selected { background: rgba(222,242,244,.88); }
+.avatar { display: grid; place-items: center; flex: 0 0 auto; width: 42px; height: 42px; border-radius: 15px; color: #fff; font: 700 13px "Manrope", sans-serif; background: linear-gradient(145deg, #84cfc8, #6a9fc2); box-shadow: 0 5px 12px rgba(80,154,168,.12); }
+.avatar.small-avatar { width: 34px; height: 34px; border-radius: 12px; font-size: 11px; }
+.conversation-copy { display: grid; min-width: 0; flex: 1; gap: 4px; }
+.conversation-copy strong { overflow: hidden; color: #35556a; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.conversation-copy small { overflow: hidden; color: #96aab3; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.conversation-item time { align-self: flex-start; margin-top: 3px; color: #a4b5bc; font-size: 9px; white-space: nowrap; }
+.inbox-empty { padding: 30px 14px; text-align: center; }
+.inbox-empty-icon { width: 42px; height: 42px; display: grid; place-items: center; margin: 0 auto 12px; color: #62aeb4; border-radius: 14px; background: #e3f5f2; }
+.inbox-empty strong { color: #527083; font-size: 12px; }
+.inbox-empty p { color: #9aadb5; font-size: 10px; line-height: 1.6; }
+.inbox-empty button, .cancel-search { display: inline-flex; align-items: center; gap: 5px; padding: 8px 10px; color: #438e9e; border: 1px solid #d6ebed; border-radius: 10px; background: #f7fcfc; font-size: 10px; font-weight: 700; }
+.list-placeholder { display: grid; gap: 17px; padding: 10px; }
+.list-placeholder span { height: 37px; border-radius: 11px; background: linear-gradient(90deg, #edf5f7, #f7fbfc, #edf5f7); background-size: 200% 100%; animation: shimmer 1.6s ease infinite; }
+.person-result { border-bottom: 1px solid rgba(148,184,196,.12); border-radius: 0; }
+.person-result span { flex: 1; display: grid; gap: 4px; }
+.person-result strong { color: #35556a; font-size: 11px; }
+.person-result small { color: #9aadb5; font-size: 10px; }
+.person-result > svg { color: #68b7b5; }
+.cancel-search { margin: 13px 5px; }
+.inbox-bottom { margin-top: auto; padding-top: 13px; border-top: 1px solid rgba(144,181,194,.18); }
+.signed-user { display: flex; align-items: center; gap: 9px; }
+.signed-user > span { display: grid; min-width: 0; flex: 1; gap: 3px; }
+.signed-user strong { color: #486577; font-size: 10px; }
+.signed-user small { color: #9aadb5; font-size: 9px; }
+.conversation-panel { display: flex; flex-direction: column; background: rgba(255,255,255,.53); }
+.chat-header { display: flex; align-items: center; gap: 12px; min-height: 78px; padding: 14px 23px; border-bottom: 1px solid rgba(147,183,195,.17); background: rgba(255,255,255,.48); }
+.chat-person { display: grid; gap: 4px; }
+.chat-person strong { color: #2e5064; font-size: 13px; }
+.chat-person small { color: #91a7b0; font-size: 10px; }
+.chat-header-actions { display: flex; align-items: center; gap: 13px; margin-left: auto; }
+.secure-caption { display: inline-flex; align-items: center; gap: 6px; color: #8ba8a8; font-size: 10px; }
+.secure-caption span { width: 6px; height: 6px; border-radius: 50%; background: #6ec5a8; }
+.message-stream { min-height: 0; flex: 1; overflow-y: auto; padding: 26px clamp(14px, 4vw, 52px) 16px; background: radial-gradient(ellipse at 50% 0%, rgba(233,249,247,.44), transparent 65%); }
+.chat-date-pill { width: fit-content; margin: 0 auto 28px; padding: 7px 12px; color: #93a9b2; border: 1px solid rgba(153,186,197,.15); border-radius: 20px; background: rgba(255,255,255,.54); font-size: 9px; }
+.message-row { display: flex; margin: 9px 0; }
+.message-row.mine { justify-content: flex-end; }
+.message-bubble { max-width: min(78%, 460px); padding: 11px 14px 8px; border: 1px solid rgba(150,184,196,.16); border-radius: 16px 16px 16px 5px; background: rgba(255,255,255,.82); box-shadow: 0 3px 10px rgba(73,127,149,.04); }
+.message-row.mine .message-bubble { color: #fff; border-color: transparent; border-radius: 16px 16px 5px 16px; background: linear-gradient(130deg, #5ca9c8, #6abeb5); box-shadow: 0 5px 14px rgba(83,168,180,.14); }
+.message-bubble p { margin: 0; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; white-space: pre-wrap; }
+.message-bubble > span { display: flex; justify-content: flex-end; align-items: center; gap: 4px; margin-top: 4px; color: rgba(255,255,255,.72); font-size: 9px; }
+.message-row.theirs .message-bubble > span { color: #a3b3ba; }
+.first-message, .message-loading { display: grid; justify-items: center; gap: 9px; margin-top: 90px; color: #7e9ba8; text-align: center; }
+.first-message-icon { display: grid; place-items: center; width: 43px; height: 43px; border-radius: 15px; color: #62b4b4; background: rgba(221,244,240,.8); }
+.first-message strong { color: #4c6d7f; font-size: 13px; }
+.first-message p, .message-loading { margin: 0; font-size: 11px; }
+.composer { display: flex; align-items: center; gap: 10px; min-height: 60px; margin: 0 20px 0; padding: 7px 8px 7px 16px; border: 1px solid rgba(144,183,196,.23); border-radius: 17px; background: rgba(255,255,255,.86); box-shadow: 0 5px 20px rgba(79,133,153,.07); }
+.composer input { min-width: 0; flex: 1; border: 0; outline: none; color: #35556a; background: transparent; font-size: 12px; }
+.composer input::placeholder { color: #a6b8bf; }
+.composer-hint { color: #b2c1c7; font-size: 9px; white-space: nowrap; }
+.send-button { display: grid; place-items: center; width: 39px; height: 39px; border: 0; border-radius: 13px; color: white; background: linear-gradient(145deg, #68c3ba, #55a4c9); box-shadow: 0 4px 11px rgba(81,165,177,.22); }
+.button-spinner { width: 15px; height: 15px; border: 2px solid rgba(255,255,255,.4); border-top-color: white; border-radius: 50%; animation: spin .7s linear infinite; }
+.chat-footnote { display: flex; align-items: center; justify-content: center; gap: 5px; padding: 10px 12px 13px; color: #a0b3ba; font-size: 9px; }
+.inline-error { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 0 20px 8px; padding: 8px 11px; color: #9b4b54; border: 1px solid #f5d4d5; border-radius: 10px; background: #fff2f2; font-size: 10px; }
+.inline-error button, .global-error button { border: 0; color: inherit; background: transparent; }
+.empty-chat { display: grid; place-content: center; justify-items: center; flex: 1; padding: 25px; text-align: center; }
+.empty-chat-icon { display: grid; place-items: center; width: 72px; height: 72px; margin-bottom: 20px; border: 1px solid rgba(255,255,255,.8); border-radius: 24px; color: #5aafb6; background: linear-gradient(145deg, rgba(228,249,244,.95), rgba(231,242,252,.95)); box-shadow: 0 10px 28px rgba(83,153,173,.12); }
+.empty-chat h2 { margin: 0; color: #35566b; font: 700 20px "Manrope", sans-serif; letter-spacing: -.04em; }
+.empty-chat p { margin: 9px 0 20px; color: #91a8b2; font-size: 12px; }
+.empty-chat-line { width: 33px; height: 2px; border-radius: 2px; background: #dbbf85; }
+.empty-chat small { margin-top: 17px; color: #a4b7bf; font-size: 8px; letter-spacing: .2em; }
+.mobile-back { display: none; }
+.messenger-footer { display: flex; justify-content: space-between; align-items: center; width: min(1240px, 100%); margin: 13px auto 0; color: #9bb0b9; font-size: 9px; position: relative; z-index: 1; }
+.messenger-footer > span:first-child { font-weight: 700; letter-spacing: .16em; }
+.messenger-footer button { display: inline-flex; align-items: center; gap: 5px; padding: 5px; border: 0; color: #8ba6b0; background: transparent; font-size: 9px; }
+.global-error { position: fixed; z-index: 5; right: 20px; bottom: 20px; display: flex; align-items: center; gap: 12px; padding: 12px 15px; border: 1px solid #f1d2d4; border-radius: 12px; color: #944d56; background: #fff4f4; box-shadow: var(--shadow); font-size: 11px; }
+
+@keyframes breathe { 0%, 100% { transform: translateY(0); opacity: 1; } 50% { transform: translateY(-3px); opacity: .8; } }
+@keyframes shimmer { to { background-position: -200% 0; } }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 760px) {
+  .auth-stage { padding: 19px 16px 13px; }
+  .auth-layout { min-height: calc(100vh - 95px); grid-template-columns: 1fr; gap: 17px; align-content: center; padding: 25px 0; max-width: 420px; }
+  .auth-intro { padding: 4px 3px 0; }
+  .auth-intro h1 { margin: 13px 0 9px; font-size: clamp(35px, 10vw, 48px); }
+  .auth-intro > p { margin: 0; font-size: 12px; }
+  .intro-points { display: none; }
+  .floating-glass-card { display: none; }
+  .auth-card { padding: 21px; }
+  .auth-footer { font-size: 9px; }
+  .topbar-caption { display: none; }
+  .setup-card { padding: 29px 22px 22px; border-radius: 23px; }
+  .setup-card h1 { font-size: 35px; }
+  .setup-footer { align-items: flex-start; flex-direction: column; }
+  .messenger-stage { padding: 0; }
+  .messenger-shell { display: block; width: 100%; height: 100dvh; min-height: 0; }
+  .inbox-panel, .conversation-panel { position: absolute; inset: 0; border: 0; border-radius: 0; box-shadow: none; }
+  .inbox-panel { padding: max(20px, env(safe-area-inset-top)) 17px max(13px, env(safe-area-inset-bottom)); }
+  .conversation-panel { display: none; }
+  .messenger-stage.chat-selected .inbox-panel { display: none; }
+  .messenger-stage.chat-selected .conversation-panel { display: flex; }
+  .chat-header { min-height: 69px; padding: max(12px, env(safe-area-inset-top)) 13px 11px; gap: 9px; }
+  .mobile-back { display: grid; }
+  .chat-header-actions { gap: 5px; }
+  .secure-caption { display: none; }
+  .message-stream { padding: 20px 14px 15px; }
+  .composer { margin: 0 10px; min-height: 56px; padding-left: 13px; }
+  .composer-hint { display: none; }
+  .chat-footnote { padding-bottom: max(11px, env(safe-area-inset-bottom)); }
+  .messenger-footer { display: none; }
+  .inbox-welcome { margin-top: 26px; }
+}
+@media (max-width: 380px) {
+  .auth-card { padding: 18px; }
+  .setup-card { padding: 25px 17px 20px; }
+  .conversation-item { gap: 8px; padding-inline: 5px; }
+  .conversation-item time { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
