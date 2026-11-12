@@ -141,6 +141,9 @@ create trigger on_auth_user_created_heloro
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
 
+-- These functions are trigger-only; never expose them as callable Data API functions.
+revoke all on function public.handle_new_user() from public, anon, authenticated, service_role;
+
 create or replace function public.touch_conversation_after_message()
 returns trigger
 language plpgsql
@@ -159,6 +162,8 @@ drop trigger if exists on_heloro_message_created on public.messages;
 create trigger on_heloro_message_created
   after insert on public.messages
   for each row execute procedure public.touch_conversation_after_message();
+
+revoke all on function public.touch_conversation_after_message() from public, anon, authenticated, service_role;
 
 create or replace function public.create_direct_conversation(target_username text)
 returns uuid
