@@ -271,7 +271,8 @@ export function subscribeToOfficialInserts<T>(
   onDelete?: () => void,
 ): RealtimeChannel {
   const insertConfig = { event: "INSERT" as const, schema: "public", table, ...(filter ? { filter } : {}) };
-  const deleteConfig = { event: "DELETE" as const, schema: "public", table, ...(filter ? { filter } : {}) };
+  // Postgres Changes DELETE events cannot be filtered; consumers refresh their own scope.
+  const deleteConfig = { event: "DELETE" as const, schema: "public", table };
   const channel = client
     .channel(`heloro:${table}:${filter ?? "all"}`)
     .on("postgres_changes", insertConfig, (payload) => onInsert(payload.new as T));
