@@ -197,7 +197,7 @@ function NewsChannel({
   }
 
   async function removePost(postId: string) {
-    if (!canDeletePosts || !window.confirm(ru ? "Удалить публикацию для всех?" : "Delete this post for everyone?")) return;
+    if ((!canDeletePosts && !posts.some((post) => post.id === postId && post.author_id === user.id)) || !window.confirm(ru ? "Удалить публикацию для всех?" : "Delete this post for everyone?")) return;
     setBusy(true);
     setError("");
     try {
@@ -260,7 +260,7 @@ function NewsChannel({
                 <MessageCircle size={14} /> {expandedPost === post.id ? (ru ? "Скрыть комментарии" : "Hide comments") : (ru ? "Комментарии" : "Comments")}
               </button>
               <button onClick={onOpenDiscussion}><ChevronRight size={14} /> {ru ? "Обсуждение" : "Discussion"}</button>
-              {canDeletePosts && (
+              {(canDeletePosts || post.author_id === user.id) && (
                 <button className="system-delete-button" type="button" onClick={() => void removePost(post.id)} disabled={busy}>
                   <Trash2 size={13} /> {ru ? "Удалить" : "Delete"}
                 </button>
