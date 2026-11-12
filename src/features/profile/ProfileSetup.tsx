@@ -3,14 +3,16 @@ import { ArrowRight, AtSign, UserRound } from "lucide-react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { displayNameSchema, usernameSchema } from "../../lib/domain";
 import type { Profile } from "../../lib/types";
+import { t, type Locale } from "../../lib/i18n";
 
 type Props = {
   client: SupabaseClient;
   userId: string;
   onSaved: (profile: Profile) => void;
+  locale: Locale;
 };
 
-export default function ProfileSetup({ client, userId, onSaved }: Props) {
+export default function ProfileSetup({ client, userId, onSaved, locale }: Props) {
   const [displayName, setDisplayName] = useState("");
   const [username, setUsername] = useState("");
   const [busy, setBusy] = useState(false);
@@ -21,8 +23,8 @@ export default function ProfileSetup({ client, userId, onSaved }: Props) {
     setError("");
     const checkedName = displayNameSchema.safeParse(displayName);
     const checkedUsername = usernameSchema.safeParse(username);
-    if (!checkedName.success) return setError(checkedName.error.issues[0]?.message ?? "Check your display name.");
-    if (!checkedUsername.success) return setError(checkedUsername.error.issues[0]?.message ?? "Check your username.");
+    if (!checkedName.success) return setError(checkedName.error.issues[0]?.message ?? t(locale, "profileSaveError"));
+    if (!checkedUsername.success) return setError(checkedUsername.error.issues[0]?.message ?? t(locale, "profileSaveError"));
 
     setBusy(true);
     try {
@@ -35,9 +37,9 @@ export default function ProfileSetup({ client, userId, onSaved }: Props) {
       if (updateError) throw updateError;
       onSaved(data as Profile);
     } catch (cause) {
-      const message = cause instanceof Error ? cause.message : "Your profile could not be saved.";
+      const message = cause instanceof Error ? cause.message : t(locale, "profileSaveError");
       setError(message.includes("profiles_username_lower_unique") || message.toLowerCase().includes("duplicate")
-        ? "That username is already taken. Try another one."
+        ? t(locale, "profileUsernameTaken")
         : message);
     } finally {
       setBusy(false);
@@ -49,14 +51,19 @@ export default function ProfileSetup({ client, userId, onSaved }: Props) {
       <section className="profile-card glass-panel">
         <div className="brand-lockup"><div className="brand-symbol">H</div><span>HELORO</span></div>
         <div className="profile-emblem"><UserRound size={28} /></div>
-        <div className="eyebrow">ONE LAST THING</div>
-        <h1>Make this space<br /><span>yours.</span></h1>
-        <p className="muted">Choose the name people will see and your unique HELORO address.</p>
+        <div className="eyebrow">{t(locale, "profileTitle")}</div>
+        <h1>{t(locale, "profileTitle")}</h1>
+        <p className="muted">{t(locale, "profileDescription")}</p>
         <form onSubmit={handleSubmit} className="profile-form">
-          <label>Display name<div className="input-with-icon"><UserRound size={17} /><input value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="Your name" maxLength={48} required /></div></label>
-          <label>Username<div className="input-with-icon"><AtSign size={17} /><input value={username} onChange={(event) => setUsername(event.target.value.toLowerCase())} placeholder="yourname" minLength={3} maxLength={24} pattern="[a-z0-9_]+" required /></div><small>3–24 characters · lowercase letters, numbers and underscores</small></label>
+          <label>{t(locale, "profileName")}
+            <div className="input-with-icon"><UserRound size={17} /><input value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder={t(locale, "profileNamePlaceholder")} maxLength={48} required /></div>
+          </label>
+          <label>{t(locale, "profileUsername")}
+            <div className="input-with-icon"><AtSign size={17} /><input value={username} onChange={(event) => setUsername(event.target.value.toLowerCase())} placeholder={t(locale, "profileUsernamePlaceholder")} minLength={3} maxLength={24} pattern="[a-z0-9_]+" required /></div>
+            <small>{t(locale, "profileUsernameHint")}</small>
+          </label>
           {error && <p className="form-message error-message" role="alert">{error}</p>}
-          <button className="primary-button full-button" disabled={busy}>{busy ? "Saving…" : "Continue"} <ArrowRight size={17} /></button>
+          <button className="primary-button full-button" disabled={busy}>{busy ? t(locale, "profileSaving") : t(locale, "profileContinue")} <ArrowRight size={17} /></button>
         </form>
       </section>
     </main>
