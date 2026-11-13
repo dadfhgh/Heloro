@@ -1,6 +1,6 @@
 import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
 
-export type BadgeType = "blue" | "gold" | "creator";
+export type BadgeType = "blue" | "gold" | "creator" | "epic_sans";
 
 export interface ChannelPost {
   id: string;
@@ -278,6 +278,13 @@ export async function setVerificationBadge(
 ) {
   if (!badgeType) {
     const { error } = await client.from("verification_badges").delete().eq("user_id", userId);
+    if (error) throw error;
+    return;
+  }
+  if (badgeType === "epic_sans") {
+    const { error } = await client.rpc("heloro_admin_grant_epic_sans_badge", {
+      p_target_user_id: userId,
+    });
     if (error) throw error;
     return;
   }
