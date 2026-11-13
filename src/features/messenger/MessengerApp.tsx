@@ -126,7 +126,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const [communityCreateKind, setCommunityCreateKind] = useState<"group" | "channel" | null>(null);
   const [communityRooms, setCommunityRooms] = useState<CommunityRoomPreview[]>([]);
   const [communitySearchRooms, setCommunitySearchRooms] = useState<CommunityRoomPreview[]>([]);
-  const [showCreateMenu, setShowCreateMenu] = useState(false);
+  const [showComposeScreen, setShowComposeScreen] = useState(false);
   const [viewedProfile, setViewedProfile] = useState<PublicProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileBusy, setProfileBusy] = useState(false);
@@ -145,6 +145,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const [chatFilter, setChatFilter] = useState<"all" | "personal">("all");
   const [showChatActions, setShowChatActions] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const composeSearchInputRef = useRef<HTMLInputElement>(null);
   const stickerInputRef = useRef<HTMLInputElement>(null);
   const gifInputRef = useRef<HTMLInputElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
@@ -229,7 +230,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
     setShowSearch(false);
     setSearch("");
     setResults([]);
-    setShowCreateMenu(false);
+    setShowComposeScreen(false);
   }
 
   function closeCommunity() {
@@ -374,22 +375,30 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   }, [search, user.id, locale]);
 
   useEffect(() => {
-    if (!showSettings && !showReport && !showNavigation && !showProfile) return;
+    if (!showSettings && !showReport && !showNavigation && !showProfile && !showComposeScreen) return;
     function closeOnEscape(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setShowSettings(false);
         setShowNavigation(false);
         setShowReport(false);
         setShowProfile(false);
+        setShowComposeScreen(false);
+        setShowSearch(false);
+        setSearch("");
+        setResults([]);
       }
     }
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [showSettings, showNavigation, showReport, showProfile]);
+  }, [showSettings, showNavigation, showReport, showProfile, showComposeScreen]);
 
   useEffect(() => {
-    if (showSearch) searchInputRef.current?.focus();
-  }, [showSearch]);
+    if (showSearch && !showComposeScreen) searchInputRef.current?.focus();
+  }, [showSearch, showComposeScreen]);
+
+  useEffect(() => {
+    if (showComposeScreen) composeSearchInputRef.current?.focus();
+  }, [showComposeScreen]);
 
   async function startConversation(target: PublicProfile) {
     setError("");
@@ -399,6 +408,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
       setSearch("");
       setResults([]);
       setShowSearch(false);
+      setShowComposeScreen(false);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : t(locale, "conversationCreateFailed"));
     }
@@ -574,7 +584,27 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
     else setShowSettings(false);
   }
 
+  function openNewMessageScreen() {
+    setActiveId(null);
+    setActiveCommunityRoomId(null);
+    setCommunityCreateKind(null);
+    setSystemView(null);
+    setShowSearch(true);
+    setShowComposeScreen(true);
+    setSearch("");
+    setResults([]);
+    setError("");
+  }
+
+  function closeNewMessageScreen() {
+    setShowComposeScreen(false);
+    setShowSearch(false);
+    setSearch("");
+    setResults([]);
+  }
+
   function openSearch() {
+    setShowComposeScreen(false);
     setSystemView(null);
     setActiveId(null);
     setActiveCommunityRoomId(null);
@@ -585,6 +615,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   }
 
   function openSystemView(view: SystemView) {
+    setShowComposeScreen(false);
     setActiveId(null);
     setActiveCommunityRoomId(null);
     setCommunityCreateKind(null);
@@ -596,6 +627,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   }
 
   function closeConversation() {
+    setShowComposeScreen(false);
     setActiveId(null);
     setActiveCommunityRoomId(null);
     setCommunityCreateKind(null);
@@ -628,9 +660,8 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
               className="icon-button compose-button"
               title={t(locale, "inboxStartConversation")}
               aria-label={t(locale, "inboxStartConversation")}
-              onClick={() => setShowCreateMenu((current) => !current)}
-              aria-expanded={showCreateMenu}
-              aria-haspopup="menu"
+              onClick={openNewMessageScreen}
+              aria-expanded={showComposeScreen}
             >
               <PencilLine size={19} />
             </button>
@@ -789,28 +820,109 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
             <button
               className="inbox-create-fab"
               type="button"
-              title={locale === "ru" ? "Создать" : "Compose"}
-              aria-label={locale === "ru" ? "Создать сообщение, группу или канал" : "Create a message, group or channel"}
-              aria-expanded={showCreateMenu}
-              aria-haspopup="menu"
-              onClick={() => setShowCreateMenu((current) => !current)}
+              title={locale === "ru" ? "Новое сообщение" : "New message"}
+              aria-label={locale === "ru" ? "Новое сообщение" : "New message"}
+              onClick={openNewMessageScreen}
             >
               <PencilLine size={22} />
             </button>
-            {showCreateMenu && (
-              <div className="chat-create-menu" role="menu">
-                <button type="button" role="menuitem" onClick={() => { setShowCreateMenu(false); openSearch(); }}>
-                  <PencilLine size={17} /><span>{locale === "ru" ? "Новое сообщение" : "New message"}</span>
+          </div>
+          {showComposeScreen && (
+            <section className="new-message-screen" aria-label={locale === "ru" ? "Новое сообщение" : "New message"}>
+              <header className="new-message-header">
+                <button className="new-message-back" type="button" onClick={closeNewMessageScreen} aria-label={t(locale, "inboxBack")}>
+                  <ArrowLeft size={21} />
                 </button>
-                <button type="button" role="menuitem" onClick={() => openCommunity(null, "group")}>
-                  <Users size={17} /><span>{locale === "ru" ? "Новая группа" : "New group"}</span>
+                <h2>{locale === "ru" ? "Новое сообщение" : "New message"}</h2>
+              </header>
+
+              <div className="new-message-search-area">
+                <label className="new-message-search">
+                  <Search size={18} />
+                  <input
+                    ref={composeSearchInputRef}
+                    value={search}
+                    onChange={(event) => { setSearch(event.target.value); setShowSearch(true); }}
+                    placeholder={locale === "ru" ? "Поиск по имени или @username" : "Search by name or @username"}
+                    aria-label={locale === "ru" ? "Поиск контактов" : "Search contacts"}
+                  />
+                  {search && (
+                    <button type="button" className="new-message-clear" onClick={() => { setSearch(""); setResults([]); }} aria-label={t(locale, "inboxClear")}>
+                      <X size={16} />
+                    </button>
+                  )}
+                </label>
+              </div>
+
+              <div className="new-message-actions">
+                <button type="button" onClick={() => openCommunity(null, "group")}>
+                  <Users size={21} />
+                  <span>{locale === "ru" ? "Новая группа" : "New group"}</span>
                 </button>
-                <button type="button" role="menuitem" onClick={() => openCommunity(null, "channel")}>
-                  <Megaphone size={17} /><span>{locale === "ru" ? "Новый канал" : "New channel"}</span>
+                <button type="button" onClick={() => openCommunity(null, "channel")}>
+                  <Megaphone size={21} />
+                  <span>{locale === "ru" ? "Новый канал" : "New channel"}</span>
                 </button>
               </div>
-            )}
-          </div>
+
+              <div className="new-message-people">
+                {search.trim().replace(/^@/, "").length >= 2 ? (
+                  <>
+                    <div className="new-message-section-title">{locale === "ru" ? "Результаты поиска" : "Search results"}</div>
+                    {searching ? (
+                      <p className="new-message-empty">{t(locale, "inboxSearching")}</p>
+                    ) : results.length === 0 ? (
+                      <p className="new-message-empty">{t(locale, "inboxNoResults")}</p>
+                    ) : results.map((person) => (
+                      <button className="new-message-person" type="button" key={person.id} onClick={() => void startConversation(person)}>
+                        <Avatar label={person.display_name || person.username} src={person.avatar_url} />
+                        <span className="new-message-person-copy">
+                          <strong>{person.display_name || person.username}<VerificationMark type={person.badge_type} title={locale === "ru" ? "Аккаунт подтверждён HELORO" : "Verified by HELORO"} /></strong>
+                          <small>@{person.username}</small>
+                        </span>
+                        <MessageCircle size={18} />
+                      </button>
+                    ))}
+                  </>
+                ) : (
+                  <>
+                    <div className="new-message-section-title">{locale === "ru" ? "Недавние собеседники" : "Recent chats"}</div>
+                    {inbox.length === 0 ? (
+                      <div className="new-message-empty">
+                        <UserRound size={25} />
+                        <strong>{locale === "ru" ? "Пока нет контактов" : "No contacts yet"}</strong>
+                        <p>{locale === "ru" ? "Найди человека через поиск по имени или @username." : "Find someone by name or @username."}</p>
+                      </div>
+                    ) : [...new Map(inbox.map((item) => [item.other_user_id, item])).values()].map((item) => (
+                      <button
+                        className="new-message-person"
+                        type="button"
+                        key={item.other_user_id}
+                        onClick={() => void startConversation({
+                          id: item.other_user_id,
+                          username: item.username,
+                          display_name: item.display_name,
+                          avatar_url: item.avatar_url,
+                          badge_type: badgeMap[item.other_user_id] ?? null,
+                        })}
+                      >
+                        <Avatar label={item.display_name || item.username} src={item.avatar_url} />
+                        <span className="new-message-person-copy">
+                          <strong>{item.display_name || item.username}<VerificationMark type={badgeMap[item.other_user_id]} title={locale === "ru" ? "Аккаунт подтверждён HELORO" : "Verified by HELORO"} /></strong>
+                          <small>@{item.username}</small>
+                        </span>
+                        {item.last_message_at && (
+                          <time title={locale === "ru" ? "Время последнего сообщения в чате" : "Time of the latest chat message"}>
+                            {formatInboxTime(item.last_message_at)}
+                          </time>
+                        )}
+                      </button>
+                    ))}
+                  </>
+                )}
+              </div>
+            </section>
+          )}
         </aside>
 
         <section className="conversation-panel">
