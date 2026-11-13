@@ -26,10 +26,20 @@ export function executeLua(source: string, input: string, chatId: string): LuaRe
   let instructions = 0;
 
   try {
-    lualib.luaL_openlibs(L);
+    // Open only pure Lua libraries; package/io/os/debug/coroutines are never initialized.
+    // This also avoids environment-based package path resolution inside the Deno runtime.
+    const openLibrary = (name: string, opener: (state: unknown) => number) => {
+      lauxlib.luaL_requiref(L, to_luastring(name), opener, 1);
+      lua.lua_pop(L, 1);
+    };
+    openLibrary("_G", lualib.luaopen_base);
+    openLibrary("table", lualib.luaopen_table);
+    openLibrary("string", lualib.luaopen_string);
+    openLibrary("math", lualib.luaopen_math);
+    openLibrary("utf8", lualib.luaopen_utf8);
 
-    // Remove libraries and loaders that can access host resources or load other code.
-    for (const name of ["io", "os", "debug", "package", "require", "dofile", "loadfile", "load", "collectgarbage", "coroutine"]) {
+    // Base-library loaders and dynamic code compilation are not part of the bot API.
+    for (const name of ["dofile", "loadfile", "load", "collectgarbage"]) {
       lua.lua_pushnil(L);
       lua.lua_setglobal(L, to_luastring(name));
     }
@@ -111,7 +121,9 @@ export function executeLua(source: string, input: string, chatId: string): LuaRe
     lua.lua_sethook(L, (state: unknown) => {
       instructions += HOOK_INTERVAL;
       if (instructions > MAX_INSTRUCTIONS) {
-        return lauxlib.luaL_error(state, to_luastring("Instruction budget exceeded"));
+        // Throw a host exception from the VM hook. Fengari hooks run with Lua hooks disabled,
+        // so calling luaL_error from inside the hook does not reliably unwind the running chunk.
+        throw new Error("Instruction budget exceeded");
       }
       return 0;
     }, lua.LUA_MASKCOUNT, HOOK_INTERVAL);
