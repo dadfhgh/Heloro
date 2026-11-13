@@ -2198,3 +2198,113 @@ html[data-theme="dark"] .chat-create-menu button:hover { background: #294653; }
     bottom: max(84px, calc(env(safe-area-inset-bottom) + 78px));
   }
 }
+
+
+/* Groups and channels live in the same conversation pane as direct chats. */
+.conversation-panel {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+}
+.community-embedded {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+.community-pane {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  min-height: 0;
+  flex: 1;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
+.community-pane .community-header {
+  min-height: 72px;
+  flex: 0 0 auto;
+  padding: 12px 19px;
+  background: rgba(255,255,255,.62);
+}
+.community-pane .community-room-view {
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+  padding: 0;
+}
+.community-pane .community-room-summary {
+  flex: 0 0 auto;
+  padding: 12px 18px;
+  background: rgba(255,255,255,.38);
+}
+.community-pane .community-message-list {
+  min-height: 0;
+  flex: 1;
+  padding: 20px clamp(14px, 4vw, 50px);
+  background: radial-gradient(ellipse at 50% 0%, rgba(233,249,247,.42), transparent 65%);
+}
+.community-pane .community-composer {
+  flex: 0 0 auto;
+  margin: 10px 16px 15px;
+}
+.community-pane .community-create-form {
+  width: min(100%, 560px);
+  max-width: 560px;
+  margin: 0 auto;
+}
+.community-username-field {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 42px;
+  padding: 0 11px;
+  border: 1px solid #dfe9ed;
+  border-radius: 11px;
+  color: #348eaa;
+  background: #fbfdfe;
+  font-size: 13px;
+  font-weight: 800;
+}
+.community-username-field input {
+  min-width: 0;
+  min-height: 38px;
+  padding-left: 2px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+}
+html[data-theme="dark"] .community-pane .community-header,
+html[data-theme="dark"] .community-pane .community-room-summary {
+  border-color: #354b56;
+  background: rgba(34,54,64,.9);
+}
+html[data-theme="dark"] .community-pane .community-message-list {
+  background: radial-gradient(ellipse at 50% 0%, rgba(53,95,96,.2), transparent 65%);
+}
+html[data-theme="dark"] .community-username-field {
+  border-color: #3a5360;
+  color: #a4dfe4;
+  background: #293f4a;
+}
+@media (max-width: 760px) {
+  .community-pane {
+    max-height: none;
+    min-height: 0;
+    height: 100%;
+  }
+  .community-pane .community-header {
+    min-height: max(62px, calc(env(safe-area-inset-top) + 56px));
+    padding-top: max(10px, env(safe-area-inset-top));
+  }
+  .community-pane .community-message-list {
+    padding: 15px 12px;
+  }
+  .community-pane .community-composer {
+    margin: 8px 10px max(12px, env(safe-area-inset-bottom));
+  }
+}
