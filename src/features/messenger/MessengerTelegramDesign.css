@@ -1033,3 +1033,6 @@ html[data-theme="dark"] .profile-edit-save { color:#111; background:#eee; }
   .profile-edit-form { margin-bottom:18px; }
 }
 html[data-theme="dark"] .settings-sidebar { border-color:#333; }
+
+/* Keep the compose menu anchored to the top bar without changing desktop geometry. */
+.inbox-topbar { position: relative; }
