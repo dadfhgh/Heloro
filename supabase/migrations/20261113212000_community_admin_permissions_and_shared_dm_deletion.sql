@@ -355,5 +355,9 @@ to authenticated
 using (
   bucket_id = 'message-media'
   and (storage.foldername(name))[1] is not null
-  and private.is_one_to_one_conversation_member(((storage.foldername(name))[1])::uuid)
+  and private.is_conversation_member(((storage.foldername(name))[1])::uuid)
+  and (
+    (storage.foldername(name))[2] = (select auth.uid())::text
+    or private.is_one_to_one_conversation_member(((storage.foldername(name))[1])::uuid)
+  )
 );
