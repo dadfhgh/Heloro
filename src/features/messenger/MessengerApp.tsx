@@ -994,6 +994,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
             onClose={() => setShowSettings(false)}
             onOpenSupport={() => { setShowSettings(false); openSystemView("support"); }}
             onOpenMyProfile={() => { setShowSettings(false); void openUserProfile(user.id); }}
+            onOpenMyProfile={() => { setShowSettings(false); void openUserProfile(user.id); }}
             onOpenAdmin={() => { setShowSettings(false); openSystemView("admin"); }}
             onSignOut={() => void signOut()}
           />
