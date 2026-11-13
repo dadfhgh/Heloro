@@ -17,13 +17,13 @@ type Room = {
   updated_at: string;
 };
 type RoomMessage = { id: string; room_id: string; sender_id: string; body: string; created_at: string };
-type Props = { client: SupabaseClient; user: User; locale: Locale; onClose: () => void };
+type Props = { client: SupabaseClient; user: User; locale: Locale; initialRoomId?: string | null; initialCreateKind?: "group" | "channel" | null; onRoomsChanged?: () => void; onClose: () => void };
 
 function RoomAvatar({ room }: { room: Room }) {
   return <div className="community-avatar">{room.avatar_url ? <img src={room.avatar_url} alt="" /> : room.kind === "channel" ? <Megaphone size={19} /> : <Users size={19} />}</div>;
 }
 
-export default function CommunityHub({ client, user, locale, onClose }: Props) {
+export default function CommunityHub({ client, user, locale, initialRoomId = null, initialCreateKind = null, onRoomsChanged, onClose }: Props) {
   const ru = locale === "ru";
   const [rooms, setRooms] = useState<Room[]>([]);
   const [room, setRoom] = useState<Room | null>(null);
@@ -33,7 +33,7 @@ export default function CommunityHub({ client, user, locale, onClose }: Props) {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [createKind, setCreateKind] = useState<"group" | "channel" | null>(null);
+  const [createKind, setCreateKind] = useState<"group" | "channel" | null>(initialCreateKind);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [memberQuery, setMemberQuery] = useState("");
@@ -64,11 +64,17 @@ export default function CommunityHub({ client, user, locale, onClose }: Props) {
   useEffect(() => {
     let active = true;
     setLoading(true);
-    loadRooms().catch((cause: unknown) => {
+    loadRooms().then((loaded) => {
+      if (!active) return;
+      if (initialRoomId) {
+        const selected = loaded.find((item) => item.id === initialRoomId);
+        if (selected) void openRoom(selected);
+      }
+    }).catch((cause: unknown) => {
       if (active) setError(cause instanceof Error ? cause.message : (ru ? "Не удалось загрузить сообщества." : "Could not load communities."));
     }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [client, ru]);
+  }, [client, ru, initialRoomId]);
 
   useEffect(() => {
     if (memberQuery.trim().replace(/^@/, "").length < 2 || !createKind || createKind !== "group") {
@@ -147,7 +153,7 @@ export default function CommunityHub({ client, user, locale, onClose }: Props) {
       };
       setRooms((current) => [nextRoom, ...current]);
       setCreateKind(null); setName(""); setDescription(""); setSelectedMembers([]); setMemberQuery("");
-      setRoom(nextRoom); setMemberRole("owner"); setMessages([]);
+      setRoom(nextRoom); setMemberRole("owner"); setMessages([]); onRoomsChanged?.();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : (ru ? "Не удалось создать." : "Could not create."));
     } finally { setBusy(false); }
@@ -195,6 +201,7 @@ export default function CommunityHub({ client, user, locale, onClose }: Props) {
       const updated = { ...room, avatar_url: url };
       setRoom(updated);
       setRooms((current) => current.map((item) => item.id === room.id ? updated : item));
+      onRoomsChanged?.();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : (ru ? "Не удалось изменить аватар." : "Could not update avatar."));
     } finally {
