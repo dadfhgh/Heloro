@@ -51,6 +51,8 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
   const [description, setDescription] = useState("");
   const [username, setUsername] = useState("");
   const [roomUsernameDraft, setRoomUsernameDraft] = useState("");
+  const [roomNameDraft, setRoomNameDraft] = useState("");
+  const [roomDescriptionDraft, setRoomDescriptionDraft] = useState("");
   const [roomEditing, setRoomEditing] = useState(false);
   const [memberSearch, setMemberSearch] = useState("");
   const [memberResults, setMemberResults] = useState<PublicProfile[]>([]);
@@ -246,6 +248,8 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
     setRoomEditing(false);
     setShowRoomInfo(false);
     setRoomUsernameDraft(nextRoom.username);
+    setRoomNameDraft(nextRoom.name);
+    setRoomDescriptionDraft(nextRoom.description);
     setRoom(nextRoom);
     setMemberRole(null);
     setMessages([]);
@@ -388,10 +392,20 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
     } finally { setBusy(false); }
   }
 
-  async function saveRoomUsername(event: FormEvent<HTMLFormElement>) {
+  async function saveRoomDetails(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!room || !memberRole || !["owner", "admin"].includes(memberRole)) return;
+    const nextName = roomNameDraft.trim();
+    const nextDescription = roomDescriptionDraft.trim();
     const normalized = roomUsernameDraft.trim().replace(/^@/, "").toLowerCase();
+    if (nextName.length < 2 || nextName.length > 64) {
+      setError(ru ? "Название должно содержать от 2 до 64 символов." : "Name must be between 2 and 64 characters.");
+      return;
+    }
+    if (nextDescription.length > 255) {
+      setError(ru ? "Описание должно быть не длиннее 255 символов." : "Description must be 255 characters or fewer.");
+      return;
+    }
     if (!/^[a-z][a-z0-9_]{4,31}$/.test(normalized)) {
       setError(ru ? "Username: 5–32 символа, латинские буквы, цифры и _." : "Username: 5–32 characters, using a–z, 0–9 and _.");
       return;
@@ -400,21 +414,23 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
     setError("");
     try {
       const { data, error: updateError } = await client.from("community_rooms")
-        .update({ username: normalized, updated_at: new Date().toISOString() })
+        .update({ name: nextName, username: normalized, description: nextDescription, updated_at: new Date().toISOString() })
         .eq("id", room.id)
-        .select("id, username")
+        .select("id, name, username, description")
         .single();
       if (updateError) throw updateError;
-      if (!data) throw new Error("Username was not saved.");
-      setRoom({ ...room, username: data.username });
+      if (!data) throw new Error("Community details were not saved.");
+      setRoom({ ...room, name: data.name, username: data.username, description: data.description });
+      setRoomNameDraft(data.name);
       setRoomUsernameDraft(data.username);
+      setRoomDescriptionDraft(data.description);
       setRoomEditing(false);
       onRoomsChanged?.();
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : "";
       setError(/duplicate|unique|already taken|23505/i.test(message)
         ? (ru ? "Этот @username уже занят. Выбери другой." : "That @username is already taken. Choose another.")
-        : (message || (ru ? "Не удалось изменить @username." : "Could not update @username.")));
+        : (message || (ru ? "Не удалось сохранить информацию о сообществе." : "Could not save community details.")));
     } finally {
       setBusy(false);
     }
@@ -652,7 +668,7 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
               <button className="icon-button" type="button" onClick={() => { setShowRoomInfo(false); setRoomEditing(false); setError(""); }} aria-label={ru ? "Назад к чату" : "Back to chat"}><ArrowLeft size={20} /></button>
               <strong>{ru ? "Информация" : "Information"}</strong>
               {memberRole && ["owner", "admin"].includes(memberRole) ? (
-                <button className="icon-button" type="button" onClick={() => { setRoomUsernameDraft(room.username); setRoomEditing((current) => !current); setError(""); }} aria-label={ru ? "Изменить ссылку" : "Edit link"} title={ru ? "Изменить ссылку" : "Edit link"}><PencilLine size={19} /></button>
+                <button className="icon-button" type="button" onClick={() => { setRoomNameDraft(room.name); setRoomUsernameDraft(room.username); setRoomDescriptionDraft(room.description); setRoomEditing((current) => !current); setError(""); }} aria-label={ru ? "Изменить информацию" : "Edit information"} title={ru ? "Изменить информацию" : "Edit information"}><PencilLine size={19} /></button>
               ) : <span className="community-info-header-spacer" />}
             </header>
             <div className="community-info-scroll">
@@ -694,19 +710,26 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
                 </div>
               )}
               {roomEditing && memberRole && ["owner", "admin"].includes(memberRole) && (
-                <form className="community-room-edit community-info-edit" onSubmit={saveRoomUsername}>
-                  <label>{ru ? "Ссылка сообщества" : "Community username"}
+                <form className="community-room-edit community-info-edit community-details-edit" onSubmit={saveRoomDetails}>
+                  <label>{ru ? "Название" : "Name"}
+                    <input className="community-details-input" value={roomNameDraft} onChange={(event) => setRoomNameDraft(event.target.value.slice(0, 64))} minLength={2} maxLength={64} required />
+                  </label>
+                  <label>{ru ? "Ссылка сообщества (@username)" : "Community username"}
                     <div className="community-username-field"><span>@</span><input value={roomUsernameDraft} onChange={(event) => setRoomUsernameDraft(event.target.value.toLowerCase().replace(/^@/, "").replace(/[^a-z0-9_]/g, "").slice(0, 32))} minLength={5} maxLength={32} pattern="[a-z][a-z0-9_]{4,31}" required autoCapitalize="none" autoCorrect="off" spellCheck={false} /></div>
                   </label>
+                  <label>{ru ? "Описание" : "Description"}
+                    <textarea className="community-details-textarea" value={roomDescriptionDraft} onChange={(event) => setRoomDescriptionDraft(event.target.value.slice(0, 255))} maxLength={255} rows={4} placeholder={ru ? "Расскажите о группе или канале" : "Describe this group or channel"} />
+                    <small className="community-details-counter">{roomDescriptionDraft.length}/255</small>
+                  </label>
                   <div className="community-room-edit-actions">
-                    <button className="community-secondary" type="button" onClick={() => { setRoomEditing(false); setRoomUsernameDraft(room.username); setError(""); }}>{ru ? "Отмена" : "Cancel"}</button>
-                    <button className="community-primary" type="submit" disabled={busy || roomUsernameDraft.trim().replace(/^@/, "") === room.username}>{busy ? (ru ? "Сохранение…" : "Saving…") : (ru ? "Сохранить" : "Save")}</button>
+                    <button className="community-secondary" type="button" onClick={() => { setRoomEditing(false); setRoomNameDraft(room.name); setRoomUsernameDraft(room.username); setRoomDescriptionDraft(room.description); setError(""); }}>{ru ? "Отмена" : "Cancel"}</button>
+                    <button className="community-primary" type="submit" disabled={busy || (roomNameDraft.trim() === room.name && roomUsernameDraft.trim().replace(/^@/, "") === room.username && roomDescriptionDraft.trim() === room.description)}>{busy ? (ru ? "Сохранение…" : "Saving…") : (ru ? "Сохранить" : "Save")}</button>
                   </div>
                 </form>
               )}
               {memberRole && ["owner", "admin"].includes(memberRole) && (
                 <div className="community-info-admin-actions">
-                  <button type="button" onClick={() => { setRoomUsernameDraft(room.username); setRoomEditing(true); setError(""); }}><PencilLine size={17} />{ru ? "Изменить @username" : "Edit @username"}</button>
+                  <button type="button" onClick={() => { setRoomNameDraft(room.name); setRoomUsernameDraft(room.username); setRoomDescriptionDraft(room.description); setRoomEditing((current) => !current); setError(""); }}><PencilLine size={17} />{ru ? "Изменить информацию" : "Edit information"}</button>
                   <button type="button" onClick={() => avatarInput.current?.click()} disabled={busy}><ImagePlus size={17} />{ru ? "Изменить фото" : "Change photo"}</button>
                 </div>
               )}
