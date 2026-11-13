@@ -952,3 +952,47 @@ html[data-theme="dark"] .system-delete-button { color: #bbb; }
     transition-duration: .01ms !important;
   }
 }
+
+
+.chat-menu-wrap { position: relative; display: flex; align-items: center; }
+.chat-action-menu {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 5px);
+  right: 0;
+  width: 206px;
+  padding: 5px;
+  border: 1px solid #e1e1e1;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 10px 30px rgba(0,0,0,.14);
+}
+.chat-action-menu button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 7px;
+  color: #333;
+  background: transparent;
+  text-align: left;
+  font-size: 12px;
+}
+.chat-action-menu button:hover { background: #f0f0f0; }
+.chat-action-menu button:focus-visible {
+  outline: 2px solid #777;
+  outline-offset: -2px;
+  background: #f0f0f0;
+}
+html[data-theme="dark"] .chat-action-menu {
+  border-color: #383838;
+  background: #202020;
+  box-shadow: 0 12px 32px rgba(0,0,0,.42);
+}
+html[data-theme="dark"] .chat-action-menu button { color: #eee; }
+html[data-theme="dark"] .chat-action-menu button:hover,
+html[data-theme="dark"] .chat-action-menu button:focus-visible { background: #333; }
+
