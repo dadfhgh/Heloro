@@ -84,7 +84,6 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
   const avatarInput = useRef<HTMLInputElement>(null);
   const messagesEnd = useRef<HTMLDivElement>(null);
   const canChangeRoomInfo = hasCommunityPermission(memberRole, myAdminPermissions, "change_info");
-  const canDeleteRoomMessages = hasCommunityPermission(memberRole, myAdminPermissions, "delete_messages");
   const canManageRoomAdmins = hasCommunityPermission(memberRole, myAdminPermissions, "manage_admins");
   const canPostChannelMessages = hasCommunityPermission(memberRole, myAdminPermissions, "post_messages");
 
