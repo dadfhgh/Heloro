@@ -67,7 +67,7 @@ export function executeLua(source: string, input: string, chatId: string): LuaRe
       if (event !== "message" && event !== "command") {
         return lauxlib.luaL_error(state, to_luastring("Unsupported event. Use message or command."));
       }
-      if (handlers.get(event)?.length >= 12) {
+      if ((handlers.get(event)?.length ?? 0) >= 12) {
         return lauxlib.luaL_error(state, to_luastring("Maximum 12 handlers per event."));
       }
       lua.lua_pushvalue(state, 2);
