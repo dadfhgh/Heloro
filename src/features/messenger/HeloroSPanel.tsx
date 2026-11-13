@@ -23,7 +23,8 @@ type Props = {
   onOpenDiscussion: () => void;
 };
 
-type TabId = "overview" | "users" | "moderation" | "reports" | "support" | "audit" | "settings" | "security" | "verification" | "channels" | "roles";
+type TabId = "overview" | "users" | "moderation" | "reports" | "support" | "audit" | "settings" | "security" | "verification" | "channels" | "roles" | "groups";
+type CommunityEntry = { id: string; name: string; username: string | null; kind: "group" | "channel"; created_at: string; created_by: string; member_count: number };
 type AdminUser = PublicProfile & { created_at: string };
 type AdminReport = {
   id: string; reporter_id: string; reported_user_id: string | null; reason: string;
@@ -64,6 +65,7 @@ const tabItems: { id: TabId; ru: string; en: string; icon: typeof Activity }[] =
   { id: "verification", ru: "Верификация", en: "Verification", icon: BadgeCheck },
   { id: "channels", ru: "Каналы", en: "Channels", icon: Megaphone },
   { id: "roles", ru: "Роли", en: "Roles", icon: ShieldCheck },
+  { id: "groups", ru: "Группы", en: "Groups", icon: Users },
 ];
 
 const settingDefinitions = [
@@ -112,6 +114,8 @@ export default function HeloroSPanel({
   const [roleChoice, setRoleChoice] = useState("admin");
   const [reportNote, setReportNote] = useState<Record<string, string>>({});
   const [badgeType, setBadgeType] = useState<BadgeType>("blue");
+  const [communities, setCommunities] = useState<CommunityEntry[]>([]);
+  const [communitySearch, setCommunitySearch] = useState("");
 
   function clearMessages() {
     setError("");
@@ -179,6 +183,27 @@ export default function HeloroSPanel({
     setStaffEntries((data ?? []) as StaffEntry[]);
   }
 
+  async function loadCommunities() {
+    const { data, error: queryError } = await client.rpc("heloro_admin_list_communities");
+    if (queryError) throw queryError;
+    setCommunities((data ?? []) as CommunityEntry[]);
+  }
+
+  async function deleteCommunity(item: CommunityEntry) {
+    const label = item.name + (item.username ? " (@" + item.username + ")" : "");
+    if (!window.confirm(ru ? `Удалить ${item.kind === "group" ? "группу" : "канал"} «${label}» для всех участников? Все сообщения и участники этого сообщества будут удалены. Действие необратимо.` : `Delete ${item.kind} “${label}” for everyone? Its messages and memberships will also be deleted. This cannot be undone.`)) return;
+    setBusy(true); clearMessages();
+    try {
+      const { error: rpcError } = await client.rpc("heloro_admin_delete_community", { p_room_id: item.id });
+      if (rpcError) throw rpcError;
+      setCommunities((current) => current.filter((row) => row.id !== item.id));
+      setNotice(ru ? "Сообщество удалено для всех участников." : "Community deleted for all members.");
+      await loadAudit();
+    } catch (cause) {
+      setError(errorText(cause, ru ? "Не удалось удалить сообщество." : "Could not delete community."));
+    } finally { setBusy(false); }
+  }
+
   async function loadSettings() {
     const { data, error: queryError } = await client.from("heloro_settings")
       .select("setting_key, value, updated_at, updated_by")
@@ -198,6 +223,7 @@ export default function HeloroSPanel({
         if (tab === "audit") await loadAudit();
         if (tab === "roles") await loadStaff();
         if (tab === "settings") await loadSettings();
+        if (tab === "groups") await loadCommunities();
       } catch (cause) {
         if (active) setError(errorText(cause, ru ? "Не удалось загрузить раздел." : "Could not load this section."));
       }
@@ -388,6 +414,7 @@ export default function HeloroSPanel({
       if (item.id === "roles" || item.id === "settings") return isOwner;
       if (item.id === "verification") return canManageBadges;
       if (item.id === "security") return isOwner || isAdmin;
+      if (item.id === "groups") return isOwner || isAdmin;
       return true;
     });
   }
@@ -530,6 +557,24 @@ export default function HeloroSPanel({
               <div><Ban size={18} /><span><strong>{ru ? "Пароли недоступны персоналу" : "Passwords are never exposed"}</strong><small>{ru ? "Только безопасное восстановление доступа." : "Account recovery remains a secure flow."}</small></span><CheckCircle2 size={17} /></div>
             </div>
             <p className="admin-privacy-note">{ru ? "Перед публичным запуском нужно пройти проверку RLS и тесты с отдельными Owner, Admin, Moderator и обычным аккаунтом." : "Before public launch, validate RLS with separate Owner, Admin, Moderator and regular-user accounts."}</p>
+          </section>
+        )}
+
+        {tab === "groups" && (isOwner || isAdmin) && (
+          <section className="admin-section">
+            <div className="admin-section-heading"><div><h2>{ru ? "Группы и сообщества" : "Groups and communities"}</h2><p>{ru ? "Удаление тестовых и других сообществ для всех участников. Официальная поддержка и системный канал здесь не отображаются." : "Delete test and other communities for everyone. Official Support and the system channel are not listed here."}</p></div><button className="admin-icon-action" disabled={busy} onClick={() => void loadCommunities()}><RefreshCw size={15} /></button></div>
+            <div className="admin-search"><Search size={16} /><input value={communitySearch} onChange={(event) => setCommunitySearch(event.target.value)} placeholder={ru ? "Поиск по названию или @username" : "Search by name or @username"} /><button onClick={() => setCommunitySearch("")} aria-label={ru ? "Очистить" : "Clear"}><X size={14} /></button></div>
+            <div className="admin-user-results">
+              {communities.filter((item) => (item.name + " " + (item.username ?? "")).toLowerCase().includes(communitySearch.trim().replace(/^@/, "").toLowerCase())).map((item) => (
+                <article className="admin-record-card" key={item.id}>
+                  <div className="admin-record-heading"><strong>{item.kind === "group" ? (ru ? "Группа" : "Group") : (ru ? "Канал" : "Channel")} · {item.name}</strong><span>{item.member_count} {ru ? "участников" : "members"}</span></div>
+                  <small>{item.username ? "@" + item.username + " · " : ""}{ru ? "Создано" : "Created"}: {new Date(item.created_at).toLocaleString()} · ID: {shortId(item.id)}</small>
+                  <div className="admin-actions"><button className="system-delete-button" disabled={busy} onClick={() => void deleteCommunity(item)}><Ban size={14} />{ru ? "Удалить для всех" : "Delete for everyone"}</button></div>
+                </article>
+              ))}
+              {communities.length === 0 && <p className="admin-muted">{ru ? "Сообществ нет или серверное обновление ещё не установлено." : "No communities found, or the backend migration is not installed yet."}</p>}
+            </div>
+            <p className="admin-privacy-note">{ru ? "Доступ есть только у Owner и Admin. Каждое удаление проверяется на сервере и записывается в журнал действий. Обычные участники и модераторы не могут удалять сообщества через эту панель." : "Only Owner and Admin can use this action. Every deletion is authorized server-side and recorded in the audit log. Members and moderators cannot delete communities from this panel."}</p>
           </section>
         )}
 
