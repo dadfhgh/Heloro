@@ -34,6 +34,35 @@ export async function saveProfile(
   return data as Profile;
 }
 
+export async function getPublicProfile(userId: string): Promise<PublicProfile | null> {
+  const { data, error } = await client().from("profiles")
+    .select("id, username, display_name, avatar_url").eq("id", userId).maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  const { data: badge, error: badgeError } = await client().from("verification_badges")
+    .select("badge_type").eq("user_id", userId).maybeSingle();
+  if (badgeError) {
+    console.warn("HELORO optional profile badge lookup failed:", badgeError.message);
+  }
+  return { ...data, username: data.username ?? "", badge_type: (badge?.badge_type as PublicProfile["badge_type"]) ?? null };
+}
+
+export async function uploadAvatar(userId: string, file: File): Promise<Profile> {
+  const extensions: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" };
+  const extension = extensions[file.type];
+  if (!extension) throw new Error("Choose a PNG, JPEG or WebP image.");
+  if (file.size < 1 || file.size > 3 * 1024 * 1024) throw new Error("Avatar images must be 3 MB or smaller.");
+  const path = `${userId}/${crypto.randomUUID()}.${extension}`;
+  const storage = client().storage.from("profile-avatars");
+  const { error: uploadError } = await storage.upload(path, file, { contentType: file.type, cacheControl: "3600", upsert: false });
+  if (uploadError) throw uploadError;
+  const avatarUrl = storage.getPublicUrl(path).data.publicUrl;
+  const { data, error } = await client().from("profiles").update({ avatar_url: avatarUrl })
+    .eq("id", userId).select("id, username, display_name, avatar_url").single();
+  if (error) { await storage.remove([path]); throw error; }
+  return data as Profile;
+}
+
 export async function searchProfiles(query: string, currentUserId: string): Promise<PublicProfile[]> {
   const normalized = query.trim().replace(/^@/, "").toLowerCase();
   if (normalized.length < 2) return [];
@@ -106,7 +135,31 @@ export async function getMessages(
     .limit(limit);
 
   if (error) throw error;
-  return ((data ?? []) as Message[]).reverse();
+  const rows = ((data ?? []) as Message[]).reverse();
+  return await Promise.all(rows.map(async (row): Promise<Message> => {
+    const mediaPrefix = "HELORO_MEDIA:";
+    if (!row.body.startsWith(mediaPrefix)) {
+      return { ...row };
+    }
+    try {
+      const payload = JSON.parse(row.body.slice(mediaPrefix.length)) as { kind?: string; path?: string };
+      if ((payload.kind !== "sticker" && payload.kind !== "gif") || typeof payload.path !== "string") {
+        return { ...row, body: "Media unavailable.", media: null };
+      }
+      const { data: signed, error: signError } = await client()
+        .storage.from("message-media").createSignedUrl(payload.path, 3600);
+      if (signError || !signed?.signedUrl) {
+        return { ...row, body: "Media unavailable.", media: null };
+      }
+      return {
+        ...row,
+        body: "",
+        media: { kind: payload.kind, url: signed.signedUrl, path: payload.path },
+      };
+    } catch {
+      return { ...row, body: "Media unavailable.", media: null };
+    }
+  }));
 }
 
 export async function sendMessage(
@@ -131,9 +184,62 @@ export async function sendMessage(
   return data as Message;
 }
 
+export async function sendMediaMessage(
+  conversationId: string,
+  senderId: string,
+  file: File,
+  kind: "sticker" | "gif",
+): Promise<void> {
+  const allowed = kind === "gif"
+    ? ["image/gif"]
+    : ["image/png", "image/jpeg", "image/webp"];
+  if (!allowed.includes(file.type)) {
+    throw new Error(kind === "gif" ? "Choose a GIF file." : "Choose a PNG, JPEG or WebP image.");
+  }
+  if (file.size < 1 || file.size > 5 * 1024 * 1024) {
+    throw new Error("Media must be smaller than 5 MB.");
+  }
+  const extensionByType: Record<string, string> = {
+    "image/png": "png",
+    "image/jpeg": "jpg",
+    "image/webp": "webp",
+    "image/gif": "gif",
+  };
+  const path = `${conversationId}/${senderId}/${crypto.randomUUID()}.${extensionByType[file.type]}`;
+  const storage = client().storage.from("message-media");
+  const { error: uploadError } = await storage.upload(path, file, {
+    contentType: file.type,
+    cacheControl: "3600",
+    upsert: false,
+  });
+  if (uploadError) throw uploadError;
+
+  const { error: messageError } = await client().from("messages").insert({
+    conversation_id: conversationId,
+    sender_id: senderId,
+    body: `HELORO_MEDIA:${JSON.stringify({ kind, path })}`,
+  });
+  if (messageError) {
+    await storage.remove([path]);
+    throw messageError;
+  }
+}
+
+export async function deleteDirectMessage(message: Message, currentUserId: string): Promise<void> {
+  if (message.sender_id !== currentUserId) throw new Error("You can only delete your own messages.");
+  if (message.media?.path) {
+    const { error: mediaError } = await client().storage.from("message-media").remove([message.media.path]);
+    if (mediaError) throw mediaError;
+  }
+  const { data, error } = await client().from("messages").delete().eq("id", message.id).select("id").maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error("Message not found or delete permission denied.");
+}
+
 export function subscribeToMessages(
   conversationId: string,
   onInsert: (message: Message) => void,
+  onDelete?: () => void,
 ): RealtimeChannel {
   return client()
     .channel(`heloro:messages:${conversationId}`)
@@ -147,5 +253,6 @@ export function subscribeToMessages(
       },
       (payload) => onInsert(payload.new as Message),
     )
+    .on("postgres_changes", { event: "DELETE", schema: "public", table: "messages" }, () => onDelete?.())
     .subscribe();
 }

@@ -24,6 +24,7 @@ export interface Message {
   sender_id: string;
   body: string;
   created_at: string;
+  media?: { kind: "sticker" | "gif"; url: string; path?: string } | null;
 }
 
 export interface PublicProfile {

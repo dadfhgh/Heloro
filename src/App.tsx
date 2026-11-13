@@ -8,6 +8,7 @@ import AuthScreen from "./features/auth/AuthScreen";
 import ProfileSetup from "./features/profile/ProfileSetup";
 import MessengerApp from "./features/messenger/MessengerApp";
 import { getInitialLocale, saveLocale, t, type Locale } from "./lib/i18n";
+import { parseThemePreference, serializeThemePreference, type ThemePreference } from "./lib/preferences";
 
 function LoadingScreen({ locale }: { locale: Locale }) {
   return (
@@ -56,11 +57,15 @@ function AuthenticatedApp({
   client,
   locale,
   onLocaleChange,
+  theme,
+  onThemeChange,
 }: {
   session: Session;
   client: HeloroClient;
   locale: Locale;
   onLocaleChange: (next: Locale) => void;
+  theme: ThemePreference;
+  onThemeChange: (next: ThemePreference) => void;
 }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
@@ -106,18 +111,42 @@ function AuthenticatedApp({
   if (!profile?.username) {
     return <ProfileSetup client={client} userId={session.user.id} onSaved={setProfile} locale={locale} />;
   }
-  return <MessengerApp client={client} user={session.user} profile={profile} locale={locale} onLocaleChange={onLocaleChange} roles={roles} />;
+  return <MessengerApp client={client} user={session.user} profile={profile} locale={locale} onLocaleChange={onLocaleChange} roles={roles} theme={theme} onThemeChange={onThemeChange} />;
 }
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [booting, setBooting] = useState(true);
   const [locale, setLocale] = useState<Locale>(() => getInitialLocale());
+  const [theme, setTheme] = useState<ThemePreference>(() => {
+    try {
+      return parseThemePreference(window.localStorage.getItem("heloro-preferences-v1"));
+    } catch {
+      return "system";
+    }
+  });
 
   useEffect(() => {
     document.documentElement.lang = locale;
     saveLocale(locale);
   }, [locale]);
+
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const applyTheme = () => {
+      const resolved = theme === "system" ? (media.matches ? "dark" : "light") : theme;
+      document.documentElement.dataset.theme = resolved;
+    };
+    applyTheme();
+    try {
+      window.localStorage.setItem("heloro-preferences-v1", serializeThemePreference(theme));
+    } catch {
+      // HELORO remains usable when browser storage is unavailable.
+    }
+    if (theme !== "system") return;
+    media.addEventListener("change", applyTheme);
+    return () => media.removeEventListener("change", applyTheme);
+  }, [theme]);
 
   useEffect(() => {
     if (!supabase) {
@@ -141,5 +170,5 @@ export default function App() {
   if (!supabase) return <BackendSetupScreen locale={locale} />;
   if (booting) return <LoadingScreen locale={locale} />;
   if (!session) return <AuthScreen client={supabase as SupabaseClient} locale={locale} onLocaleChange={setLocale} />;
-  return <AuthenticatedApp session={session} client={supabase} locale={locale} onLocaleChange={setLocale} />;
+  return <AuthenticatedApp session={session} client={supabase} locale={locale} onLocaleChange={setLocale} theme={theme} onThemeChange={setTheme} />;
 }

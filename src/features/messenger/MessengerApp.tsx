@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import type { User } from "@supabase/supabase-js";
 import {
   ArrowLeft,
@@ -7,33 +7,46 @@ import {
   CheckCheck,
   Flag,
   Headphones,
-  LogOut,
-  Menu,
+  ImagePlus,
+  MoreVertical,
   Megaphone,
   MessageCircle,
   MoreHorizontal,
   PencilLine,
   Search,
   Settings2,
+  SmilePlus,
   ShieldCheck,
+  Trash2,
+  UserRound,
+  Users,
   X,
 } from "lucide-react";
 import {
   createDirectConversation,
+  deleteDirectMessage,
   getInbox,
   getMessages,
+  getPublicProfile,
   searchProfiles,
   sendMessage,
+  sendMediaMessage,
   subscribeToMessages,
+  uploadAvatar,
 } from "../../lib/messenger";
 import { formatInboxTime, formatMessageTime, initials, messageBodySchema } from "../../lib/domain";
 import type { InboxConversation, Message, Profile, PublicProfile, BadgeType } from "../../lib/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { t, type Locale } from "../../lib/i18n";
 import OfficialPanels from "./OfficialPanels";
-import { submitUserReport } from "../../lib/official";
+import CommunityHub from "./CommunityHub";
+import { setVerificationBadge, submitUserReport } from "../../lib/official";
+import type { SettingsSection } from "./MessengerNavigation";
+import type { ThemePreference } from "../../lib/preferences";
 
 type SystemView = "news" | "discussion" | "support" | "admin";
+type CommunityRoomPreview = { id: string; kind: "group" | "channel"; name: string; username: string; description: string; avatar_url: string | null; is_public: boolean; updated_at: string };
+type VisibleChatItem = { kind: "direct"; sortAt: string; conversation: InboxConversation } | { kind: "community"; sortAt: string; room: CommunityRoomPreview };
 
 type Props = {
   client: SupabaseClient;
@@ -42,10 +55,14 @@ type Props = {
   locale: Locale;
   onLocaleChange: (next: Locale) => void;
   roles: string[];
+  theme: ThemePreference;
+  onThemeChange: (next: ThemePreference) => void;
 };
 
-function Avatar({ label, className = "" }: { label: string; className?: string }) {
-  return <div className={`avatar ${className}`} aria-hidden="true">{initials(label)}</div>;
+function Avatar({ label, className = "", src }: { label: string; className?: string; src?: string | null }) {
+  return <div className={`avatar ${className}`} aria-hidden="true">
+    {src ? <img src={src} alt="" loading="lazy" /> : initials(label)}
+  </div>;
 }
 
 function VerificationMark({ type, title }: { type?: BadgeType | null; title: string }) {
@@ -58,20 +75,36 @@ function VerificationMark({ type, title }: { type?: BadgeType | null; title: str
   );
 }
 
-function EmptyChat({ locale }: { locale: Locale }) {
+function EmptyChat({ locale, onFindFriend }: { locale: Locale; onFindFriend: () => void }) {
   return (
     <div className="empty-chat">
       <div className="empty-chat-icon"><MessageCircle size={28} /></div>
-      <h2>{t(locale, "chatSelectTitle")}</h2>
-      <p>{t(locale, "chatSelectDescription")}</p>
+      <h2>{locale === "ru" ? "HELORO — общение рядом" : "HELORO — conversations start here"}</h2>
+      <p>{locale === "ru"
+        ? "Открой переписку из списка или найди друга по имени пользователя."
+        : "Open a conversation from the list or find a friend by username."}</p>
+      <button type="button" className="empty-chat-find" onClick={onFindFriend}>
+        <Search size={16} /> {locale === "ru" ? "Найти друга" : "Find a friend"}
+      </button>
     </div>
   );
 }
 
 const reportReasons = ["spam", "harassment", "scam", "inappropriate", "other"] as const;
 
-export default function MessengerApp({ client, user, profile, locale, onLocaleChange, roles }: Props) {
+const LazyMessengerNavigation = lazy(async () => {
+  const module = await import("./MessengerNavigation");
+  return { default: module.MessengerNavigation };
+});
+
+const LazyMessengerSettings = lazy(async () => {
+  const module = await import("./MessengerNavigation");
+  return { default: module.MessengerSettings };
+});
+
+export default function MessengerApp({ client, user, profile, locale, onLocaleChange, roles, theme, onThemeChange }: Props) {
   const [inbox, setInbox] = useState<InboxConversation[]>([]);
+  const [ownProfile, setOwnProfile] = useState(profile);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [systemView, setSystemView] = useState<SystemView | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -83,17 +116,35 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const [loadingInbox, setLoadingInbox] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sending, setSending] = useState(false);
+  const [mediaSending, setMediaSending] = useState(false);
   const [error, setError] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showNavigation, setShowNavigation] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
+  const [activeCommunityRoomId, setActiveCommunityRoomId] = useState<string | null>(null);
+  const [communityCreateKind, setCommunityCreateKind] = useState<"group" | "channel" | null>(null);
+  const [communityRooms, setCommunityRooms] = useState<CommunityRoomPreview[]>([]);
+  const [communitySearchRooms, setCommunitySearchRooms] = useState<CommunityRoomPreview[]>([]);
+  const [showCreateMenu, setShowCreateMenu] = useState(false);
+  const [viewedProfile, setViewedProfile] = useState<PublicProfile | null>(null);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileBusy, setProfileBusy] = useState(false);
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const [profileError, setProfileError] = useState("");
+  const [settingsSection, setSettingsSection] = useState<SettingsSection>("account");
   const [showReport, setShowReport] = useState(false);
   const [reportReason, setReportReason] = useState<(typeof reportReasons)[number]>("other");
   const [reportDetails, setReportDetails] = useState("");
   const [reportBusy, setReportBusy] = useState(false);
-  const [chatFilter, setChatFilter] = useState<"all" | "personal">("all");
+  const [homeTab, setHomeTab] = useState<"chats" | "contacts" | "settings" | "profile">("chats");
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const stickerInputRef = useRef<HTMLInputElement>(null);
+  const gifInputRef = useRef<HTMLInputElement>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const isStaff = roles.some((role) => role === "owner" || role === "admin" || role === "moderator");
+  const canManageBadges = roles.includes("owner") || roles.includes("admin");
 
   const activeConversation = useMemo(
     () => inbox.find((item) => item.conversation_id === activeId) ?? null,
@@ -102,37 +153,135 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
 
   const visibleInbox = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();
-    const base = chatFilter === "personal" ? inbox : inbox;
-    if (!query) return base;
-    return base.filter((item) =>
+    if (!query) return inbox;
+    return inbox.filter((item) =>
       (item.display_name || "").toLocaleLowerCase().includes(query) ||
       (item.username || "").toLocaleLowerCase().includes(query) ||
       (item.last_message || "").toLocaleLowerCase().includes(query),
     );
-  }, [inbox, search, chatFilter]);
+  }, [inbox, search]);
+
+  const visibleCommunityRooms = useMemo(() => {
+    const query = search.trim().toLocaleLowerCase().replace(/^@/, "");
+    const source = showSearch ? [...communityRooms, ...communitySearchRooms] : communityRooms;
+    const unique = new Map(source.map((item) => [item.id, item]));
+    return [...unique.values()].filter((item) =>
+      !query || item.name.toLocaleLowerCase().includes(query) ||
+      item.username.toLocaleLowerCase().includes(query) ||
+      item.description.toLocaleLowerCase().includes(query)
+    );
+  }, [communityRooms, communitySearchRooms, search, showSearch]);
 
   async function refreshInbox(selectId?: string) {
     const updated = await getInbox();
     setInbox(updated);
-    if (selectId) {
-      setActiveId(selectId);
-      setSystemView(null);
-    } else if (activeId && !updated.some((item) => item.conversation_id === activeId)) {
-      setActiveId(null);
+    setActiveId((current) => {
+      if (selectId) return selectId;
+      if (current && updated.some((item) => item.conversation_id === current)) return current;
+      return null;
+    });
+    if (selectId) setSystemView(null);
+  }
+
+  async function refreshCommunityRooms() {
+    const { data: memberships, error: membershipError } = await client.from("community_room_members")
+      .select("room_id").eq("user_id", user.id);
+    if (membershipError) throw membershipError;
+    const roomIds = (memberships ?? []).map((item) => item.room_id as string);
+    if (roomIds.length === 0) {
+      setCommunityRooms([]);
+      return;
     }
+    const { data, error: roomError } = await client.from("community_rooms")
+      .select("id, kind, name, username, description, avatar_url, is_public, updated_at")
+      .in("id", roomIds).order("updated_at", { ascending: false }).limit(100);
+    if (roomError) throw roomError;
+    setCommunityRooms((data ?? []) as CommunityRoomPreview[]);
+  }
+
+  const visibleChatItems = useMemo<VisibleChatItem[]>(() => [
+    ...visibleInbox.map((conversation) => ({
+      kind: "direct" as const,
+      sortAt: conversation.last_message_at || "1970-01-01T00:00:00.000Z",
+      conversation,
+    })),
+    ...visibleCommunityRooms.map((room) => ({
+      kind: "community" as const,
+      sortAt: room.updated_at,
+      room,
+    })),
+  ].sort((left, right) => Date.parse(right.sortAt) - Date.parse(left.sortAt)), [visibleInbox, visibleCommunityRooms]);
+
+  function openCommunity(roomId: string | null, createKind: "group" | "channel" | null = null) {
+    setHomeTab("chats");
+    setActiveId(null);
+    setSystemView(null);
+    setActiveCommunityRoomId(roomId);
+    setCommunityCreateKind(createKind);
+    setShowSearch(false);
+    setSearch("");
+    setResults([]);
+    setShowCreateMenu(false);
+  }
+
+  function closeCommunity() {
+    setActiveCommunityRoomId(null);
+    setCommunityCreateKind(null);
+    void refreshCommunityRooms().catch(() => undefined);
   }
 
   useEffect(() => {
     let active = true;
     setLoadingInbox(true);
     getInbox()
-      .then((items) => { if (active) setInbox(items); })
+      .then((items) => {
+        if (!active) return;
+        setInbox(items);
+      })
       .catch((cause: unknown) => {
         if (active) setError(cause instanceof Error ? cause.message : t(locale, "inboxLoadFailed"));
       })
       .finally(() => { if (active) setLoadingInbox(false); });
     return () => { active = false; };
   }, [locale]);
+
+  useEffect(() => {
+    let active = true;
+    const refresh = () => { void refreshCommunityRooms().catch((cause: unknown) => { if (active) setError(cause instanceof Error ? cause.message : (locale === "ru" ? "Не удалось загрузить группы и каналы." : "Could not load groups and channels.")); }); };
+    refresh();
+    const channel = client.channel("heloro:community-list:" + user.id)
+      .on("postgres_changes", { event: "*", schema: "public", table: "community_rooms" }, refresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "community_room_members", filter: "user_id=eq." + user.id }, refresh)
+      .subscribe();
+    return () => { active = false; void client.removeChannel(channel); };
+  }, [client, user.id, locale]);
+
+  useEffect(() => {
+    const rawSearch = search.trim();
+    const handleQuery = rawSearch.startsWith("@")
+      ? rawSearch.slice(1).toLocaleLowerCase().replace(/[^a-z0-9_]/g, "")
+      : "";
+    if (!showSearch || handleQuery.length < 2) {
+      setCommunitySearchRooms([]);
+      return;
+    }
+    let active = true;
+    void client.from("community_rooms")
+      .select("id, kind, name, username, description, avatar_url, is_public, updated_at")
+      .eq("is_public", true)
+      .ilike("username", `%${handleQuery}%`)
+      .order("updated_at", { ascending: false })
+      .limit(15)
+      .then(({ data, error: searchError }) => {
+        if (!active) return;
+        if (searchError) {
+          setCommunitySearchRooms([]);
+          return;
+        }
+        setCommunitySearchRooms((data ?? []) as CommunityRoomPreview[]);
+      });
+    return () => { active = false; };
+  }, [client, search, showSearch]);
 
   useEffect(() => {
     if (inbox.length === 0) {
@@ -175,10 +324,16 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
       })
       .finally(() => { if (active) setLoadingMessages(false); });
 
-    const channel = subscribeToMessages(activeId, (incoming) => {
-      setMessages((current) => current.some((item) => item.id === incoming.id) ? current : [...current, incoming]);
-      void refreshInbox();
-    });
+    const channel = subscribeToMessages(activeId,
+      () => {
+        void getMessages(activeId).then(setMessages).catch((cause: unknown) => setError(cause instanceof Error ? cause.message : t(locale, "messagesLoadFailed")));
+        void refreshInbox();
+      },
+      () => {
+        void getMessages(activeId).then(setMessages).catch((cause: unknown) => setError(cause instanceof Error ? cause.message : t(locale, "messagesLoadFailed")));
+        void refreshInbox();
+      },
+    );
     return () => {
       active = false;
       void client.removeChannel(channel);
@@ -210,16 +365,18 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   }, [search, user.id, locale]);
 
   useEffect(() => {
-    if (!showSettings && !showReport) return;
+    if (!showSettings && !showReport && !showNavigation && !showProfile) return;
     function closeOnEscape(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setShowSettings(false);
+        setShowNavigation(false);
         setShowReport(false);
+        setShowProfile(false);
       }
     }
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [showSettings, showReport]);
+  }, [showSettings, showNavigation, showReport, showProfile]);
 
   useEffect(() => {
     if (showSearch) searchInputRef.current?.focus();
@@ -258,6 +415,88 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
     }
   }
 
+  async function openUserProfile(userId: string) {
+    setShowProfile(true);
+    setViewedProfile(null);
+    setProfileLoading(true);
+    setProfileError("");
+    try {
+      const target = await getPublicProfile(userId);
+      if (!target) throw new Error("Profile not found.");
+      setViewedProfile(target);
+    } catch {
+      setProfileError(t(locale, "profileLoadError"));
+    } finally {
+      setProfileLoading(false);
+    }
+  }
+
+  async function handleAvatarSelect(file?: File) {
+    if (!file) return;
+    setAvatarBusy(true);
+    setProfileError("");
+    try {
+      const updated = await uploadAvatar(user.id, file);
+      setOwnProfile(updated);
+      setViewedProfile((current) => current?.id === updated.id ? { ...current, avatar_url: updated.avatar_url } : current);
+      setInbox((current) => current.map((item) => item.other_user_id === updated.id ? { ...item, avatar_url: updated.avatar_url } : item));
+    } catch {
+      setProfileError(t(locale, "profilePhotoError"));
+    } finally {
+      setAvatarBusy(false);
+      if (avatarInputRef.current) avatarInputRef.current.value = "";
+    }
+  }
+
+  async function removeProfileBadge() {
+    if (!viewedProfile || !canManageBadges || !viewedProfile.badge_type) return;
+    if (!window.confirm(t(locale, "profileBadgeRemoveConfirm"))) return;
+    setProfileBusy(true);
+    setProfileError("");
+    try {
+      await setVerificationBadge(client, viewedProfile.id, user.id, null);
+      setViewedProfile((current) => current ? { ...current, badge_type: null } : current);
+      setBadgeMap((current) => {
+        const next = { ...current };
+        delete next[viewedProfile.id];
+        return next;
+      });
+    } catch {
+      setProfileError(t(locale, "profileBadgeRemoveError"));
+    } finally {
+      setProfileBusy(false);
+    }
+  }
+
+  async function removeDirectMessage(message: Message) {
+    if (message.sender_id !== user.id || !window.confirm(t(locale, "messageDeleteConfirm"))) return;
+    setError("");
+    try {
+      await deleteDirectMessage(message, user.id);
+      setMessages((current) => current.filter((item) => item.id !== message.id));
+      await refreshInbox();
+    } catch {
+      setError(t(locale, "messageDeleteError"));
+    }
+  }
+
+  async function handleMediaSelect(kind: "sticker" | "gif", file?: File) {
+    if (!file || !activeId) return;
+    setMediaSending(true);
+    setError("");
+    try {
+      await sendMediaMessage(activeId, user.id, file, kind);
+      setMessages(await getMessages(activeId));
+      await refreshInbox();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : t(locale, "messageSendFailed"));
+    } finally {
+      setMediaSending(false);
+      if (kind === "sticker" && stickerInputRef.current) stickerInputRef.current.value = "";
+      if (kind === "gif" && gifInputRef.current) gifInputRef.current.value = "";
+    }
+  }
+
   async function submitReport(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!activeConversation) return;
@@ -283,6 +522,9 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   }
 
   function openSearch() {
+    setActiveCommunityRoomId(null);
+    setCommunityCreateKind(null);
+    setHomeTab("contacts");
     setSystemView(null);
     setActiveId(null);
     setShowSearch(true);
@@ -290,7 +532,43 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
     setResults([]);
   }
 
+  function switchHomeTab(tab: "chats" | "contacts" | "settings" | "profile") {
+    setActiveCommunityRoomId(null);
+    setCommunityCreateKind(null);
+    setHomeTab(tab);
+    setActiveId(null);
+    setSystemView(null);
+    setError("");
+    setShowNavigation(false);
+    setShowProfile(false);
+    if (tab === "chats") {
+      setShowSearch(false);
+      setSearch("");
+      setResults([]);
+      void refreshInbox().catch((cause: unknown) => {
+        setError(cause instanceof Error ? cause.message : t(locale, "inboxLoadFailed"));
+      });
+      setShowSettings(false);
+    } else if (tab === "contacts") {
+      setShowSearch(true);
+      setSearch("");
+      setResults([]);
+      setShowSettings(false);
+    } else if (tab === "settings") {
+      setShowSettings(false);
+      openSettings("account");
+    } else {
+      setShowSearch(false);
+      setSearch("");
+      setResults([]);
+      setShowSettings(false);
+    }
+  }
+
   function openSystemView(view: SystemView) {
+    setActiveCommunityRoomId(null);
+    setCommunityCreateKind(null);
+    setHomeTab("chats");
     setActiveId(null);
     setSystemView(view);
     setShowSearch(false);
@@ -300,33 +578,35 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   }
 
   function closeConversation() {
+    setActiveCommunityRoomId(null);
+    setCommunityCreateKind(null);
+    setHomeTab("chats");
     setActiveId(null);
     setSystemView(null);
     setShowSearch(false);
     setSearch("");
   }
 
+  function openSettings(section: SettingsSection = "account") {
+    setSettingsSection(section);
+    setShowSettings(true);
+  }
+
   return (
-    <main className={`messenger-stage ${activeConversation || systemView ? "chat-selected" : ""}`}>
+    <main className={`messenger-stage home-${homeTab} ${activeConversation || systemView || activeCommunityRoomId || communityCreateKind ? "chat-selected" : ""}`}>
       <div className="messenger-shell">
         <aside className="inbox-panel">
-          <header className="inbox-topbar">
-            <button
-              className="icon-button menu-button"
-              title={t(locale, "settings")}
-              aria-label={t(locale, "settings")}
-              onClick={() => setShowSettings(true)}
-            >
-              <Menu size={21} />
-            </button>
+          <header className="inbox-topbar telegram-main-topbar">
             <div className="brand-lockup"><div className="brand-symbol">H</div><span>HELORO</span></div>
             <button
-              className="icon-button compose-button"
-              title={t(locale, "inboxStartConversation")}
-              aria-label={t(locale, "inboxStartConversation")}
-              onClick={openSearch}
+              className="icon-button overflow-button"
+              title={locale === "ru" ? "Дополнительно" : "More"}
+              aria-label={locale === "ru" ? "Открыть меню" : "Open menu"}
+              aria-haspopup="menu"
+              aria-expanded={showNavigation}
+              onClick={() => setShowNavigation(true)}
             >
-              <PencilLine size={19} />
+              <MoreVertical size={21} />
             </button>
           </header>
 
@@ -337,7 +617,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                 ref={searchInputRef}
                 value={search}
                 onChange={(event) => { setSearch(event.target.value); setShowSearch(true); }}
-                onFocus={() => { setSystemView(null); setActiveId(null); setShowSearch(true); }}
+                onFocus={() => { setSystemView(null); setActiveId(null); setActiveCommunityRoomId(null); setCommunityCreateKind(null); setShowSearch(true); }}
                 placeholder={locale === "ru" ? "Поиск" : "Search"}
                 aria-label={locale === "ru" ? "Поиск пользователей и чатов" : "Search people and chats"}
               />
@@ -349,18 +629,45 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
             </label>
           </div>
 
-          <div className="chat-filter-tabs" role="tablist" aria-label={t(locale, "inboxTitle")}>
-            <button type="button" role="tab" aria-selected={chatFilter === "all"} className={chatFilter === "all" ? "active" : ""} onClick={() => setChatFilter("all")}>
-              {t(locale, "chatAll")}
-            </button>
-            <button type="button" role="tab" aria-selected={chatFilter === "personal"} className={chatFilter === "personal" ? "active" : ""} onClick={() => setChatFilter("personal")}>
-              {t(locale, "chatPersonal")}
-            </button>
-          </div>
 
           <section className="conversation-list">
-            {showSearch && search.trim().length > 1 ? (
+            {homeTab === "profile" ? (
+              <div className="profile-home-page">
+                <div className="profile-home-card">
+                  <Avatar label={ownProfile.display_name} className="profile-home-avatar" src={ownProfile.avatar_url} />
+                  <div className="profile-home-title">
+                    <strong>{ownProfile.display_name}</strong>
+                    <small>@{ownProfile.username}</small>
+                    {roles.includes("owner") && <span className="profile-home-role"><ShieldCheck size={13} /> {t(locale, "ownerRole")}</span>}
+                  </div>
+                  <button type="button" className="profile-home-edit" onClick={() => void openUserProfile(user.id)}>
+                    {locale === "ru" ? "Мой профиль" : "My profile"}
+                  </button>
+                </div>
+                <div className="profile-home-section">
+                  <button type="button" onClick={() => switchHomeTab("settings")}><Settings2 size={19} /><span>{locale === "ru" ? "Настройки" : "Settings"}</span><MoreVertical size={17} /></button>
+                  <button type="button" onClick={() => openSystemView("support")}><Headphones size={19} /><span>Support Heloro</span><MoreVertical size={17} /></button>
+                  {isStaff && <button type="button" onClick={() => openSystemView("admin")}><ShieldCheck size={19} /><span>HELORO S</span><MoreVertical size={17} /></button>}
+                </div>
+              </div>
+            ) : homeTab === "contacts" && !(showSearch && search.trim().length > 1) ? (
+              <div className="contacts-landing">
+                <div className="contacts-landing-icon"><Users size={27} /></div>
+                <strong>{locale === "ru" ? "Контакты" : "Contacts"}</strong>
+                <p>{locale === "ru" ? "Найдите человека по имени пользователя" : "Find people by username"}</p>
+                <span>{locale === "ru" ? "Введите имя пользователя в строке поиска выше" : "Enter a username in the search field above"}</span>
+              </div>
+            ) : showSearch && search.trim().length > 1 ? (
               <>
+                {visibleCommunityRooms.map((room) => (
+                  <button className="conversation-item community-inbox-item" type="button" key={room.id} onClick={() => openCommunity(room.id)}>
+                    <div className="community-inbox-avatar">{room.avatar_url ? <img src={room.avatar_url} alt="" /> : room.kind === "channel" ? <Megaphone size={19} /> : <Users size={19} />}</div>
+                    <span className="conversation-copy">
+                      <span className="conversation-title-line"><strong>{room.name}</strong><time>{room.kind === "channel" ? (locale === "ru" ? "Канал" : "Channel") : (locale === "ru" ? "Группа" : "Group")}</time></span>
+                      <span className="conversation-preview-line"><small>@{room.username}{room.description ? ` · ${room.description}` : ""}</small></span>
+                    </span>
+                  </button>
+                ))}
                 <div className="section-label">{locale === "ru" ? "Люди" : "People"}</div>
                 {searching ? (
                   <p className="muted small-copy">{t(locale, "inboxSearching")}</p>
@@ -368,19 +675,18 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                   <p className="muted small-copy">{t(locale, "inboxNoResults")}</p>
                 ) : results.map((person) => (
                   <button className="person-result" key={person.id} onClick={() => void startConversation(person)}>
-                    <Avatar label={person.display_name || person.username} />
+                    <Avatar label={person.display_name || person.username} src={person.avatar_url} />
                     <span><strong>{person.display_name || person.username}<VerificationMark type={person.badge_type} title={locale === "ru" ? "Аккаунт подтверждён HELORO" : "Verified by HELORO"} /></strong><small>@{person.username}</small></span>
                     <MessageCircle size={17} />
                   </button>
                 ))}
-                <button className="cancel-search" onClick={() => { setShowSearch(false); setSearch(""); setResults([]); }}>
+                <button className="cancel-search" onClick={() => { setShowSearch(false); setSearch(""); setResults([]); setActiveId(null); setHomeTab("chats"); void refreshInbox().catch((cause: unknown) => setError(cause instanceof Error ? cause.message : t(locale, "inboxLoadFailed"))); }}>
                   {t(locale, "inboxBack")}
                 </button>
               </>
             ) : (
               <>
-                {chatFilter === "all" && (
-                  <div className="pinned-system-list">
+                <div className="pinned-system-list">
                     <button className={`conversation-item pinned-system-item ${systemView === "news" || systemView === "discussion" ? "selected" : ""}`} onClick={() => openSystemView("news")}>
                       <div className="system-avatar system-news-avatar"><Megaphone size={19} /></div>
                       <span className="conversation-copy">
@@ -404,26 +710,30 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                         </span>
                       </button>
                     )}
-                  </div>
-                )}
+                </div>
                 {loadingInbox ? (
                   <div className="list-placeholder"><span /><span /><span /><span /></div>
-                ) : visibleInbox.length === 0 ? (
+                ) : visibleChatItems.length === 0 ? (
                   <div className="inbox-empty">
                     <div className="inbox-empty-icon"><MessageCircle size={21} /></div>
                     <strong>{t(locale, "inboxEmptyTitle")}</strong>
                     <p>{t(locale, "inboxEmptyDescription")}</p>
                     <button onClick={openSearch}>{t(locale, "inboxFindSomeone")}</button>
                   </div>
-                ) : visibleInbox.map((item) => {
+                ) : visibleChatItems.map((entry) => entry.kind === "community" ? (
+                  <button className={`conversation-item community-inbox-item ${activeCommunityRoomId === entry.room.id ? "selected" : ""}`} type="button" key={`community-${entry.room.id}`} onClick={() => openCommunity(entry.room.id)}>
+                    <div className="community-inbox-avatar">{entry.room.avatar_url ? <img src={entry.room.avatar_url} alt="" /> : entry.room.kind === "channel" ? <Megaphone size={19} /> : <Users size={19} />}</div>
+                    <span className="conversation-copy">
+                      <span className="conversation-title-line"><strong>{entry.room.name}</strong><time>{entry.room.kind === "channel" ? (locale === "ru" ? "Канал" : "Channel") : (locale === "ru" ? "Группа" : "Group")}</time></span>
+                      <span className="conversation-preview-line"><small>@{entry.room.username}{entry.room.description ? ` · ${entry.room.description}` : ""}</small></span>
+                    </span>
+                  </button>
+                ) : (() => {
+                  const item = entry.conversation;
                   const label = item.display_name || item.username;
                   return (
-                    <button
-                      className={`conversation-item ${activeId === item.conversation_id ? "selected" : ""}`}
-                      key={item.conversation_id}
-                      onClick={() => { setActiveId(item.conversation_id); setSystemView(null); setShowSearch(false); }}
-                    >
-                      <Avatar label={label} />
+                    <button className={`conversation-item ${activeId === item.conversation_id ? "selected" : ""}`} key={item.conversation_id} onClick={() => { setActiveCommunityRoomId(null); setCommunityCreateKind(null); setActiveId(item.conversation_id); setSystemView(null); setShowSearch(false); }}>
+                      <Avatar label={label} src={item.avatar_url} />
                       <span className="conversation-copy">
                         <span className="conversation-title-line">
                           <strong>{label}<VerificationMark type={badgeMap[item.other_user_id]} title={locale === "ru" ? "Аккаунт подтверждён HELORO" : "Verified by HELORO"} /></strong>
@@ -436,21 +746,32 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                       </span>
                     </button>
                   );
-                })}
+                })())}
               </>
             )}
           </section>
 
+          {homeTab === "chats" && !activeConversation && !systemView && !activeCommunityRoomId && !communityCreateKind && (
+            <>
+              {showCreateMenu && <div className="chat-create-menu-backdrop" onClick={() => setShowCreateMenu(false)}>
+                <div className="chat-create-menu" role="menu" onClick={(event) => event.stopPropagation()}>
+                  <button type="button" role="menuitem" onClick={() => { setShowCreateMenu(false); openSearch(); }}><PencilLine size={18} /><span>{locale === "ru" ? "Новое сообщение" : "New message"}</span></button>
+                  <button type="button" role="menuitem" onClick={() => { setShowCreateMenu(false); openCommunity(null, "group"); }}><Users size={18} /><span>{locale === "ru" ? "Новая группа" : "New group"}</span></button>
+                  <button type="button" role="menuitem" onClick={() => { setShowCreateMenu(false); openCommunity(null, "channel"); }}><Megaphone size={18} /><span>{locale === "ru" ? "Новый канал" : "New channel"}</span></button>
+                </div>
+              </div>}
+              <button className="new-chat-fab" type="button" onClick={() => setShowCreateMenu((current) => !current)} aria-expanded={showCreateMenu} aria-haspopup="menu" aria-label={t(locale, "inboxStartConversation")} title={t(locale, "inboxStartConversation")}>
+                <PencilLine size={21} />
+              </button>
+            </>
+          )}
           <footer className="inbox-profile">
-            <Avatar label={profile.display_name} className="profile-avatar" />
-            <span className="profile-summary">
-              <strong>{profile.display_name}</strong>
-              <small>@{profile.username}</small>
-            </span>
-            {roles.includes("owner") && <span className="owner-mini-mark" title={t(locale, "ownerRole")}><ShieldCheck size={15} /></span>}
-            <button className="icon-button profile-menu-button" title={t(locale, "settings")} aria-label={t(locale, "settings")} onClick={() => setShowSettings(true)}>
-              <Settings2 size={18} />
+            <button className="inbox-own-profile" type="button" onClick={() => void openUserProfile(user.id)} aria-label={t(locale, "profileViewTitle")}>
+              <Avatar label={ownProfile.display_name} className="profile-avatar" src={ownProfile.avatar_url} />
+              <span className="profile-summary"><strong>{ownProfile.display_name}</strong><small>@{ownProfile.username}</small></span>
             </button>
+            {roles.includes("owner") && <span className="owner-mini-mark" title={t(locale, "ownerRole")}><ShieldCheck size={15} /></span>}
+            <button className="icon-button profile-menu-button" title={t(locale, "settings")} aria-label={t(locale, "settings")} onClick={() => openSettings("account")}><Settings2 size={18} /></button>
           </footer>
         </aside>
 
@@ -467,17 +788,21 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                 onOpenDiscussion={() => openSystemView("discussion")}
               />
             </div>
+          ) : (activeCommunityRoomId || communityCreateKind) ? (
+            <CommunityHub key={`${activeCommunityRoomId ?? "new"}-${communityCreateKind ?? ""}`} client={client} user={user} locale={locale} initialRoomId={activeCommunityRoomId} initialCreateKind={communityCreateKind} onRoomsChanged={() => { void refreshCommunityRooms().catch(() => undefined); }} onClose={closeCommunity} />
           ) : activeConversation ? (
             <>
               <header className="chat-header">
                 <button className="icon-button mobile-back" aria-label={t(locale, "inboxBack")} onClick={closeConversation}>
                   <ArrowLeft size={20} />
                 </button>
-                <Avatar label={activeConversation.display_name || activeConversation.username} className="chat-header-avatar" />
-                <div className="chat-person">
-                  <strong>{activeConversation.display_name || activeConversation.username}<VerificationMark type={badgeMap[activeConversation.other_user_id]} title={locale === "ru" ? "Аккаунт подтверждён HELORO" : "Verified by HELORO"} /></strong>
-                  <small>@{activeConversation.username}</small>
-                </div>
+                <button type="button" className="chat-profile-trigger" onClick={() => void openUserProfile(activeConversation.other_user_id)} aria-label={t(locale, "profileViewTitle")}>
+                  <Avatar label={activeConversation.display_name || activeConversation.username} className="chat-header-avatar" src={activeConversation.avatar_url} />
+                  <span className="chat-person">
+                    <strong>{activeConversation.display_name || activeConversation.username}<VerificationMark type={badgeMap[activeConversation.other_user_id]} title={locale === "ru" ? "Аккаунт подтверждён HELORO" : "Verified by HELORO"} /></strong>
+                    <small>@{activeConversation.username}</small>
+                  </span>
+                </button>
                 <div className="chat-header-actions">
                   <button className="icon-button" aria-label={t(locale, "chatSearch")} title={t(locale, "chatSearch")} onClick={() => openSearch()}>
                     <Search size={20} />
@@ -502,8 +827,18 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                   return (
                     <div className={`message-row ${mine ? "mine" : "theirs"}`} key={message.id}>
                       <div className="message-bubble">
-                        <p>{message.body}</p>
-                        <span>{formatMessageTime(message.created_at)} {mine && <CheckCheck size={13} />}</span>
+                        {message.media?.url ? (
+                          <img
+                            className={message.media.kind === "gif" ? "message-media message-gif" : "message-media message-sticker"}
+                            src={message.media.url}
+                            alt={message.media.kind === "gif" ? (locale === "ru" ? "GIF" : "GIF") : (locale === "ru" ? "Стикер" : "Sticker")}
+                            loading="lazy"
+                          />
+                        ) : message.body ? <p>{message.body}</p> : null}
+                        <div className="message-meta">
+                          <span>{formatMessageTime(message.created_at)} {mine && <CheckCheck size={13} />}</span>
+                          {mine && <button type="button" className="message-delete-button" onClick={() => void removeDirectMessage(message)} aria-label={t(locale, "messageDelete")} title={t(locale, "messageDelete")}><Trash2 size={13} /></button>}
+                        </div>
                       </div>
                     </div>
                   );
@@ -512,10 +847,18 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
               </div>
               {error && <div className="inline-error" role="alert">{error}<button onClick={() => setError("")} aria-label={t(locale, "dismiss")}><X size={14} /></button></div>}
               <form className="composer" onSubmit={handleSend}>
+                <button type="button" className="icon-button composer-media-button" onClick={() => stickerInputRef.current?.click()} disabled={mediaSending} aria-label={locale === "ru" ? "Отправить стикер" : "Send sticker"} title={locale === "ru" ? "Стикер из файла" : "Sticker from file"}>
+                  <SmilePlus size={19} />
+                </button>
+                <button type="button" className="icon-button composer-media-button" onClick={() => gifInputRef.current?.click()} disabled={mediaSending} aria-label="GIF" title={locale === "ru" ? "Отправить GIF" : "Send GIF"}>
+                  <ImagePlus size={19} />
+                </button>
+                <input ref={stickerInputRef} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(event) => void handleMediaSelect("sticker", event.target.files?.[0])} />
+                <input ref={gifInputRef} type="file" accept="image/gif" hidden onChange={(event) => void handleMediaSelect("gif", event.target.files?.[0])} />
                 <input
                   value={draft}
                   onChange={(event) => setDraft(event.target.value)}
-                  placeholder={t(locale, "messagePlaceholder")}
+                  placeholder={mediaSending ? (locale === "ru" ? "Отправка медиа…" : "Sending media…") : t(locale, "messagePlaceholder")}
                   aria-label={t(locale, "messagePlaceholder")}
                   maxLength={4000}
                 />
@@ -526,39 +869,84 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
               <div className="chat-footnote"><ShieldCheck size={13} /> {t(locale, "messageSecurityNote")}</div>
             </>
           ) : (
-            <EmptyChat locale={locale} />
+            <EmptyChat locale={locale} onFindFriend={openSearch} />
           )}
         </section>
       </div>
 
+      {!activeConversation && !systemView && !activeCommunityRoomId && !communityCreateKind && (
+        <nav className="bottom-navigation" aria-label={locale === "ru" ? "Основная навигация" : "Main navigation"}>
+          <button type="button" className={homeTab === "chats" ? "active" : ""} aria-current={homeTab === "chats" ? "page" : undefined} onClick={() => switchHomeTab("chats")}>
+            <MessageCircle size={21} /><span>{locale === "ru" ? "Чаты" : "Chats"}</span>
+          </button>
+          <button type="button" className={homeTab === "contacts" ? "active" : ""} aria-current={homeTab === "contacts" ? "page" : undefined} onClick={() => switchHomeTab("contacts")}>
+            <Users size={21} /><span>{locale === "ru" ? "Контакты" : "Contacts"}</span>
+          </button>
+          <button type="button" className={homeTab === "settings" ? "active" : ""} aria-current={homeTab === "settings" ? "page" : undefined} onClick={() => switchHomeTab("settings")}>
+            <Settings2 size={21} /><span>{locale === "ru" ? "Настройки" : "Settings"}</span>
+          </button>
+          <button type="button" className={homeTab === "profile" ? "active" : ""} aria-current={homeTab === "profile" ? "page" : undefined} onClick={() => switchHomeTab("profile")}>
+            <UserRound size={21} /><span>{locale === "ru" ? "Профиль" : "Profile"}</span>
+          </button>
+        </nav>
+      )}
+
       {error && !activeConversation && !systemView && <div className="global-error" role="alert">{error}<button onClick={() => setError("")} aria-label={t(locale, "dismiss")}><X size={14} /></button></div>}
 
+      {showNavigation && (
+        <Suspense fallback={null}>
+          <LazyMessengerNavigation
+            profile={ownProfile}
+            locale={locale}
+            roles={roles}
+            onClose={() => setShowNavigation(false)}
+            onOpenInbox={() => switchHomeTab("chats")}
+            onOpenContacts={() => switchHomeTab("contacts")}
+            onOpenNews={() => openSystemView("news")}
+            onOpenSupport={() => openSystemView("support")}
+            onOpenSettings={() => switchHomeTab("settings")}
+            onOpenAdmin={() => openSystemView("admin")}
+          />
+        </Suspense>
+      )}
+
       {showSettings && (
-        <div className="settings-overlay" onClick={() => setShowSettings(false)}>
-          <section className="settings-card glass-panel" role="dialog" aria-modal="true" aria-labelledby="settings-title" onClick={(event) => event.stopPropagation()}>
-            <div className="settings-heading">
-              <h2 id="settings-title">{t(locale, "settingsTitle")}</h2>
-              <button className="icon-button" onClick={() => setShowSettings(false)} aria-label={t(locale, "settingsClose")}><X size={18} /></button>
+        <Suspense fallback={null}>
+          <LazyMessengerSettings
+            profile={ownProfile}
+            locale={locale}
+            roles={roles}
+            theme={theme}
+            activeSection={settingsSection}
+            onSectionChange={setSettingsSection}
+            onThemeChange={onThemeChange}
+            onLocaleChange={onLocaleChange}
+            onClose={() => { setShowSettings(false); setHomeTab("chats"); }}
+            onOpenSupport={() => { setShowSettings(false); openSystemView("support"); }}
+            onOpenAdmin={() => { setShowSettings(false); openSystemView("admin"); }}
+            onSignOut={() => void signOut()}
+          />
+        </Suspense>
+      )}
+
+      {showProfile && (
+        <div className="profile-view-overlay" onClick={() => setShowProfile(false)}>
+          <section className="profile-view-card" role="dialog" aria-modal="true" aria-labelledby="profile-view-title" onClick={(event) => event.stopPropagation()}>
+            <div className="profile-view-cover" />
+            <div className="profile-view-content">
+              <div className="profile-view-heading"><span>{t(locale, "profileViewTitle")}</span><button className="icon-button" type="button" onClick={() => setShowProfile(false)} aria-label={t(locale, "settingsClose")}><X size={18} /></button></div>
+              {profileLoading ? <p className="profile-view-loading">{t(locale, "appLoading")}</p> : viewedProfile ? <>
+                <Avatar label={viewedProfile.display_name || viewedProfile.username} className="profile-view-avatar" src={viewedProfile.avatar_url} />
+                <h2 id="profile-view-title">{viewedProfile.display_name || viewedProfile.username}<VerificationMark type={viewedProfile.badge_type} title={locale === "ru" ? "Аккаунт подтверждён HELORO" : "Verified by HELORO"} /></h2>
+                <p className="profile-view-username">@{viewedProfile.username}</p>
+                {viewedProfile.id === user.id && <>
+                  <input ref={avatarInputRef} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(event) => void handleAvatarSelect(event.target.files?.[0])} />
+                  <button className="profile-view-action" type="button" disabled={avatarBusy} onClick={() => avatarInputRef.current?.click()}><ImagePlus size={16} />{avatarBusy ? t(locale, "profilePhotoUploading") : t(locale, "profilePhotoChange")}</button>
+                </>}
+                {canManageBadges && viewedProfile.badge_type && <button className="profile-view-remove-badge" type="button" disabled={profileBusy} onClick={() => void removeProfileBadge()}><ShieldCheck size={16} />{profileBusy ? t(locale, "profileBadgeRemoving") : t(locale, "profileBadgeRemove")}</button>}
+              </> : <p className="profile-view-loading">{profileError || t(locale, "profileLoadError")}</p>}
+              {profileError && viewedProfile && <p className="profile-view-error" role="alert">{profileError}</p>}
             </div>
-            <div className="settings-account">
-              <Avatar label={profile.display_name} />
-              <span><strong>{profile.display_name}</strong><small>@{profile.username}</small></span>
-            </div>
-            {roles.includes("owner") && <div className="settings-owner"><ShieldCheck size={15} /><span>{t(locale, "ownerRole")}</span></div>}
-            <div className="settings-row">
-              <span>{t(locale, "language")}</span>
-              <div className="settings-language" role="group" aria-label={t(locale, "language")}>
-                <button type="button" className={locale === "ru" ? "active" : ""} aria-pressed={locale === "ru"} onClick={() => onLocaleChange("ru")}>{t(locale, "languageRu")}</button>
-                <button type="button" className={locale === "en" ? "active" : ""} aria-pressed={locale === "en"} onClick={() => onLocaleChange("en")}>{t(locale, "languageEn")}</button>
-              </div>
-            </div>
-            <div className="settings-reward">
-              <strong>HELORO PLUS</strong>
-              <span>{locale === "ru" ? "Награда новогоднего события" : "New Year event reward"}</span>
-              <small>{locale === "ru" ? "Условия получения будут объявлены отдельно." : "Reward requirements will be announced separately."}</small>
-            </div>
-            {isStaff && <button className="settings-admin-link" onClick={() => { setShowSettings(false); openSystemView("admin"); }}><ShieldCheck size={16} /> HELORO S</button>}
-            <button className="settings-signout" onClick={() => void signOut()}><LogOut size={16} /> {t(locale, "settingsSignOut")}</button>
           </section>
         </div>
       )}

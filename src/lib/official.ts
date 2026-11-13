@@ -73,6 +73,12 @@ export async function getChannelPosts(client: SupabaseClient, channelId: string)
   return (data ?? []) as ChannelPost[];
 }
 
+export async function deleteChannelPost(client: SupabaseClient, postId: string) {
+  const { data, error } = await client.from("channel_posts").delete().eq("id", postId).select("id").maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error("Публикация не найдена или у вас нет прав на её удаление.");
+}
+
 export async function createChannelPost(client: SupabaseClient, channelId: string, authorId: string, body: string) {
   const text = body.trim();
   if (!text || text.length > 4000) throw new Error("Post must contain 1–4000 characters.");
@@ -108,6 +114,12 @@ export async function sendChannelComment(client: SupabaseClient, postId: string,
   return data as ChannelComment;
 }
 
+export async function deleteChannelComment(client: SupabaseClient, commentId: string) {
+  const { data, error } = await client.from("channel_comments").delete().eq("id", commentId).select("id").maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error("Комментарий не найден или у вас нет прав на его удаление.");
+}
+
 export async function getDiscussionMessages(client: SupabaseClient) {
   const { data, error } = await client
     .from("channel_discussion_messages")
@@ -128,6 +140,12 @@ export async function sendDiscussionMessage(client: SupabaseClient, userId: stri
     .single();
   if (error) throw error;
   return data as DiscussionMessage;
+}
+
+export async function deleteDiscussionMessage(client: SupabaseClient, messageId: string) {
+  const { data, error } = await client.from("channel_discussion_messages").delete().eq("id", messageId).select("id").maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error("Сообщение не найдено или у вас нет прав на его удаление.");
 }
 
 export async function getOrCreateSupportThread(client: SupabaseClient, userId: string) {
@@ -253,10 +271,14 @@ export function subscribeToOfficialInserts<T>(
   table: "channel_posts" | "channel_comments" | "channel_discussion_messages" | "support_messages",
   filter: string | undefined,
   onInsert: (row: T) => void,
+  onDelete?: () => void,
 ): RealtimeChannel {
-  const config = { event: "INSERT" as const, schema: "public", table, ...(filter ? { filter } : {}) };
-  return client
+  const insertConfig = { event: "INSERT" as const, schema: "public", table, ...(filter ? { filter } : {}) };
+  // Postgres Changes DELETE events cannot be filtered; consumers refresh their own scope.
+  const deleteConfig = { event: "DELETE" as const, schema: "public", table };
+  const channel = client
     .channel(`heloro:${table}:${filter ?? "all"}`)
-    .on("postgres_changes", config, (payload) => onInsert(payload.new as T))
-    .subscribe();
+    .on("postgres_changes", insertConfig, (payload) => onInsert(payload.new as T));
+  if (onDelete) channel.on("postgres_changes", deleteConfig, () => onDelete());
+  return channel.subscribe();
 }

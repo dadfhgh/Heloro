@@ -10,11 +10,15 @@ import {
   Megaphone,
   Send,
   ShieldCheck,
+  Trash2,
   UserRound,
 } from "lucide-react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   createChannelPost,
+  deleteChannelComment,
+  deleteChannelPost,
+  deleteDiscussionMessage,
   getChannelComments,
   getChannelPosts,
   getNewsChannel,
@@ -86,7 +90,15 @@ function SystemComposer({
   );
 }
 
-function NewsChannel({ client, user, locale, canPublish, onOpenDiscussion }: Omit<Props, "view" | "roles"> & { canPublish: boolean }) {
+function NewsChannel({
+  client,
+  user,
+  locale,
+  canPublish,
+  canDeletePosts,
+  canModerate,
+  onOpenDiscussion,
+}: Omit<Props, "view" | "roles"> & { canPublish: boolean; canDeletePosts: boolean; canModerate: boolean }) {
   const ru = locale === "ru";
   const [channelId, setChannelId] = useState("");
   const [posts, setPosts] = useState<ChannelPost[]>([]);
@@ -112,9 +124,17 @@ function NewsChannel({ client, user, locale, canPublish, onOpenDiscussion }: Omi
 
   useEffect(() => {
     if (!channelId) return;
-    const channel = subscribeToOfficialInserts<ChannelPost>(client, "channel_posts", `channel_id=eq.${channelId}`, (post) => {
-      setPosts((current) => current.some((item) => item.id === post.id) ? current : [post, ...current]);
-    });
+    const channel = subscribeToOfficialInserts<ChannelPost>(
+      client,
+      "channel_posts",
+      `channel_id=eq.${channelId}`,
+      (post) => setPosts((current) => current.some((item) => item.id === post.id) ? current : [post, ...current]),
+      () => {
+        void getChannelPosts(client, channelId).then(setPosts).catch((cause: unknown) => {
+          setError(cause instanceof Error ? cause.message : (ru ? "Не удалось обновить канал." : "Could not refresh the channel."));
+        });
+      },
+    );
     return () => { void client.removeChannel(channel); };
   }, [client, channelId]);
 
@@ -132,6 +152,11 @@ function NewsChannel({ client, user, locale, canPublish, onOpenDiscussion }: Omi
       "channel_comments",
       `post_id=eq.${expandedPost}`,
       (comment) => setComments((current) => current.some((item) => item.id === comment.id) ? current : [...current, comment]),
+      () => {
+        void getChannelComments(client, expandedPost).then(setComments).catch((cause: unknown) => {
+          setError(cause instanceof Error ? cause.message : (ru ? "Не удалось обновить комментарии." : "Could not refresh comments."));
+        });
+      },
     );
     return () => {
       active = false;
@@ -166,6 +191,35 @@ function NewsChannel({ client, user, locale, canPublish, onOpenDiscussion }: Omi
       setCommentDraft("");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : (ru ? "Не удалось отправить комментарий." : "Could not send the comment."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function removePost(postId: string) {
+    if ((!canDeletePosts && !posts.some((post) => post.id === postId && post.author_id === user.id)) || !window.confirm(ru ? "Удалить публикацию для всех?" : "Delete this post for everyone?")) return;
+    setBusy(true);
+    setError("");
+    try {
+      await deleteChannelPost(client, postId);
+      setPosts((current) => current.filter((post) => post.id !== postId));
+      if (expandedPost === postId) setExpandedPost(null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : (ru ? "Не удалось удалить публикацию." : "Could not delete the post."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function removeComment(commentId: string) {
+    if (!window.confirm(ru ? "Удалить комментарий для всех?" : "Delete this comment for everyone?")) return;
+    setBusy(true);
+    setError("");
+    try {
+      await deleteChannelComment(client, commentId);
+      setComments((current) => current.filter((item) => item.id !== commentId));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : (ru ? "Не удалось удалить комментарий." : "Could not delete the comment."));
     } finally {
       setBusy(false);
     }
@@ -206,6 +260,11 @@ function NewsChannel({ client, user, locale, canPublish, onOpenDiscussion }: Omi
                 <MessageCircle size={14} /> {expandedPost === post.id ? (ru ? "Скрыть комментарии" : "Hide comments") : (ru ? "Комментарии" : "Comments")}
               </button>
               <button onClick={onOpenDiscussion}><ChevronRight size={14} /> {ru ? "Обсуждение" : "Discussion"}</button>
+              {(canDeletePosts || post.author_id === user.id) && (
+                <button className="system-delete-button" type="button" onClick={() => void removePost(post.id)} disabled={busy}>
+                  <Trash2 size={13} /> {ru ? "Удалить" : "Delete"}
+                </button>
+              )}
             </div>
             {expandedPost === post.id && (
               <div className="system-comments">
@@ -213,7 +272,14 @@ function NewsChannel({ client, user, locale, canPublish, onOpenDiscussion }: Omi
                   <div className="system-comment" key={item.id}>
                     <strong>{item.user_id === user.id ? (ru ? "Вы" : "You") : (ru ? "Участник" : "Member")}</strong>
                     <p>{item.body}</p>
-                    <time>{formatMessageTime(item.created_at)}</time>
+                    <div className="system-comment-meta">
+                      <time>{formatMessageTime(item.created_at)}</time>
+                      {(item.user_id === user.id || canModerate) && (
+                        <button className="system-delete-button" type="button" onClick={() => void removeComment(item.id)} disabled={busy}>
+                          <Trash2 size={12} /> {ru ? "Удалить для всех" : "Delete for everyone"}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
                 <SystemComposer value={commentDraft} onChange={setCommentDraft} onSubmit={comment} placeholder={ru ? "Написать комментарий…" : "Write a comment…"} disabled={busy} />
@@ -226,8 +292,9 @@ function NewsChannel({ client, user, locale, canPublish, onOpenDiscussion }: Omi
   );
 }
 
-function DiscussionChat({ client, user, locale }: Omit<Props, "view" | "roles" | "onOpenDiscussion">) {
+function DiscussionChat({ client, user, locale, roles }: Omit<Props, "view" | "onOpenDiscussion">) {
   const ru = locale === "ru";
+  const canModerate = roles.some((role) => role === "owner" || role === "admin" || role === "moderator");
   const [messages, setMessages] = useState<DiscussionMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
@@ -238,9 +305,17 @@ function DiscussionChat({ client, user, locale }: Omit<Props, "view" | "roles" |
     getDiscussionMessages(client)
       .then((items) => { if (active) setMessages(items); })
       .catch((cause: unknown) => setError(cause instanceof Error ? cause.message : "Could not load discussion."));
-    const channel = subscribeToOfficialInserts<DiscussionMessage>(client, "channel_discussion_messages", undefined, (item) => {
-      setMessages((current) => current.some((row) => row.id === item.id) ? current : [...current, item]);
-    });
+    const channel = subscribeToOfficialInserts<DiscussionMessage>(
+      client,
+      "channel_discussion_messages",
+      undefined,
+      (item) => setMessages((current) => current.some((row) => row.id === item.id) ? current : [...current, item]),
+      () => {
+        void getDiscussionMessages(client).then(setMessages).catch((cause: unknown) => {
+          setError(cause instanceof Error ? cause.message : (ru ? "Не удалось обновить обсуждение." : "Could not refresh discussion."));
+        });
+      },
+    );
     return () => {
       active = false;
       void client.removeChannel(channel);
@@ -263,6 +338,20 @@ function DiscussionChat({ client, user, locale }: Omit<Props, "view" | "roles" |
     }
   }
 
+  async function removeMessage(messageId: string) {
+    if (!window.confirm(ru ? "Удалить сообщение для всех участников?" : "Delete this message for everyone?")) return;
+    setBusy(true);
+    setError("");
+    try {
+      await deleteDiscussionMessage(client, messageId);
+      setMessages((current) => current.filter((item) => item.id !== messageId));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : (ru ? "Не удалось удалить сообщение." : "Could not delete the message."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="special-panel">
       <header className="chat-header">
@@ -276,7 +365,14 @@ function DiscussionChat({ client, user, locale }: Omit<Props, "view" | "roles" |
             <div className="system-message-bubble">
               <strong>{item.user_id === user.id ? (ru ? "Вы" : "You") : (ru ? "Участник" : "Member")}</strong>
               <p>{item.body}</p>
-              <time>{formatMessageTime(item.created_at)}</time>
+              <div className="system-message-meta">
+                <time>{formatMessageTime(item.created_at)}</time>
+                {(item.user_id === user.id || canModerate) && (
+                  <button className="system-delete-button" type="button" onClick={() => void removeMessage(item.id)} disabled={busy}>
+                    <Trash2 size={12} /> {ru ? "Удалить для всех" : "Delete for everyone"}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         ))}
@@ -573,7 +669,14 @@ function HeloroSPanel({ client, user, locale, roles }: Omit<Props, "view" | "onO
 export default function OfficialPanels(props: Props) {
   const roles = props.roles;
   if (props.view === "news") {
-    return <NewsChannel {...props} canPublish={roles.includes("owner") || roles.includes("admin")} />;
+    return (
+      <NewsChannel
+        {...props}
+        canPublish={roles.includes("owner") || roles.includes("admin")}
+        canDeletePosts={roles.includes("owner") || roles.includes("admin")}
+        canModerate={roles.some((role) => role === "owner" || role === "admin" || role === "moderator")}
+      />
+    );
   }
   if (props.view === "discussion") {
     return <DiscussionChat {...props} />;
