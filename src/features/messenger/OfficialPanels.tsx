@@ -331,6 +331,20 @@ function DiscussionChat({ client, user, locale, roles }: Omit<Props, "view" | "o
     };
   }, [client]);
 
+  async function reportDiscussionMessage(messageId: string) {
+    const details = window.prompt(ru ? "Опишите причину жалобы (необязательно)." : "Describe the reason for this report (optional).");
+    if (details === null) return;
+    setBusy(true);
+    setError("");
+    try {
+      await submitContentReport(client, "message", messageId, "other", details);
+      setError(ru ? "Жалоба отправлена модераторам." : "Report sent to moderators.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : (ru ? "Не удалось отправить жалобу." : "Could not submit report."));
+    } finally {
+      setBusy(false);
+    }
+  }
   async function send(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!draft.trim()) return;
@@ -379,6 +393,9 @@ function DiscussionChat({ client, user, locale, roles }: Omit<Props, "view" | "o
                 {(item.user_id === user.id || canModerate) && (
                   <button className="system-delete-button" type="button" onClick={() => void removeMessage(item.id)} disabled={busy}>
                     <Trash2 size={12} /> {ru ? "Удалить для всех" : "Delete for everyone"}
+                  </button>
+                  <button className="system-delete-button" type="button" onClick={() => void reportDiscussionMessage(item.id)} disabled={busy}>
+                    <Flag size={12} /> {ru ? "Пожаловаться" : "Report"}
                   </button>
                 )}
               </div>
