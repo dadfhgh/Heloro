@@ -2232,8 +2232,10 @@ html[data-theme="dark"] .chat-create-menu button:hover { background: #294653; }
   background: rgba(255,255,255,.62);
 }
 .community-pane .community-room-view {
+  display: flex;
   min-height: 0;
   flex: 1;
+  flex-direction: column;
   overflow: hidden;
   padding: 0;
 }
