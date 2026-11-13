@@ -459,17 +459,40 @@ function SupportChat({ client, user, locale }: Omit<Props, "view" | "roles" | "o
   }
 
   return (
-    <div className="special-panel">
-      <header className="chat-header">
-        <Avatar label="Support Heloro" />
-        <div className="chat-person"><strong>Support Heloro</strong><small>{ru ? "Личная поддержка" : "Private support"}</small></div>
+    <div className="special-panel support-panel">
+      <header className="chat-header support-chat-header">
+        <div className="avatar system-avatar support-brand-avatar" aria-hidden="true"><Headphones size={21} strokeWidth={2.2} /></div>
+        <div className="chat-person support-chat-person">
+          <strong>Support Heloro <BadgeCheck size={16} className="support-verified-mark" aria-label={ru ? "Официальная поддержка HELORO" : "Official HELORO support"} /></strong>
+          <small>{ru ? "Официальная поддержка HELORO" : "Official HELORO support"}</small>
+        </div>
+        <span className="support-official-pill"><span />{ru ? "Официальный чат" : "Official chat"}</span>
       </header>
-      <div className="special-stream">
-        <div className="system-description">{ru ? "Опишите проблему. Ответ команды появится в этом чате." : "Describe the issue. The support team will reply in this chat."}</div>
-        {messages.length === 0 ? <div className="system-empty"><MessageCircle size={23} /><strong>{ru ? "Напишите в поддержку" : "Message support"}</strong></div> : messages.map((item) => (
-          <div className={`system-message-row ${item.sender_id === user.id ? "mine" : ""}`} key={item.id}>
-            <div className="system-message-bubble">
-              <strong>{item.sender_id === user.id ? (ru ? "Вы" : "You") : "Support Heloro"}</strong>
+      <div className="special-stream support-stream">
+        <section className="support-welcome-card" aria-label={ru ? "Информация о поддержке" : "Support information"}>
+          <div className="support-welcome-icon"><Headphones size={25} /></div>
+          <div className="support-welcome-copy">
+            <div className="support-welcome-title">Support Heloro <BadgeCheck size={15} className="support-verified-mark" /></div>
+            <span>{ru ? "Официальный аккаунт команды HELORO" : "Official HELORO team account"}</span>
+          </div>
+          <div className="support-welcome-divider" />
+          <p>{ru ? "Расскажите, что случилось. Команда поддержки ответит прямо здесь." : "Tell us what happened. The support team will reply right here."}</p>
+          <div className="support-welcome-foot"><ShieldCheck size={14} />{ru ? "Обращение видно только вам и команде поддержки" : "Only you and the support team can see this conversation"}</div>
+        </section>
+        {messages.length === 0 ? (
+          <div className="support-empty-state">
+            <div className="support-empty-icon"><MessageCircle size={23} /></div>
+            <strong>{ru ? "Начните диалог с поддержкой" : "Start a conversation with support"}</strong>
+            <span>{ru ? "Напишите сообщение ниже — оно появится в этом личном чате." : "Send a message below to start your private support chat."}</span>
+          </div>
+        ) : messages.map((item) => (
+          <div className={`system-message-row support-message-row ${item.sender_id === user.id ? "mine" : "theirs"}`} key={item.id}>
+            <div className="system-message-bubble support-message-bubble">
+              <strong>
+                {item.sender_id === user.id
+                  ? (ru ? "Вы" : "You")
+                  : <>Support Heloro <BadgeCheck size={13} className="support-verified-mark" /></>}
+              </strong>
               <p>{item.body}</p>
               <time>{formatMessageTime(item.created_at)}</time>
             </div>
@@ -477,7 +500,10 @@ function SupportChat({ client, user, locale }: Omit<Props, "view" | "roles" | "o
         ))}
         {error && <p className="system-error" role="alert">{error}</p>}
       </div>
-      <SystemComposer value={draft} onChange={setDraft} onSubmit={send} placeholder={ru ? "Сообщение в поддержку…" : "Message support…"} disabled={busy || !thread} />
+      <div className="support-composer-wrap">
+        <SystemComposer value={draft} onChange={setDraft} onSubmit={send} placeholder={ru ? "Напишите сообщение…" : "Write a message…"} disabled={busy || !thread} />
+        <span className="support-composer-hint">{ru ? "Личный чат с официальной поддержкой HELORO" : "Private chat with official HELORO support"}</span>
+      </div>
     </div>
   );
 }
