@@ -23,7 +23,7 @@ Deno.test("passes command names to command handlers", () => {
 Deno.test("blocks access to host libraries", () => {
   let failed = false;
   try {
-    executeLua('bot.on("message", function() print(tostring(io)) end)', "hello", "test-chat");
+    executeLua('bot.on("message", function() io.open("blocked.txt") end)', "hello", "test-chat");
   } catch {
     failed = true;
   }
