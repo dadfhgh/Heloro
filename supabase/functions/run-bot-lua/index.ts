@@ -45,6 +45,13 @@ function executeLua(source: string, input: string, chatId: string): LuaResult {
       lua.lua_pushnil(L);
       lua.lua_setglobal(L, to_luastring(name));
     }
+    // A single native-library call must not be able to allocate an enormous string.
+    lua.lua_getglobal(L, to_luastring("string"));
+    lua.lua_pushnil(L);
+    lua.lua_setfield(L, -2, to_luastring("rep"));
+    lua.lua_pushnil(L);
+    lua.lua_setfield(L, -2, to_luastring("format"));
+    lua.lua_pop(L, 1);
 
     const addReply = (value: string) => {
       const clean = value.trim();
@@ -142,7 +149,6 @@ function executeLua(source: string, input: string, chatId: string): LuaResult {
 
     return { replies, logs, instruction_count: Math.min(instructions, MAX_INSTRUCTIONS) };
   } finally {
-    lauxlib.luaL_unref?.(L, lua.LUA_REGISTRYINDEX, -1);
     lua.lua_close(L);
   }
 }
