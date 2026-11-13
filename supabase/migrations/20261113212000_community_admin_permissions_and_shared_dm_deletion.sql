@@ -85,9 +85,9 @@ language sql
 stable
 security definer
 set search_path = ''
-as $
+as $$
   select private.has_community_permission(target_room_id, 'manage_admins');
-$;
+$$;
 
 create or replace function private.can_manage_specific_community_admin(
   target_room_id uuid,
@@ -98,7 +98,7 @@ language sql
 stable
 security definer
 set search_path = ''
-as $
+as $$
   select exists (
     select 1
     from public.community_room_members caller
@@ -123,7 +123,7 @@ as $
         )
       )
   );
-$;
+$$;
 
 revoke all on function private.has_community_permission(uuid, text) from public, anon;
 revoke all on function private.can_manage_community_room(uuid) from public, anon;
