@@ -1468,3 +1468,21 @@ html[data-theme="dark"] .new-message-empty strong { color: #ccc; }
   .inbox-create-wrap { bottom: calc(env(safe-area-inset-bottom) + 76px); }
   .contacts-screen .new-message-people { padding-bottom: 70px; }
 }
+
+
+/* Dark theme: New Group / New Channel actions must not retain light surfaces. */
+html[data-theme="dark"] .new-message-actions {
+  background: #181818;
+}
+html[data-theme="dark"] .new-message-actions button {
+  color: #f5f5f5;
+  background: #181818;
+}
+html[data-theme="dark"] .new-message-actions button svg {
+  color: #dedede;
+}
+html[data-theme="dark"] .new-message-actions button:hover,
+html[data-theme="dark"] .new-message-actions button:focus-visible {
+  color: #fff;
+  background: #292929;
+}
