@@ -10,6 +10,30 @@ alter table public.admin_action_logs
   add column if not exists reason text not null default '',
   add column if not exists details jsonb not null default '{}'::jsonb;
 
+alter table public.admin_action_logs
+  drop constraint if exists admin_action_logs_action_check;
+alter table public.admin_action_logs
+  add constraint admin_action_logs_action_check
+  check (action in (
+    'account_recovery_issued',
+    'account_recovery_completed',
+    'staff_role_granted',
+    'staff_role_revoked',
+    'moderation_warning',
+    'moderation_temporary_ban',
+    'moderation_freeze',
+    'moderation_ban',
+    'moderation_restriction_revoked',
+    'report_open',
+    'report_reviewing',
+    'report_resolved',
+    'report_dismissed',
+    'support_thread_updated',
+    'system_setting_changed',
+    'verification_granted',
+    'verification_revoked'
+  ));
+
 alter table public.support_threads
   add column if not exists status text not null default 'open',
   add column if not exists assigned_to uuid references auth.users(id) on delete set null;
