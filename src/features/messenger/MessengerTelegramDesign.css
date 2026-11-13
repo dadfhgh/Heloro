@@ -1488,3 +1488,75 @@ html[data-theme="dark"] .new-message-actions button:focus-visible {
   color: #fff;
   background: #292929;
 }
+
+
+/* Directory: show all discoverable users and communities without requiring search. */
+.contacts-directory-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #ededed;
+  background: #fff;
+}
+.contacts-directory-tabs button {
+  display: flex;
+  min-width: 0;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 10px;
+  color: #666;
+  background: #f3f3f3;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.contacts-directory-tabs button.active {
+  color: #111;
+  background: #e6e6e6;
+}
+.contacts-directory-tabs button svg { flex: 0 0 auto; }
+.contacts-directory-list { min-height: 0; overflow-y: auto; }
+.contacts-directory-error,
+.contacts-directory-loading {
+  margin: 10px 14px;
+  color: #a45b61;
+  font-size: 12px;
+}
+.contacts-directory-loading { color: #888; text-align: center; }
+.contacts-directory-more {
+  display: block;
+  width: calc(100% - 24px);
+  min-height: 42px;
+  margin: 12px;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  color: #333;
+  background: #f7f7f7;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+}
+html[data-theme="dark"] .contacts-directory-tabs {
+  border-color: #303030;
+  background: #181818;
+}
+html[data-theme="dark"] .contacts-directory-tabs button {
+  color: #aaa;
+  background: #242424;
+}
+html[data-theme="dark"] .contacts-directory-tabs button.active {
+  color: #fff;
+  background: #383838;
+}
+html[data-theme="dark"] .contacts-directory-more {
+  border-color: #444;
+  color: #eee;
+  background: #252525;
+}
+html[data-theme="dark"] .contacts-directory-error { color: #e29ca2; }

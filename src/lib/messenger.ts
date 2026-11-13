@@ -105,6 +105,38 @@ export async function searchProfiles(query: string, currentUserId: string): Prom
   })) as PublicProfile[];
 }
 
+export async function listPublicProfiles(
+  currentUserId: string,
+  offset = 0,
+  pageSize = 50,
+): Promise<PublicProfile[]> {
+  const { data, error } = await client()
+    .from("profiles")
+    .select("id, username, display_name, avatar_url")
+    .neq("id", currentUserId)
+    .not("username", "is", null)
+    .order("display_name", { ascending: true })
+    .order("username", { ascending: true })
+    .range(offset, offset + pageSize - 1);
+
+  if (error) throw error;
+
+  const profiles = data ?? [];
+  if (profiles.length === 0) return [];
+
+  const { data: badges, error: badgeError } = await client()
+    .from("verification_badges")
+    .select("user_id, badge_type")
+    .in("user_id", profiles.map((profile) => profile.id));
+  if (badgeError) throw badgeError;
+
+  const badgeByUser = new Map((badges ?? []).map((badge) => [badge.user_id, badge.badge_type]));
+  return profiles.map((profile) => ({
+    ...profile,
+    badge_type: (badgeByUser.get(profile.id) as PublicProfile["badge_type"]) ?? null,
+  })) as PublicProfile[];
+}
+
 export async function createDirectConversation(username: string): Promise<string> {
   const { data, error } = await client().rpc("create_direct_conversation", {
     target_username: username.replace(/^@/, "").trim().toLowerCase(),

@@ -30,6 +30,7 @@ import {
   getInbox,
   getMessages,
   getPublicProfile,
+  listPublicProfiles,
   searchProfiles,
   saveProfile,
   sendMessage,
@@ -134,6 +135,15 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const [communitySearchRooms, setCommunitySearchRooms] = useState<CommunityRoomPreview[]>([]);
   const [showComposeScreen, setShowComposeScreen] = useState(false);
   const [showContactsScreen, setShowContactsScreen] = useState(false);
+  const [directoryTab, setDirectoryTab] = useState<"users" | "groups" | "channels">("users");
+  const [directoryUsers, setDirectoryUsers] = useState<PublicProfile[]>([]);
+  const [directoryUsersOffset, setDirectoryUsersOffset] = useState(0);
+  const [directoryUsersHasMore, setDirectoryUsersHasMore] = useState(true);
+  const [directoryUsersLoading, setDirectoryUsersLoading] = useState(false);
+  const [directoryRooms, setDirectoryRooms] = useState<CommunityRoomPreview[]>([]);
+  const [directoryRoomsLoading, setDirectoryRoomsLoading] = useState(false);
+  const [directoryRoomsLoaded, setDirectoryRoomsLoaded] = useState(false);
+  const [directoryError, setDirectoryError] = useState("");
   const [mobileTab, setMobileTab] = useState<"chats" | "contacts" | "settings" | "profile">("chats");
   const [viewedProfile, setViewedProfile] = useState<PublicProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
@@ -605,18 +615,81 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
     else setShowSettings(false);
   }
 
+  async function loadDirectoryUsers(reset = false) {
+    if (directoryUsersLoading) return;
+    const offset = reset ? 0 : directoryUsersOffset;
+    setDirectoryUsersLoading(true);
+    setDirectoryError("");
+    try {
+      const page = await listPublicProfiles(user.id, offset, 50);
+      setDirectoryUsers((current) => reset
+        ? page
+        : [...current, ...page.filter((person) => !current.some((existing) => existing.id === person.id))]);
+      setDirectoryUsersOffset(offset + page.length);
+      setDirectoryUsersHasMore(page.length === 50);
+    } catch (cause) {
+      setDirectoryError(cause instanceof Error ? cause.message : (locale === "ru" ? "Не удалось загрузить пользователей." : "Could not load users."));
+    } finally {
+      setDirectoryUsersLoading(false);
+    }
+  }
+
+  async function loadDirectoryRooms() {
+    if (directoryRoomsLoading || directoryRoomsLoaded) return;
+    setDirectoryRoomsLoading(true);
+    setDirectoryError("");
+    const columns = "id, kind, name, username, description, avatar_url, is_public, updated_at";
+    try {
+      const [publicResult, membershipsResult] = await Promise.all([
+        client.from("community_rooms").select(columns).eq("is_public", true)
+          .order("updated_at", { ascending: false }).range(0, 999),
+        client.from("community_room_members").select("room_id").eq("user_id", user.id),
+      ]);
+      if (publicResult.error) throw publicResult.error;
+      if (membershipsResult.error) throw membershipsResult.error;
+
+      const joinedIds = [...new Set((membershipsResult.data ?? []).map((item) => item.room_id as string))];
+      let joinedRooms: CommunityRoomPreview[] = [];
+      if (joinedIds.length > 0) {
+        const { data, error: joinedError } = await client.from("community_rooms")
+          .select(columns).in("id", joinedIds);
+        if (joinedError) throw joinedError;
+        joinedRooms = (data ?? []) as CommunityRoomPreview[];
+      }
+
+      const uniqueRooms = new Map<string, CommunityRoomPreview>();
+      for (const room of [...(publicResult.data ?? []), ...joinedRooms] as CommunityRoomPreview[]) {
+        uniqueRooms.set(room.id, room);
+      }
+      setDirectoryRooms([...uniqueRooms.values()].sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at)));
+      setDirectoryRoomsLoaded(true);
+    } catch (cause) {
+      setDirectoryError(cause instanceof Error ? cause.message : (locale === "ru" ? "Не удалось загрузить группы и каналы." : "Could not load groups and channels."));
+    } finally {
+      setDirectoryRoomsLoading(false);
+    }
+  }
+
   function openContactsScreen() {
     setActiveId(null);
     setActiveCommunityRoomId(null);
     setCommunityCreateKind(null);
     setSystemView(null);
-    setShowSearch(true);
+    setShowSearch(false);
     setShowComposeScreen(false);
     setShowContactsScreen(true);
     setMobileTab("contacts");
+    setDirectoryTab("users");
+    setDirectoryUsers([]);
+    setDirectoryUsersOffset(0);
+    setDirectoryUsersHasMore(true);
+    setDirectoryRooms([]);
+    setDirectoryRoomsLoaded(false);
+    setDirectoryError("");
     setSearch("");
     setResults([]);
     setError("");
+    void loadDirectoryUsers(true);
   }
 
   function closeContactsScreen() {
@@ -921,47 +994,67 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                 </button>
                 <h2>{locale === "ru" ? "Контакты" : "Contacts"}</h2>
               </header>
-              <div className="new-message-search-area">
-                <label className="new-message-search">
-                  <Search size={18} />
-                  <input
-                    ref={contactsSearchInputRef}
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                    placeholder={locale === "ru" ? "Поиск контактов" : "Search contacts"}
-                    aria-label={locale === "ru" ? "Поиск контактов" : "Search contacts"}
-                  />
-                  {search && <button type="button" className="new-message-clear" onClick={() => { setSearch(""); setResults([]); }} aria-label={t(locale, "inboxClear")}><X size={16} /></button>}
-                </label>
+              <div className="contacts-directory-tabs" role="tablist" aria-label={locale === "ru" ? "Каталог HELORO" : "HELORO directory"}>
+                <button type="button" role="tab" aria-selected={directoryTab === "users"} className={directoryTab === "users" ? "active" : ""} onClick={() => setDirectoryTab("users")}>
+                  <Users size={16} />{locale === "ru" ? "Люди" : "People"}
+                </button>
+                <button type="button" role="tab" aria-selected={directoryTab === "groups"} className={directoryTab === "groups" ? "active" : ""} onClick={() => { setDirectoryTab("groups"); void loadDirectoryRooms(); }}>
+                  <Users size={16} />{locale === "ru" ? "Группы" : "Groups"}
+                </button>
+                <button type="button" role="tab" aria-selected={directoryTab === "channels"} className={directoryTab === "channels" ? "active" : ""} onClick={() => { setDirectoryTab("channels"); void loadDirectoryRooms(); }}>
+                  <Megaphone size={16} />{locale === "ru" ? "Каналы" : "Channels"}
+                </button>
               </div>
-              <div className="new-message-people">
-                {search.trim().replace(/^@/, "").length >= 2 ? (
-                  <>
-                    <div className="new-message-section-title">{locale === "ru" ? "Результаты поиска" : "Search results"}</div>
-                    {searching ? <p className="new-message-empty">{t(locale, "inboxSearching")}</p> : results.length === 0 ? <p className="new-message-empty">{t(locale, "inboxNoResults")}</p> : results.map((person) => (
-                      <button className="new-message-person" type="button" key={person.id} onClick={() => void startConversation(person)}>
-                        <Avatar label={person.display_name || person.username} src={person.avatar_url} />
-                        <span className="new-message-person-copy"><strong>{person.display_name || person.username}<VerificationMark type={person.badge_type} title={locale === "ru" ? "Аккаунт подтверждён HELORO" : "Verified by HELORO"} /></strong><small>@{person.username}</small></span>
-                        <MessageCircle size={18} />
-                      </button>
-                    ))}
-                  </>
-                ) : (
-                  <>
-                    <div className="new-message-section-title">{locale === "ru" ? "Недавние контакты" : "Recent contacts"}</div>
-                    {inbox.length === 0 ? (
-                      <div className="new-message-empty"><UserRound size={25} /><strong>{locale === "ru" ? "Пока нет контактов" : "No contacts yet"}</strong><p>{locale === "ru" ? "Пользователи появятся здесь после начала переписки." : "People appear here after you start a chat."}</p></div>
-                    ) : [...new Map(inbox.map((item) => [item.other_user_id, item])).values()].map((item) => (
-                      <button className="new-message-person" type="button" key={item.other_user_id} onClick={() => void startConversation({
-                        id: item.other_user_id, username: item.username, display_name: item.display_name, avatar_url: item.avatar_url, badge_type: badgeMap[item.other_user_id] ?? null,
-                      })}>
-                        <Avatar label={item.display_name || item.username} src={item.avatar_url} />
-                        <span className="new-message-person-copy"><strong>{item.display_name || item.username}<VerificationMark type={badgeMap[item.other_user_id]} title={locale === "ru" ? "Аккаунт подтверждён HELORO" : "Verified by HELORO"} /></strong><small>@{item.username}</small></span>
-                      </button>
-                    ))}
-                  </>
-                )}
-              </div>
+              {directoryTab === "users" ? (
+                <div className="new-message-people contacts-directory-list" role="tabpanel">
+                  <div className="new-message-section-title">{locale === "ru" ? "Все пользователи" : "All users"}</div>
+                  {directoryError && <p className="contacts-directory-error" role="alert">{directoryError}</p>}
+                  {directoryUsers.length === 0 && directoryUsersLoading ? (
+                    <p className="new-message-empty">{t(locale, "appLoading")}</p>
+                  ) : directoryUsers.length === 0 ? (
+                    <div className="new-message-empty"><UserRound size={25} /><strong>{locale === "ru" ? "Пока нет пользователей" : "No users yet"}</strong></div>
+                  ) : directoryUsers.map((person) => (
+                    <button className="new-message-person" type="button" key={person.id} onClick={() => void startConversation(person)}>
+                      <Avatar label={person.display_name || person.username} src={person.avatar_url} />
+                      <span className="new-message-person-copy">
+                        <strong>{person.display_name || person.username}<VerificationMark type={person.badge_type} title={locale === "ru" ? "Аккаунт подтверждён HELORO" : "Verified by HELORO"} /></strong>
+                        <small>@{person.username}</small>
+                      </span>
+                      <MessageCircle size={18} />
+                    </button>
+                  ))}
+                  {directoryUsersLoading && directoryUsers.length > 0 && <p className="contacts-directory-loading">{locale === "ru" ? "Загрузка…" : "Loading…"}</p>}
+                  {directoryUsersHasMore && !directoryUsersLoading && directoryUsers.length > 0 && (
+                    <button className="contacts-directory-more" type="button" onClick={() => void loadDirectoryUsers()}>
+                      {locale === "ru" ? "Показать ещё пользователей" : "Load more users"}
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="new-message-people contacts-directory-list" role="tabpanel">
+                  <div className="new-message-section-title">{directoryTab === "groups" ? (locale === "ru" ? "Все доступные группы" : "All available groups") : (locale === "ru" ? "Все доступные каналы" : "All available channels")}</div>
+                  {directoryError && <p className="contacts-directory-error" role="alert">{directoryError}</p>}
+                  {directoryRoomsLoading && directoryRooms.length === 0 ? (
+                    <p className="new-message-empty">{t(locale, "appLoading")}</p>
+                  ) : directoryRooms.filter((room) => room.kind === (directoryTab === "groups" ? "group" : "channel")).length === 0 ? (
+                    <div className="new-message-empty">
+                      {directoryTab === "groups" ? <Users size={25} /> : <Megaphone size={25} />}
+                      <strong>{directoryTab === "groups" ? (locale === "ru" ? "Групп пока нет" : "No groups yet") : (locale === "ru" ? "Каналов пока нет" : "No channels yet")}</strong>
+                      <p>{locale === "ru" ? "Здесь появятся публичные сообщества и ваши закрытые группы." : "Public communities and your private groups will appear here."}</p>
+                    </div>
+                  ) : directoryRooms.filter((room) => room.kind === (directoryTab === "groups" ? "group" : "channel")).map((room) => (
+                    <button className="new-message-person" type="button" key={room.id} onClick={() => openCommunity(room.id)}>
+                      <Avatar label={room.name} src={room.avatar_url} />
+                      <span className="new-message-person-copy">
+                        <strong>{room.name}</strong>
+                        <small>{room.username ? "@" + room.username : (room.kind === "group" ? (locale === "ru" ? "Группа" : "Group") : (locale === "ru" ? "Канал" : "Channel"))}</small>
+                      </span>
+                      {room.kind === "channel" ? <Megaphone size={18} /> : <Users size={18} />}
+                    </button>
+                  ))}
+                  {directoryRoomsLoading && directoryRooms.length > 0 && <p className="contacts-directory-loading">{locale === "ru" ? "Загрузка…" : "Loading…"}</p>}
+                </div>
+              )}
             </section>
           )}
           {!showComposeScreen && !showSettings && !showBots && !showProfile && !showNavigation && (
