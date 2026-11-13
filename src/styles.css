@@ -1213,7 +1213,24 @@ html[data-theme="dark"] .auth-password-hint { color: #9eb5bf; }
 .profile-view-content { position: relative; display: flex; flex-direction: column; align-items: center; padding: 0 22px 25px; }
 .profile-view-heading { width: 100%; display: flex; justify-content: flex-end; margin: 10px 0 0; }
 .profile-view-heading > span { margin-right: auto; align-self: center; color: #7e9ca8; font-size: 10px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
-.profile-view-avatar { width: 94px; height: 94px; margin-top: -54px; border: 4px solid white; border-radius: 28px; font-size: 27px; }
+.profile-view-avatar {
+  width: 94px;
+  height: 94px;
+  aspect-ratio: 1 / 1;
+  flex: 0 0 94px;
+  margin-top: -54px;
+  overflow: hidden;
+  border: 4px solid white;
+  border-radius: 50%;
+  font-size: 27px;
+}
+.profile-view-avatar img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
 .profile-view-content h2 { display: flex; align-items: center; gap: 5px; margin: 13px 0 4px; color: #294b60; font: 750 20px "Manrope", sans-serif; text-align: center; }
 .profile-view-username { margin: 0 0 18px; color: #8aa4ae; font-size: 12px; }
 .profile-view-action, .profile-view-remove-badge { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 41px; width: 100%; margin-top: 8px; padding: 0 14px; border: 1px solid #d9edf0; border-radius: 11px; color: #3e91a4; background: #f1fafb; font-size: 11px; font-weight: 700; }
