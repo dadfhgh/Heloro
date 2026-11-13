@@ -1,11 +1,13 @@
 import fengari from "fengari";
 
 const { lua, lauxlib, lualib, to_luastring, to_jsstring } = fengari as any;
+const MAX_SOURCE_BYTES = 16_000;
+const MAX_INSTRUCTIONS = 100_000;
+const HOOK_INTERVAL = 1_000;
+const MAX_REPLIES = 5;
+const MAX_REPLY_LENGTH = 1_000;
+const MAX_LOGS = 30;
 export type LuaResult = { replies: string[]; logs: string[]; instruction_count: number };
-
-function json(body: Record<string, unknown>, status = 200) {
-  return new Response(JSON.stringify(body), { status, headers: corsHeaders });
-}
 
 function readLuaString(L: unknown, index: number): string {
   const value = lauxlib.luaL_checkstring(L, index);
