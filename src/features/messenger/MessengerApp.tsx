@@ -137,7 +137,6 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const [reportReason, setReportReason] = useState<(typeof reportReasons)[number]>("other");
   const [reportDetails, setReportDetails] = useState("");
   const [reportBusy, setReportBusy] = useState(false);
-  const [chatFilter, setChatFilter] = useState<"all" | "personal">("all");
   const [homeTab, setHomeTab] = useState<"chats" | "contacts" | "settings" | "profile">("chats");
   const searchInputRef = useRef<HTMLInputElement>(null);
   const stickerInputRef = useRef<HTMLInputElement>(null);
@@ -163,7 +162,6 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   }, [inbox, search]);
 
   const visibleCommunityRooms = useMemo(() => {
-    if (chatFilter === "personal" && !showSearch) return [];
     const query = search.trim().toLocaleLowerCase().replace(/^@/, "");
     const source = showSearch ? [...communityRooms, ...communitySearchRooms] : communityRooms;
     const unique = new Map(source.map((item) => [item.id, item]));
@@ -172,7 +170,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
       item.username.toLocaleLowerCase().includes(query) ||
       item.description.toLocaleLowerCase().includes(query)
     );
-  }, [communityRooms, communitySearchRooms, search, chatFilter, showSearch]);
+  }, [communityRooms, communitySearchRooms, search, showSearch]);
 
   async function refreshInbox(selectId?: string) {
     const updated = await getInbox();
@@ -631,16 +629,6 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
             </label>
           </div>
 
-          {homeTab === "chats" && !showSearch && (
-            <div className="chat-filter-tabs" role="tablist" aria-label={t(locale, "inboxTitle")}>
-              <button type="button" role="tab" aria-selected={chatFilter === "all"} className={chatFilter === "all" ? "active" : ""} onClick={() => setChatFilter("all")}>
-                {t(locale, "chatAll")}
-              </button>
-              <button type="button" role="tab" aria-selected={chatFilter === "personal"} className={chatFilter === "personal" ? "active" : ""} onClick={() => setChatFilter("personal")}>
-                {t(locale, "chatPersonal")}
-              </button>
-            </div>
-          )}
 
           <section className="conversation-list">
             {homeTab === "profile" ? (
@@ -698,8 +686,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
               </>
             ) : (
               <>
-                {chatFilter === "all" && (
-                  <div className="pinned-system-list">
+                <div className="pinned-system-list">
                     <button className={`conversation-item pinned-system-item ${systemView === "news" || systemView === "discussion" ? "selected" : ""}`} onClick={() => openSystemView("news")}>
                       <div className="system-avatar system-news-avatar"><Megaphone size={19} /></div>
                       <span className="conversation-copy">
@@ -723,8 +710,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                         </span>
                       </button>
                     )}
-                  </div>
-                )}
+                </div>
                 {loadingInbox ? (
                   <div className="list-placeholder"><span /><span /><span /><span /></div>
                 ) : visibleChatItems.length === 0 ? (
