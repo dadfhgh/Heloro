@@ -18,4 +18,4 @@ jobs:
       - name: Type-check Edge Function
         run: deno check --config supabase/functions/run-bot-lua/deno.json supabase/functions/run-bot-lua/index.ts
       - name: Test Lua sandbox
-        run: deno test --config supabase/functions/run-bot-lua/deno.json supabase/functions/run-bot-lua/runtime.test.ts
+        run: deno test --allow-env=FENGARICONF --config supabase/functions/run-bot-lua/deno.json supabase/functions/run-bot-lua/runtime.test.ts
