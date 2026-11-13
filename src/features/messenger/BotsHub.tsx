@@ -331,7 +331,21 @@ export default function BotsHub({ client, user, locale, onClose }: Props) {
     setDraft("");
     setBusy(true);
     setError("");
-    const { error: sendError } = await client.rpc("send_bot_message", { p_chat_id: chatId, p_body: body });
+    let sendError: { message: string } | null = null;
+    const { error: runtimeError } = await client.functions.invoke("run-bot-lua", {
+      body: { action: "run", chat_id: chatId, message: body },
+    });
+    if (runtimeError) {
+      const status = (runtimeError as unknown as { context?: { status?: number } }).context?.status;
+      const missingFunction = status === 404 || /function.*not found|not found.*function/i.test(runtimeError.message);
+      if (missingFunction) {
+        // Keep the original command bot working until the Lua Edge Function is deployed.
+        const legacy = await client.rpc("send_bot_message", { p_chat_id: chatId, p_body: body });
+        sendError = legacy.error;
+      } else {
+        sendError = runtimeError;
+      }
+    }
     if (sendError) {
       setDraft(body);
       setError(sendError.message);
