@@ -99,16 +99,17 @@ export default function CommunityHub({ client, user, locale, initialRoomId = nul
     setMemberRole((data?.role as string | undefined) ?? null);
   }
 
-  async function joinChannel() {
-    if (!room || room.kind !== "channel") return;
+  async function joinPublicRoom() {
+    if (!room || !room.is_public) return;
     setBusy(true); setError("");
     try {
-      const { error: joinError } = await client.rpc("join_community_channel", { target_room_id: room.id });
+      const { error: joinError } = await client.rpc("join_public_community_room", { target_room_id: room.id });
       if (joinError) throw joinError;
       setMemberRole("member");
       await loadMessages(room.id);
+      onRoomsChanged?.();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : (ru ? "Не удалось подписаться." : "Could not subscribe."));
+      setError(cause instanceof Error ? cause.message : (ru ? "Не удалось вступить." : "Could not join."));
     } finally { setBusy(false); }
   }
 
@@ -133,7 +134,7 @@ export default function CommunityHub({ client, user, locale, initialRoomId = nul
       const nextRoom: Room = {
         id: data, kind: createKind, name: name.trim(), username: normalizedUsername,
         description: description.trim(), avatar_url: null, created_by: user.id,
-        is_public: createKind === "channel", updated_at: new Date().toISOString(),
+        is_public: true, updated_at: new Date().toISOString(),
       };
       setCreateKind(null); setName(""); setUsername(""); setDescription("");
       setRoom(nextRoom); setMemberRole("owner"); setMessages([]); onRoomsChanged?.();
@@ -214,7 +215,7 @@ export default function CommunityHub({ client, user, locale, initialRoomId = nul
             <label>{ru ? "Ссылка / имя пользователя" : "Public link / username"}
               <div className="community-username-field"><span>@</span><input value={username} onChange={(event) => setUsername(event.target.value.replace(/^@/, "").toLowerCase().replace(/[^a-z0-9_]/g, "").slice(0, 32))} minLength={5} maxLength={32} pattern="[a-z][a-z0-9_]{4,31}" required autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder={createKind === "group" ? "my_group" : "my_channel"} /></div>
             </label>
-            <p className="community-muted">{ru ? "Ты автоматически станешь владельцем и первым участником. Других можно добавить позже." : "You automatically become the owner and first member. Others can be added later."}</p>
+            <p className="community-muted">{ru ? "Ты автоматически станешь владельцем и первым участником. По @username другие смогут найти открытую группу или канал и вступить." : "You automatically become the owner and first member. People can find the public group or channel by its @username and join."}</p>
             <button className="community-primary" type="submit" disabled={busy || name.trim().length < 2}>{busy ? (ru ? "Создание…" : "Creating…") : (ru ? "Создать" : "Create")}</button>
           </form>
         ) : room ? (
@@ -228,7 +229,7 @@ export default function CommunityHub({ client, user, locale, initialRoomId = nul
               </>}
             </div>
             {!memberRole ? (
-              <div className="community-join"><p>{ru ? "Подпишитесь, чтобы читать публикации канала." : "Subscribe to read channel posts."}</p><button className="community-primary" type="button" onClick={() => void joinChannel()} disabled={busy}>{ru ? "Подписаться" : "Subscribe"}</button></div>
+              <div className="community-join"><p>{room.kind === "group" ? (ru ? "Вступи в группу, чтобы читать и отправлять сообщения." : "Join this group to read and send messages.") : (ru ? "Подпишись, чтобы читать публикации канала." : "Subscribe to read channel posts.")}</p><button className="community-primary" type="button" onClick={() => void joinPublicRoom()} disabled={busy}>{room.kind === "group" ? (ru ? "Вступить в группу" : "Join group") : (ru ? "Подписаться" : "Subscribe")}</button></div>
             ) : (
               <>
                 <div className="community-message-list">
