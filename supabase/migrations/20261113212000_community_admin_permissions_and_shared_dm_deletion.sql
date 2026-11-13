@@ -85,18 +85,56 @@ language sql
 stable
 security definer
 set search_path = ''
-as $$
+as $
   select private.has_community_permission(target_room_id, 'manage_admins');
-$$;
+$;
+
+create or replace function private.can_manage_specific_community_admin(
+  target_room_id uuid,
+  target_user_id uuid
+)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $
+  select exists (
+    select 1
+    from public.community_room_members caller
+    join public.community_room_members target
+      on target.room_id = caller.room_id
+    where caller.room_id = target_room_id
+      and caller.user_id = (select auth.uid())
+      and target.user_id = target_user_id
+      and target.role = 'admin'
+      and (
+        caller.role = 'owner'
+        or (
+          caller.role = 'admin'
+          and coalesce((caller.admin_permissions ->> 'manage_admins')::boolean, false)
+          and not coalesce((target.admin_permissions ->> 'manage_admins')::boolean, false)
+          and not exists (
+            select 1
+            from jsonb_each(coalesce(target.admin_permissions, '{}'::jsonb)) granted
+            where granted.value = 'true'::jsonb
+              and not coalesce((caller.admin_permissions ->> granted.key)::boolean, false)
+          )
+        )
+      )
+  );
+$;
 
 revoke all on function private.has_community_permission(uuid, text) from public, anon;
 revoke all on function private.can_manage_community_room(uuid) from public, anon;
 revoke all on function private.can_send_community_message(uuid) from public, anon;
 revoke all on function private.can_manage_community_admins(uuid) from public, anon;
+revoke all on function private.can_manage_specific_community_admin(uuid, uuid) from public, anon;
 grant execute on function private.has_community_permission(uuid, text) to authenticated;
 grant execute on function private.can_manage_community_room(uuid) to authenticated;
 grant execute on function private.can_send_community_message(uuid) to authenticated;
 grant execute on function private.can_manage_community_admins(uuid) to authenticated;
+grant execute on function private.can_manage_specific_community_admin(uuid, uuid) to authenticated;
 
 create table if not exists public.community_admin_action_logs (
   id uuid primary key default gen_random_uuid(),
@@ -185,8 +223,9 @@ begin
   if target_role = 'owner' then
     raise exception 'The community owner cannot be changed here' using errcode = '42501';
   end if;
-  if caller_role <> 'owner' and target_role = 'admin' then
-    raise exception 'Delegated administrators cannot edit another administrator' using errcode = '42501';
+  if caller_role <> 'owner' and target_role = 'admin'
+    and not private.can_manage_specific_community_admin(p_room_id, p_user_id) then
+    raise exception 'You cannot edit an administrator with equal or higher permissions' using errcode = '42501';
   end if;
 
   if caller_role <> 'owner' then
@@ -267,11 +306,9 @@ begin
   if target_role is distinct from 'admin' then
     raise exception 'Target user is not an administrator' using errcode = 'P0002';
   end if;
-  if caller_role <> 'owner' and (
-    target_promoted_by is distinct from caller_id
-    or coalesce((target_permissions ->> 'manage_admins')::boolean, false)
-  ) then
-    raise exception 'You cannot remove an administrator with equal or higher authority' using errcode = '42501';
+  if caller_role <> 'owner'
+    and not private.can_manage_specific_community_admin(p_room_id, p_user_id) then
+    raise exception 'You cannot remove an administrator with equal or higher permissions' using errcode = '42501';
   end if;
 
   update public.community_room_members
