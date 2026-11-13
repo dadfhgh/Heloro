@@ -24,15 +24,11 @@ import {
   getNewsChannel,
   getOrCreateSupportThread,
   getSupportMessages,
-  getSupportThreads,
   getDiscussionMessages,
-  getUserReports,
   sendChannelComment,
   sendDiscussionMessage,
   sendSupportMessage,
-  setVerificationBadge,
   subscribeToOfficialInserts,
-  updateReportStatus,
   type BadgeType,
   type ChannelComment,
   type ChannelPost,
@@ -45,6 +41,7 @@ import { searchProfiles } from "../../lib/messenger";
 import { formatMessageTime, initials } from "../../lib/domain";
 import type { PublicProfile } from "../../lib/types";
 import type { Locale } from "../../lib/i18n";
+import HeloroSPanel from "./HeloroSPanel";
 
 type View = "news" | "discussion" | "support" | "admin";
 
@@ -55,6 +52,7 @@ type Props = {
   locale: Locale;
   roles: string[];
   onOpenDiscussion: () => void;
+  onOpenNews: () => void;
 };
 
 function Avatar({ label }: { label: string }) {
@@ -452,219 +450,6 @@ function SupportChat({ client, user, locale }: Omit<Props, "view" | "roles" | "o
   );
 }
 
-function HeloroSPanel({ client, user, locale, roles }: Omit<Props, "view" | "onOpenDiscussion">) {
-  const ru = locale === "ru";
-  const [tab, setTab] = useState<"reports" | "support" | "verification">("reports");
-  const [reports, setReports] = useState<UserReport[]>([]);
-  const [threads, setThreads] = useState<SupportThread[]>([]);
-  const [selectedThread, setSelectedThread] = useState<SupportThread | null>(null);
-  const [supportMessages, setSupportMessages] = useState<SupportMessage[]>([]);
-  const [reply, setReply] = useState("");
-  const [targetQuery, setTargetQuery] = useState("");
-  const [targetResults, setTargetResults] = useState<PublicProfile[]>([]);
-  const [selectedTarget, setSelectedTarget] = useState<PublicProfile | null>(null);
-  const [badgeType, setBadgeType] = useState<BadgeType>("blue");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const canManageBadges = roles.includes("owner") || roles.includes("admin");
-
-  useEffect(() => {
-    let active = true;
-    if (tab === "reports") {
-      getUserReports(client).then((items) => { if (active) setReports(items); }).catch((cause: unknown) => setError(cause instanceof Error ? cause.message : "Could not load reports."));
-    }
-    if (tab === "support") {
-      getSupportThreads(client).then((items) => { if (active) setThreads(items); }).catch((cause: unknown) => setError(cause instanceof Error ? cause.message : "Could not load support threads."));
-    }
-    return () => { active = false; };
-  }, [client, tab]);
-
-  useEffect(() => {
-    if (tab !== "reports") return;
-    const channel = client.channel("heloro:staff:reports")
-      .on("postgres_changes", { event: "*", schema: "public", table: "user_reports" }, () => {
-        void getUserReports(client)
-          .then(setReports)
-          .catch((cause: unknown) => setError(cause instanceof Error ? cause.message : "Could not refresh reports."));
-      })
-      .subscribe();
-    return () => { void client.removeChannel(channel); };
-  }, [client, tab]);
-
-  useEffect(() => {
-    if (tab !== "support") return;
-    const channel = client.channel("heloro:staff:support-threads")
-      .on("postgres_changes", { event: "*", schema: "public", table: "support_threads" }, () => {
-        void getSupportThreads(client)
-          .then(setThreads)
-          .catch((cause: unknown) => setError(cause instanceof Error ? cause.message : "Could not refresh support threads."));
-      })
-      .subscribe();
-    return () => { void client.removeChannel(channel); };
-  }, [client, tab]);
-
-  useEffect(() => {
-    if (!selectedThread) {
-      setSupportMessages([]);
-      return;
-    }
-    let active = true;
-    getSupportMessages(client, selectedThread.id)
-      .then((items) => { if (active) setSupportMessages(items); })
-      .catch((cause: unknown) => setError(cause instanceof Error ? cause.message : "Could not load support messages."));
-    const channel = subscribeToOfficialInserts<SupportMessage>(client, "support_messages", `thread_id=eq.${selectedThread.id}`, (item) => {
-      setSupportMessages((current) => current.some((row) => row.id === item.id) ? current : [...current, item]);
-    });
-    return () => {
-      active = false;
-      void client.removeChannel(channel);
-    };
-  }, [client, selectedThread]);
-
-  useEffect(() => {
-    const query = targetQuery.trim();
-    if (query.length < 2 || !canManageBadges) {
-      setTargetResults([]);
-      return;
-    }
-    let active = true;
-    const timer = window.setTimeout(() => {
-      searchProfiles(query, user.id)
-        .then((items) => { if (active) setTargetResults(items); })
-        .catch((cause: unknown) => setError(cause instanceof Error ? cause.message : "Search failed."));
-    }, 250);
-    return () => { active = false; window.clearTimeout(timer); };
-  }, [client, targetQuery, user.id, canManageBadges]);
-
-  async function replyToSupport(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!selectedThread || !reply.trim()) return;
-    setBusy(true);
-    try {
-      const item = await sendSupportMessage(client, selectedThread.id, user.id, reply);
-      setSupportMessages((current) => current.some((row) => row.id === item.id) ? current : [...current, item]);
-      setReply("");
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not send reply.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function changeReport(report: UserReport, status: UserReport["status"]) {
-    setBusy(true);
-    try {
-      await updateReportStatus(client, report.id, status);
-      setReports((current) => current.map((item) => item.id === report.id ? { ...item, status } : item));
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not update report.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function saveBadge() {
-    if (!selectedTarget || !canManageBadges) return;
-    setBusy(true);
-    setError("");
-    try {
-      await setVerificationBadge(client, selectedTarget.id, user.id, badgeType);
-      setSelectedTarget(null);
-      setTargetQuery("");
-      setTargetResults([]);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not update verification.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  const roleLabel = roles.includes("owner") ? "HELORO Owner" : roles.includes("admin") ? "Admin" : "Moderator";
-  const pendingCount = useMemo(() => reports.filter((report) => report.status === "open" || report.status === "reviewing").length, [reports]);
-
-  return (
-    <div className="special-panel admin-panel">
-      <header className="chat-header">
-        <div className="system-admin-icon"><ShieldCheck size={19} /></div>
-        <div className="chat-person"><strong>HELORO S</strong><small>{roleLabel}</small></div>
-      </header>
-      <div className="special-stream">
-        <div className="system-description">{ru ? "Закрытая панель поддержки и модерации." : "Private support and moderation workspace."}</div>
-        <div className="system-tabs">
-          <button className={tab === "reports" ? "active" : ""} onClick={() => setTab("reports")}><CircleAlert size={14} /> {ru ? "Жалобы" : "Reports"} {pendingCount > 0 && <span>{pendingCount}</span>}</button>
-          <button className={tab === "support" ? "active" : ""} onClick={() => setTab("support")}><MessageCircle size={14} /> {ru ? "Поддержка" : "Support"}</button>
-          {canManageBadges && <button className={tab === "verification" ? "active" : ""} onClick={() => setTab("verification")}><BadgeCheck size={14} /> {ru ? "Галочки" : "Badges"}</button>}
-        </div>
-        {error && <p className="system-error" role="alert">{error}</p>}
-        {tab === "reports" && (
-          <div className="admin-list">
-            {reports.length === 0 ? <div className="system-empty"><CheckCircle2 size={24} /><strong>{ru ? "Жалоб пока нет" : "No reports yet"}</strong></div> : reports.map((report) => (
-              <article className="admin-item" key={report.id}>
-                <div className="admin-item-top"><strong>{ru ? "Жалоба" : "Report"} · {report.reason}</strong><span>{report.status}</span></div>
-                <small>{ru ? "Отправитель" : "Reporter"}: {report.reporter_id.slice(0, 8)} · {ru ? "Аккаунт" : "Account"}: {report.reported_user_id.slice(0, 8)}</small>
-                {report.details && <p>{report.details}</p>}
-                <div className="admin-actions">
-                  <button disabled={busy || report.status === "reviewing"} onClick={() => void changeReport(report, "reviewing")}>{ru ? "В работу" : "Review"}</button>
-                  <button disabled={busy || report.status === "resolved"} onClick={() => void changeReport(report, "resolved")}>{ru ? "Решено" : "Resolve"}</button>
-                  <button disabled={busy || report.status === "dismissed"} onClick={() => void changeReport(report, "dismissed")}>{ru ? "Отклонить" : "Dismiss"}</button>
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
-        {tab === "support" && (
-          <div className="admin-support-layout">
-            <div className="admin-thread-list">
-              {threads.length === 0 ? <p className="muted small-copy">{ru ? "Обращений пока нет." : "No support threads yet."}</p> : threads.map((thread) => (
-                <button key={thread.id} className={selectedThread?.id === thread.id ? "active" : ""} onClick={() => setSelectedThread(thread)}>
-                  <UserRound size={15} /><span>{thread.user_id.slice(0, 8)}</span><small>{formatMessageTime(thread.updated_at)}</small>
-                </button>
-              ))}
-            </div>
-            <div className="admin-support-conversation">
-              {!selectedThread ? <p className="muted small-copy">{ru ? "Выберите обращение." : "Select a support thread."}</p> : (
-                <>
-                  {supportMessages.map((item) => (
-                    <div className={`system-message-row ${item.sender_id === user.id ? "mine" : ""}`} key={item.id}>
-                      <div className="system-message-bubble"><strong>{item.sender_id === user.id ? (ru ? "Вы" : "You") : (ru ? "Пользователь" : "User")}</strong><p>{item.body}</p><time>{formatMessageTime(item.created_at)}</time></div>
-                    </div>
-                  ))}
-                  <SystemComposer value={reply} onChange={setReply} onSubmit={replyToSupport} placeholder={ru ? "Ответить пользователю…" : "Reply to user…"} disabled={busy} />
-                </>
-              )}
-            </div>
-          </div>
-        )}
-        {tab === "verification" && canManageBadges && (
-          <div className="verification-manager">
-            <p className="muted small-copy">{ru ? "Найдите аккаунт и назначьте тип подтверждения. Галочки видны другим пользователям." : "Find an account and assign a verification type. Badges are public."}</p>
-            <input value={targetQuery} onChange={(event) => setTargetQuery(event.target.value)} placeholder={ru ? "Имя или @username" : "Name or @username"} />
-            {targetResults.map((target) => (
-              <button key={target.id} className={`verification-target ${selectedTarget?.id === target.id ? "active" : ""}`} onClick={() => setSelectedTarget(target)}>
-                <span><strong>{target.display_name || target.username}</strong><small>@{target.username}</small></span>
-                <Check size={15} />
-              </button>
-            ))}
-            {selectedTarget && (
-              <div className="verification-editor">
-                <strong>{selectedTarget.display_name || selectedTarget.username}</strong>
-                <select value={badgeType} onChange={(event) => setBadgeType(event.target.value as BadgeType)}>
-                  <option value="blue">{ru ? "Синяя — подтверждённая личность" : "Blue — verified identity"}</option>
-                  <option value="gold">{ru ? "Золотая — официальная организация" : "Gold — official organization"}</option>
-                  <option value="creator">{ru ? "Красно-белая — автор" : "Red-white — creator"}</option>
-                </select>
-                <button className="primary-button" disabled={busy} onClick={() => void saveBadge()}>{ru ? "Сохранить" : "Save"}</button>
-              </div>
-            )}
-          </div>
-        )}
-        <div className="admin-privacy-note">
-          {ru ? "Личные переписки пользователей здесь не открываются. Доступ к ним требует отдельного служебного основания, аудита и дополнительной серверной защиты." : "Personal user chats are not exposed here. Any exceptional access needs a documented case, audit trail and additional server-side controls."}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export default function OfficialPanels(props: Props) {
   const roles = props.roles;
@@ -685,5 +470,5 @@ export default function OfficialPanels(props: Props) {
     return <SupportChat {...props} />;
   }
   if (roles.length === 0) return null;
-  return <HeloroSPanel {...props} />;
+  return <HeloroSPanel client={props.client} user={props.user} locale={props.locale} roles={roles} onOpenNews={props.onOpenNews} onOpenDiscussion={props.onOpenDiscussion} />;
 }
