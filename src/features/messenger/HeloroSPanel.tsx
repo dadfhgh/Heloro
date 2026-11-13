@@ -98,6 +98,7 @@ export default function HeloroSPanel({
   const isAdmin = roles.includes("admin");
   const staff = isOwner || isAdmin || roles.includes("moderator");
   const canManageBadges = isOwner || isAdmin;
+  const maxRestrictionDays = isOwner || isAdmin ? 30 : 1;
   const [tab, setTab] = useState<TabId>("overview");
   const [busy, setBusy] = useState(false);
   const [loadingTab, setLoadingTab] = useState<TabId | null>(null);
@@ -600,11 +601,14 @@ export default function HeloroSPanel({
                       <option value="freeze" disabled={!isOwner && !isAdmin}>{ru ? "Заморозить аккаунт" : "Freeze account"}</option>
                       <option value="ban" disabled={!isOwner && !isAdmin}>{ru ? "Заблокировать аккаунт" : "Ban account"}</option>
                     </select></label>
-                    {restrictionType === "temporary_ban" && <label>{ru ? "Действует до" : "Expires at"}<input type="datetime-local" value={restrictionUntil} onChange={(event) => setRestrictionUntil(event.target.value)} /></label>}
+                    {restrictionType === "temporary_ban" && <label>{ru ? "Действует до" : "Expires at"}<input type="datetime-local" min={dateTimeLocalValue(Date.now() + 60_000)} max={dateTimeLocalValue(Date.now() + maxRestrictionDays * 24 * 60 * 60 * 1000)} value={restrictionUntil} onChange={(event) => setRestrictionUntil(event.target.value)} /></label>}
                     <label>{ru ? "Причина (обязательно)" : "Reason (required)"}<textarea rows={2} value={restrictionReason} onChange={(event) => setRestrictionReason(event.target.value)} maxLength={1000} /></label>
                     <button className="admin-primary-action" disabled={busy || !restrictionReason.trim() || selectedUser.id === user.id} onClick={() => void applyRestriction()}><Ban size={15} />{ru ? "Применить действие" : "Apply action"}</button>
                     <div className="admin-active-restrictions"><strong>{ru ? "Активные действия" : "Active actions"}</strong>
-                      {activeRestrictions.length === 0 ? <small>{ru ? "Активных ограничений нет." : "No active restrictions."}</small> : activeRestrictions.map((item) => <div key={item.id}><span>{item.restriction_type}: {item.reason}</span><button disabled={busy} onClick={() => void revokeRestriction(item.id)}>{ru ? "Снять" : "Revoke"}</button></div>)}
+                      {activeRestrictions.length === 0 ? <small>{ru ? "Активных ограничений нет." : "No active restrictions."}</small> : activeRestrictions.map((item) => {
+                        const canRevoke = isOwner || isAdmin || item.created_by === user.id;
+                        return <div key={item.id}><span>{item.restriction_type}: {item.reason}{item.expires_at ? " · " + (ru ? "до" : "until") + " " + new Date(item.expires_at).toLocaleString() : ""}</span><button disabled={busy || !canRevoke} title={!canRevoke ? (ru ? "Модератор может снять только своё ограничение." : "Moderators can revoke only their own actions.") : undefined} onClick={() => void revokeRestriction(item.id, selectedUser.id)}>{ru ? "Снять" : "Revoke"}</button></div>;
+                      })}
                     </div>
                   </div>
                 )}
@@ -704,7 +708,7 @@ export default function HeloroSPanel({
 
         {tab === "roles" && isOwner && (
           <section className="admin-section"><div className="admin-section-heading"><div><h2>{ru ? "Роли и разрешения" : "Roles and permissions"}</h2><p>{ru ? "Только Owner назначает Admin и Moderator" : "Only Owner can appoint Admin and Moderator"}</p></div><button className="admin-icon-action" onClick={() => void loadStaff()}><RefreshCw size={15} /></button></div>
-            <div className="admin-role-list">{staffEntries.map((entry) => <article key={entry.user_id}><span className="admin-user-avatar"><ShieldCheck size={15} /></span><span><strong>{entry.role}</strong><small>{shortId(entry.user_id)} · {new Date(entry.granted_at).toLocaleString()}</small></span></article>)}</div>
+            <div className="admin-role-list">{staffEntries.map((entry) => <article key={entry.user_id}><span className="admin-user-avatar"><ShieldCheck size={15} /></span><span><strong>{entry.display_name || entry.username || shortId(entry.user_id)}</strong><small>{entry.username ? "@" + entry.username + " · " : ""}{entry.role} · {shortId(entry.user_id)} · {new Date(entry.granted_at).toLocaleString()}</small></span></article>)}</div>
             <p className="admin-privacy-note">{ru ? "Owner не может изменить собственную роль через эту панель. Назначение Owner не выполняется через обычный интерфейс ролей." : "Owner cannot change their own role here. Owner assignment is intentionally excluded from the regular role editor."}</p>
           </section>
         )}
