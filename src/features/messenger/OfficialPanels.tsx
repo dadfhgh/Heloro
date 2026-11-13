@@ -3,6 +3,7 @@ import type { User } from "@supabase/supabase-js";
 import {
   BadgeCheck,
   ChevronRight,
+  Flag,
   MessageCircle,
   Megaphone,
   Send,
@@ -23,6 +24,7 @@ import {
   sendChannelComment,
   sendDiscussionMessage,
   sendSupportMessage,
+  submitContentReport,
   subscribeToOfficialInserts,
   type ChannelComment,
   type ChannelPost,
@@ -153,6 +155,20 @@ function NewsChannel({
     };
   }, [client, expandedPost]);
 
+  async function reportChannelContent(targetId: string) {
+    const details = window.prompt(ru ? "Опишите причину жалобы (необязательно)." : "Describe the reason for this report (optional).");
+    if (details === null) return;
+    setBusy(true);
+    setError("");
+    try {
+      await submitContentReport(client, "channel", targetId, "other", details);
+      setError(ru ? "Жалоба отправлена модераторам." : "Report sent to moderators.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : (ru ? "Не удалось отправить жалобу." : "Could not submit report."));
+    } finally {
+      setBusy(false);
+    }
+  }
   async function publish(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!channelId || !postDraft.trim()) return;
@@ -249,6 +265,7 @@ function NewsChannel({
                 <MessageCircle size={14} /> {expandedPost === post.id ? (ru ? "Скрыть комментарии" : "Hide comments") : (ru ? "Комментарии" : "Comments")}
               </button>
               <button onClick={onOpenDiscussion}><ChevronRight size={14} /> {ru ? "Обсуждение" : "Discussion"}</button>
+              <button type="button" onClick={() => void reportChannelContent(post.id)} disabled={busy}><Flag size={13} /> {ru ? "Пожаловаться" : "Report"}</button>
               {(canDeletePosts || post.author_id === user.id) && (
                 <button className="system-delete-button" type="button" onClick={() => void removePost(post.id)} disabled={busy}>
                   <Trash2 size={13} /> {ru ? "Удалить" : "Delete"}
@@ -267,6 +284,9 @@ function NewsChannel({
                         <button className="system-delete-button" type="button" onClick={() => void removeComment(item.id)} disabled={busy}>
                           <Trash2 size={12} /> {ru ? "Удалить для всех" : "Delete for everyone"}
                         </button>
+                      <button className="system-delete-button" type="button" onClick={() => void reportChannelContent(item.id)} disabled={busy}>
+                        <Flag size={12} /> {ru ? "Пожаловаться" : "Report"}
+                      </button>
                       )}
                     </div>
                   </div>
