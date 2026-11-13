@@ -78,10 +78,13 @@ function VerificationMark({ type, title }: { type?: BadgeType | null; title: str
   return (
     <span className={`verification-mark verification-${label}`} title={accessibleTitle} aria-label={accessibleTitle}>
       {type === "epic_sans" ? (
-        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-          <path className="epic-sans-star" d="M12 4.7 15.1 8 20.2 8.8 16.7 12.5 17.7 17.7 12 15.3 6.3 17.7 7.3 12.5 3.8 8.8 8.9 8Z" />
-          <path className="epic-sans-crown" d="M7.2 8.1 6.4 3.8 9.5 5.9 12 2.3 14.5 5.9 17.6 3.8 16.8 8.1Z" />
-          <path className="epic-sans-spark" d="M12 9.1 13.15 11 15.2 12 13.15 13 12 14.9 10.85 13 8.8 12 10.85 11Z" />
+        <svg className="epic-sans-badge-art" viewBox="0 0 88 24" aria-hidden="true" focusable="false" shapeRendering="crispEdges">
+          <rect className="epic-sans-badge-bg" x="1" y="1" width="86" height="22" rx="3" />
+          <path className="epic-sans-pixel-star-shadow" d="M12 2h4l3 6 7 1v4l-6 4 2 5h-4l-4-3-4 3H6l2-5-6-4V9l7-1z" />
+          <path className="epic-sans-pixel-star" d="M12 1h4l3 6 7 1v4l-6 4 2 5h-4l-4-3-4 3H6l2-5-6-4V8l7-1z" />
+          <rect className="epic-sans-star-glint" x="13" y="8" width="3" height="3" />
+          <text className="epic-sans-wordmark" x="31" y="15.6">EPIC SANS</text>
+          <rect className="epic-sans-pixel-accent" x="79" y="4" width="3" height="3" />
         </svg>
       ) : (
         <BadgeCheck size={14} strokeWidth={2.8} />
