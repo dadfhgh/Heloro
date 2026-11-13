@@ -337,10 +337,9 @@ export default function HeloroSPanel({
   }, [client, tab, search, ru]);
 
   useEffect(() => {
-    if (!selectedThread) {
-      selectedThreadIdRef.current = null;
+    if (tab !== "support" || !selectedThread) {
+      if (!selectedThread) selectedThreadIdRef.current = null;
       setSupportMessages([]);
-      setReply("");
       return;
     }
     const threadId = selectedThread.id;
@@ -363,7 +362,7 @@ export default function HeloroSPanel({
         setSupportMessages((current) => current.some((row) => row.id === item.id) ? current : [...current, item]);
       }).subscribe();
     return () => { active = false; void client.removeChannel(channel); };
-  }, [client, selectedThread, ru]);
+  }, [client, selectedThread, tab, ru]);
 
   async function applyRestriction() {
     if (!selectedUser || !restrictionReason.trim()) return;
@@ -742,7 +741,8 @@ export default function HeloroSPanel({
               <div><FileText size={18} /><span><strong>{ru ? "Аудит привилегированных действий" : "Privileged action auditing"}</strong><small>{ru ? "Роли, ограничения, жалобы, поддержка и настройки." : "Roles, restrictions, reports, support and settings."}</small></span><CheckCircle2 size={17} /></div>
               <div><Ban size={18} /><span><strong>{ru ? "Пароли недоступны персоналу" : "Passwords are never exposed"}</strong><small>{ru ? "Только безопасное восстановление доступа." : "Account recovery remains a secure flow."}</small></span><CheckCircle2 size={17} /></div>
             </div>
-            <p className="admin-privacy-note">{ru ? "Перед публичным запуском нужно пройти проверку RLS и тесты с отдельными Owner, Admin, Moderator и обычным аккаунтом." : "Before public launch, validate RLS with separate Owner, Admin, Moderator and regular-user accounts."}</p>
+            <p className="admin-privacy-note">{ru ? "Важно: в подключённой Supabase-базе сейчас отсутствуют серверные миграции HELORO S. Вкладки и действия, вызывающие admin RPC, не заработают до установки миграций. Это нельзя безопасно исправить одним изменением интерфейса." : "Important: the connected Supabase database currently lacks the HELORO S server migrations. Tabs and actions that call admin RPCs will not work until those migrations are installed. This cannot be safely fixed with a frontend-only change."}</p>
+            <p className="admin-privacy-note">{ru ? "После установки backend нужно пройти проверку RLS и тесты с отдельными Owner, Admin, Moderator и обычным аккаунтом." : "After the backend is installed, validate RLS with separate Owner, Admin, Moderator and regular-user accounts."}</p>
           </section>
         )}
 
