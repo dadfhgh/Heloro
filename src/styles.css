@@ -1748,70 +1748,31 @@ html[data-theme="dark"] .admin-panel-full .admin-privacy-note{color:#aaa;backgro
 html[data-theme="dark"] .admin-panel-full .admin-primary-action,html[data-theme="dark"] .admin-panel-full .admin-role-editor button,html[data-theme="dark"] .admin-panel-full .admin-support-reply button{color:#111;background:#eee;border-color:#eee}
 @media(max-width:620px){.admin-panel-full .admin-header-status{display:none}.admin-panel-full .admin-stats-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.admin-panel-full .admin-support-grid{grid-template-columns:minmax(0,1fr)}.admin-panel-full .admin-record-list{display:flex;overflow-x:auto}.admin-panel-full .admin-thread-row{flex:0 0 auto}.admin-panel-full .admin-channel-actions{grid-template-columns:minmax(0,1fr)}}
 
-/* Exclusive Epic Sans badge — 8-bit star and pixel-style wordmark. */
+/* Exclusive Epic Sans badge — square portrait emblem with crown, violet eye and scar. */
 .verification-mark.verification-epic-sans {
   display: inline-flex;
-  width: 88px;
-  height: 24px;
-  flex: 0 0 88px;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
   padding: 0;
   margin-left: 5px;
-  border: 0;
-  border-radius: 4px;
-  overflow: visible;
-  color: #fff !important;
-  background: transparent;
-  box-shadow: 0 0 0 1px rgba(195, 151, 255, .72), 0 0 10px 2px rgba(143, 75, 255, .42);
-  vertical-align: -6px;
-  animation: epic-sans-badge-glow 2.8s ease-in-out infinite;
+  border: 1px solid rgba(207, 168, 255, .68);
+  border-radius: 5px;
+  overflow: hidden;
+  background: #10051d;
+  box-shadow: 0 0 9px 2px rgba(143, 75, 255, .46);
+  vertical-align: -10px;
 }
 .verification-epic-sans .epic-sans-badge-art {
   display: block;
   width: 100%;
   height: 100%;
-  overflow: visible;
-  filter: none;
-  shape-rendering: crispEdges;
-}
-.verification-epic-sans .epic-sans-badge-bg {
-  fill: #34105f;
-  stroke: #dcbaff;
-  stroke-width: 1;
-}
-.verification-epic-sans .epic-sans-pixel-star-shadow {
-  fill: #18052f;
-}
-.verification-epic-sans .epic-sans-pixel-star {
-  fill: #e7c8ff;
-  stroke: #fff;
-  stroke-width: .7;
-  stroke-linejoin: miter;
-}
-.verification-epic-sans .epic-sans-star-glint {
-  fill: #fff;
-}
-.verification-epic-sans .epic-sans-wordmark {
-  fill: #fff;
-  font-family: "Courier New", monospace;
-  font-size: 8.5px;
-  font-weight: 900;
-  letter-spacing: .75px;
-  stroke: rgba(255,255,255,.18);
-  stroke-width: .25px;
-  paint-order: stroke;
-}
-.verification-epic-sans .epic-sans-pixel-accent {
-  fill: #c78cff;
+  object-fit: cover;
+  image-rendering: auto;
 }
 .profile-view-hero .verification-mark.verification-epic-sans {
-  width: 96px;
-  height: 26px;
-  flex-basis: 96px;
-}
-@keyframes epic-sans-badge-glow {
-  0%, 100% { box-shadow: 0 0 0 1px rgba(164, 112, 224, .46), 0 0 7px 1px rgba(143, 75, 255, .32); }
-  50% { box-shadow: 0 0 0 1px rgba(218, 188, 255, .72), 0 0 12px 3px rgba(143, 75, 255, .58); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .verification-mark.verification-epic-sans { animation: none; }
+  width: 42px;
+  height: 42px;
+  flex-basis: 42px;
+  vertical-align: -12px;
 }
