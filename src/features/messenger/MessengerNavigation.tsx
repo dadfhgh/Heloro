@@ -34,6 +34,8 @@ type NavigationProps = {
   onClose: () => void;
   onOpenInbox: () => void;
   onOpenContacts: () => void;
+  onCreateGroup: () => void;
+  onCreateChannel: () => void;
   onOpenNews: () => void;
   onOpenSupport: () => void;
   onOpenSettings: () => void;
@@ -47,6 +49,8 @@ export function MessengerNavigation({
   onClose,
   onOpenInbox,
   onOpenContacts,
+  onCreateGroup,
+  onCreateChannel,
   onOpenNews,
   onOpenSupport,
   onOpenSettings,
@@ -88,6 +92,8 @@ export function MessengerNavigation({
           <div className="navigation-group-label">{ru ? "МЕССЕНДЖЕР" : "MESSENGER"}</div>
           <button type="button" className="navigation-item" onClick={() => run(onOpenInbox)}><MessageCircle size={19} /><span>{ru ? "Сообщения" : "Messages"}</span></button>
           <button type="button" className="navigation-item" onClick={() => run(onOpenContacts)}><Users size={19} /><span>{ru ? "Контакты" : "Contacts"}</span></button>
+          <button type="button" className="navigation-item" onClick={() => run(onCreateGroup)}><Users size={19} /><span>{ru ? "Новая группа" : "New group"}</span></button>
+          <button type="button" className="navigation-item" onClick={() => run(onCreateChannel)}><Megaphone size={19} /><span>{ru ? "Новый канал" : "New channel"}</span></button>
           <button type="button" className="navigation-item" onClick={() => run(onOpenNews)}><Megaphone size={19} /><span>Heloro New</span></button>
           <button type="button" className="navigation-item" onClick={() => run(onOpenSupport)}><Headphones size={19} /><span>Support Heloro</span></button>
 
@@ -134,6 +140,7 @@ type SettingsProps = {
   onThemeChange: (theme: ThemePreference) => void;
   onLocaleChange: (locale: Locale) => void;
   onClose: () => void;
+  onOpenMyProfile: () => void;
   onOpenSupport: () => void;
   onOpenAdmin: () => void;
   onSignOut: () => void;
@@ -177,6 +184,7 @@ export function MessengerSettings({
   onThemeChange,
   onLocaleChange,
   onClose,
+  onOpenMyProfile,
   onOpenSupport,
   onOpenAdmin,
   onSignOut,
@@ -218,7 +226,7 @@ export function MessengerSettings({
                 </div>
                 <div className="settings-info-row"><span>{ru ? "Имя профиля" : "Profile name"}</span><strong>{profile.display_name}</strong></div>
                 <div className="settings-info-row"><span>HELORO ID</span><strong>@{profile.username}</strong></div>
-                <p className="settings-muted-note">{ru ? "Изменение имени и фотографии профиля будет добавлено отдельно." : "Profile name and photo editing will be added separately."}</p>
+                <button type="button" className="settings-action-button" onClick={onOpenMyProfile}><Users size={18} /> {ru ? "Открыть мой профиль" : "Open my profile"}</button>
                 <button type="button" className="settings-signout" onClick={onSignOut}><span>{ru ? "Выйти из аккаунта" : "Sign out"}</span></button>
               </div>
             )}

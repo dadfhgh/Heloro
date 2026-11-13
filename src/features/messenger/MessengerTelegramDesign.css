@@ -36,6 +36,7 @@
   -webkit-backdrop-filter: none;
 }
 .inbox-panel {
+  position: relative;
   display: flex;
   flex-direction: column;
   padding: 0;
@@ -996,3 +997,182 @@ html[data-theme="dark"] .chat-action-menu button { color: #eee; }
 html[data-theme="dark"] .chat-action-menu button:hover,
 html[data-theme="dark"] .chat-action-menu button:focus-visible { background: #333; }
 
+
+/* Mobile-first settings and own-profile ergonomics */
+.settings-page-header { padding-top: max(12px, env(safe-area-inset-top)); }
+.profile-actions-row { display:flex; flex-wrap:wrap; justify-content:center; gap:8px; width:100%; }
+.profile-edit-form { display:grid; gap:12px; width:100%; margin-top:8px; }
+.profile-edit-form label { display:grid; gap:6px; color:#666; text-align:left; font-size:11px; font-weight:650; }
+.profile-edit-form input {
+  width:100%; min-height:42px; padding:0 11px; border:1px solid #ddd; border-radius:8px;
+  color:#222; background:#fff; font-size:13px;
+}
+.profile-edit-actions { display:flex; justify-content:flex-end; gap:8px; }
+.profile-edit-save { color:#fff; background:#292929; }
+html[data-theme="dark"] .profile-edit-form label { color:#aaa; }
+html[data-theme="dark"] .profile-edit-form input { border-color:#444; color:#eee; background:#222; }
+html[data-theme="dark"] .profile-edit-save { color:#111; background:#eee; }
+@media (max-width: 760px) {
+  .settings-page-header { padding: max(12px, env(safe-area-inset-top)) 14px 12px; }
+  .settings-page-body { display:flex; flex-direction:column; min-height:0; overflow:hidden; }
+  .settings-sidebar {
+    display:flex; flex:0 0 auto; flex-direction:row; gap:5px; width:100%; max-width:100%;
+    padding:8px 9px; overflow-x:auto; border-right:0; border-bottom:1px solid #e5e5e5;
+    scrollbar-width:none;
+  }
+  .settings-sidebar::-webkit-scrollbar { display:none; }
+  .settings-sidebar button { flex:0 0 auto; min-height:38px; padding:0 12px; white-space:nowrap; }
+  .settings-content { flex:1; min-height:0; overflow-y:auto; padding:16px 14px max(22px, env(safe-area-inset-bottom)); }
+  .settings-content-heading { position:sticky; top:-16px; z-index:2; padding:8px 0 12px; background:inherit; }
+  .settings-account-card { flex-wrap:wrap; }
+  .profile-view-overlay { align-items:stretch; padding:0; }
+  .profile-view-card { width:100%; max-width:none; height:100dvh; max-height:100dvh; overflow-y:auto; border:0; border-radius:0; }
+  .profile-view-cover { height:max(116px, calc(env(safe-area-inset-top) + 88px)); }
+  .profile-view-content { padding:0 17px max(24px, env(safe-area-inset-bottom)); }
+  .profile-view-avatar { width:88px; height:88px; }
+  .profile-actions-row .profile-view-action { flex:1 1 130px; min-height:42px; justify-content:center; }
+  .profile-edit-form { margin-bottom:18px; }
+}
+html[data-theme="dark"] .settings-sidebar { border-color:#333; }
+
+/* Keep the compose menu anchored to the top bar without changing desktop geometry. */
+.inbox-topbar { position: relative; }
+
+
+/* A discoverable one-tap group creation action, sized for narrow phones. */
+.inbox-topbar .create-group-button {
+  width: auto;
+  min-width: 0;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 11px;
+  border: 1px solid #e1e1e1;
+  border-radius: 18px;
+  color: #444;
+  background: #f7f7f7;
+  font-size: 11px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.inbox-topbar .create-group-button:hover {
+  color: #222;
+  background: #ededed;
+}
+html[data-theme="dark"] .inbox-topbar .create-group-button {
+  border-color: #3a3a3a;
+  color: #eee;
+  background: #252525;
+}
+html[data-theme="dark"] .inbox-topbar .create-group-button:hover {
+  color: #fff;
+  background: #333;
+}
+@media (max-width: 380px) {
+  .inbox-topbar .create-group-button { height: 33px; gap: 4px; padding: 0 8px; font-size: 10px; }
+}
+
+
+/* Compose placement mirrors Telegram: desktop top corner, Android floating button. */
+.inbox-create-wrap {
+  position: absolute;
+  z-index: 75;
+  top: 11px;
+  right: 13px;
+}
+.inbox-create-fab {
+  display: none;
+}
+@media (max-width: 760px) {
+  .inbox-topbar .compose-button {
+    display: none;
+  }
+  .inbox-create-wrap {
+    top: auto;
+    right: 17px;
+    bottom: calc(env(safe-area-inset-bottom) + 72px);
+  }
+  .inbox-create-fab {
+    display: grid;
+    width: 56px;
+    height: 56px;
+    place-items: center;
+    border: 0;
+    border-radius: 50%;
+    color: #fff;
+    background: #292929;
+    box-shadow: 0 3px 14px rgba(0,0,0,.22);
+  }
+  .inbox-create-fab:active {
+    transform: scale(.96);
+  }
+  .chat-create-menu {
+    top: auto;
+    right: 0;
+    bottom: calc(100% + 9px);
+    width: min(245px, calc(100vw - 30px));
+    padding: 6px;
+    border-radius: 13px;
+    box-shadow: 0 12px 35px rgba(0,0,0,.2);
+  }
+  .chat-create-menu button {
+    min-height: 48px;
+    gap: 12px;
+    padding: 0 12px;
+    font-size: 13px;
+  }
+  html[data-theme="dark"] .inbox-create-fab {
+    color: #111;
+    background: #eee;
+  }
+}
+
+
+/* Mobile compose menu: keep every action inside the viewport with generous touch targets. */
+@media (max-width: 760px) {
+  .inbox-create-wrap {
+    right: max(16px, env(safe-area-inset-right));
+    bottom: calc(env(safe-area-inset-bottom) + 76px);
+  }
+  .inbox-create-fab {
+    width: 60px;
+    height: 60px;
+    min-width: 60px;
+    min-height: 60px;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .chat-create-menu {
+    position: fixed;
+    z-index: 1000;
+    top: auto;
+    right: max(16px, env(safe-area-inset-right));
+    bottom: calc(env(safe-area-inset-bottom) + 148px);
+    left: auto;
+    width: min(290px, calc(100vw - 32px));
+    max-height: min(60vh, 360px);
+    overflow-y: auto;
+    padding: 8px;
+    border-radius: 15px;
+    box-sizing: border-box;
+    overscroll-behavior: contain;
+  }
+  .chat-create-menu button {
+    display: flex;
+    width: 100%;
+    min-height: 58px;
+    padding: 0 15px;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 600;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .chat-create-menu button svg {
+    width: 21px;
+    height: 21px;
+    flex: 0 0 21px;
+  }
+}
