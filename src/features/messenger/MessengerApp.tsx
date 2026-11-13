@@ -120,6 +120,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const [activeCommunityRoomId, setActiveCommunityRoomId] = useState<string | null>(null);
   const [communityCreateKind, setCommunityCreateKind] = useState<"group" | "channel" | null>(null);
   const [communityRooms, setCommunityRooms] = useState<CommunityRoomPreview[]>([]);
+  const [communitySearchRooms, setCommunitySearchRooms] = useState<CommunityRoomPreview[]>([]);
   const [showCreateMenu, setShowCreateMenu] = useState(false);
   const [viewedProfile, setViewedProfile] = useState<PublicProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
@@ -157,10 +158,16 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   }, [inbox, search]);
 
   const visibleCommunityRooms = useMemo(() => {
-    if (chatFilter === "personal") return [];
+    if (chatFilter === "personal" && !showSearch) return [];
     const query = search.trim().toLocaleLowerCase().replace(/^@/, "");
-    return communityRooms.filter((item) => !query || item.name.toLocaleLowerCase().includes(query) || item.username.toLocaleLowerCase().includes(query) || item.description.toLocaleLowerCase().includes(query));
-  }, [communityRooms, search, chatFilter]);
+    const source = showSearch ? [...communityRooms, ...communitySearchRooms] : communityRooms;
+    const unique = new Map(source.map((item) => [item.id, item]));
+    return [...unique.values()].filter((item) =>
+      !query || item.name.toLocaleLowerCase().includes(query) ||
+      item.username.toLocaleLowerCase().includes(query) ||
+      item.description.toLocaleLowerCase().includes(query)
+    );
+  }, [communityRooms, communitySearchRooms, search, chatFilter, showSearch]);
 
   async function refreshInbox(selectId?: string) {
     const updated = await getInbox();
@@ -174,9 +181,17 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   }
 
   async function refreshCommunityRooms() {
+    const { data: memberships, error: membershipError } = await client.from("community_room_members")
+      .select("room_id").eq("user_id", user.id);
+    if (membershipError) throw membershipError;
+    const roomIds = (memberships ?? []).map((item) => item.room_id as string);
+    if (roomIds.length === 0) {
+      setCommunityRooms([]);
+      return;
+    }
     const { data, error: roomError } = await client.from("community_rooms")
       .select("id, kind, name, username, description, avatar_url, is_public, updated_at")
-      .order("updated_at", { ascending: false }).limit(40);
+      .in("id", roomIds).order("updated_at", { ascending: false }).limit(100);
     if (roomError) throw roomError;
     setCommunityRooms((data ?? []) as CommunityRoomPreview[]);
   }
@@ -234,6 +249,33 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
       .subscribe();
     return () => { active = false; void client.removeChannel(channel); };
   }, [client, user.id, locale]);
+
+  useEffect(() => {
+    const rawSearch = search.trim();
+    const handleQuery = rawSearch.startsWith("@")
+      ? rawSearch.slice(1).toLocaleLowerCase().replace(/[^a-z0-9_]/g, "")
+      : "";
+    if (!showSearch || handleQuery.length < 2) {
+      setCommunitySearchRooms([]);
+      return;
+    }
+    let active = true;
+    void client.from("community_rooms")
+      .select("id, kind, name, username, description, avatar_url, is_public, updated_at")
+      .eq("is_public", true)
+      .ilike("username", `%${handleQuery}%`)
+      .order("updated_at", { ascending: false })
+      .limit(15)
+      .then(({ data, error: searchError }) => {
+        if (!active) return;
+        if (searchError) {
+          setCommunitySearchRooms([]);
+          return;
+        }
+        setCommunitySearchRooms((data ?? []) as CommunityRoomPreview[]);
+      });
+    return () => { active = false; };
+  }, [client, search, showSearch]);
 
   useEffect(() => {
     if (inbox.length === 0) {
