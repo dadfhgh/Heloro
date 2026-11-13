@@ -273,7 +273,7 @@ export default function HeloroSPanel({
         setError(errorText(cause, ru ? "Сообщество удалено, но журнал не удалось обновить." : "Community deleted, but the audit log could not be refreshed.", ru));
       });
     } catch (cause) {
-      setError(errorText(cause, ru ? "Не удалось удалить сообщество." : "Could not delete community."));
+      setError(errorText(cause, ru ? "Не удалось удалить сообщество." : "Could not delete community.", ru));
     } finally { setBusy(false); }
   }
 
@@ -461,7 +461,7 @@ export default function HeloroSPanel({
         setError(errorText(cause, ru ? "Решение сохранено, но список жалоб не обновился." : "Decision saved, but the report list could not be refreshed.", ru));
       });
     } catch (cause) {
-      setError(errorText(cause, ru ? "Не удалось обновить жалобу." : "Could not update report."));
+      setError(errorText(cause, ru ? "Не удалось обновить жалобу." : "Could not update report.", ru));
     } finally { setBusy(false); }
   }
 
@@ -518,7 +518,7 @@ export default function HeloroSPanel({
         setError(errorText(cause, ru ? "Роль изменена, но список сотрудников не обновился." : "Role changed, but the staff list could not be refreshed.", ru));
       });
     } catch (cause) {
-      setError(errorText(cause, ru ? "Не удалось изменить роль." : "Could not change role."));
+      setError(errorText(cause, ru ? "Не удалось изменить роль." : "Could not change role.", ru));
     } finally { setBusy(false); }
   }
 
@@ -536,7 +536,7 @@ export default function HeloroSPanel({
         setError(errorText(cause, ru ? "Настройка сохранена, но список параметров не обновился." : "Setting saved, but settings could not be refreshed.", ru));
       });
     } catch (cause) {
-      setError(errorText(cause, ru ? "Не удалось сохранить настройку." : "Could not save setting."));
+      setError(errorText(cause, ru ? "Не удалось сохранить настройку." : "Could not save setting.", ru));
     } finally { setBusy(false); }
   }
 
@@ -571,7 +571,7 @@ export default function HeloroSPanel({
       const message = cause instanceof Error ? cause.message : "";
       setError(message.includes("epic_sans_badge_already_assigned")
         ? (ru ? "Эксклюзивная отметка Epic Sans уже выдана другому аккаунту." : "The exclusive Epic Sans badge is already assigned to another account.")
-        : errorText(cause, ru ? "Не удалось изменить отметку." : "Could not update badge."));
+        : errorText(cause, ru ? "Не удалось изменить отметку." : "Could not update badge.", ru));
     } finally { setBusy(false); }
   }
 
@@ -676,7 +676,7 @@ export default function HeloroSPanel({
                   </div>
                 )}
                 {tab === "roles" && isOwner && <div className="admin-role-editor"><select value={roleChoice} onChange={(event) => setRoleChoice(event.target.value)}><option value="admin">Admin</option><option value="moderator">Moderator</option></select><button disabled={busy || selectedUser.id === user.id} onClick={() => void changeRole(selectedUser, roleChoice)}>{ru ? "Назначить роль" : "Assign role"}</button><button className="admin-secondary-action" disabled={busy || selectedUser.id === user.id} onClick={() => void changeRole(selectedUser, null)}>{ru ? "Снять роль" : "Remove role"}</button></div>}
-                {tab === "verification" && canManageBadges && <div className="admin-role-editor"><select value={badgeType} onChange={(event) => setBadgeType(event.target.value as BadgeType)}><option value="blue">{ru ? "Синяя — подтверждённая личность" : "Blue — verified identity"}</option><option value="gold">{ru ? "Золотая — организация" : "Gold — organization"}</option><option value="creator">{ru ? "Автор" : "Creator"}</option><option value="epic_sans" disabled={!isOwner}>{ru ? "Epic Sans — эксклюзивная фиолетовая звезда" : "Epic Sans — exclusive violet star"}</option></select><button disabled={busy} onClick={() => void saveBadge(selectedUser)}>{ru ? "Выдать отметку" : "Grant badge"}</button><button className="admin-secondary-action" disabled={busy} onClick={() => { if (window.confirm(ru ? "Снять отметку верификации?" : "Revoke this verification badge?")) void setVerificationBadge(client, selectedUser.id, user.id, null).then(() => loadAudit()).then(() => setNotice(ru ? "Отметка снята." : "Badge revoked.")).catch((cause: unknown) => setError(errorText(cause, "Could not revoke badge."))); }}>{ru ? "Снять отметку" : "Revoke badge"}</button></div>}
+                {tab === "verification" && canManageBadges && <div className="admin-role-editor"><select value={badgeType} onChange={(event) => setBadgeType(event.target.value as BadgeType)}><option value="blue">{ru ? "Синяя — подтверждённая личность" : "Blue — verified identity"}</option><option value="gold">{ru ? "Золотая — организация" : "Gold — organization"}</option><option value="creator">{ru ? "Автор" : "Creator"}</option><option value="epic_sans" disabled={!isOwner}>{ru ? "Epic Sans — эксклюзивная фиолетовая звезда" : "Epic Sans — exclusive violet star"}</option></select><button disabled={busy} onClick={() => void saveBadge(selectedUser)}>{ru ? "Выдать отметку" : "Grant badge"}</button><button className="admin-secondary-action" disabled={busy} onClick={() => { if (window.confirm(ru ? "Снять отметку верификации?" : "Revoke this verification badge?")) void setVerificationBadge(client, selectedUser.id, user.id, null).then(() => loadAudit()).then(() => setNotice(ru ? "Отметка снята." : "Badge revoked.")).catch((cause: unknown) => setError(errorText(cause, ru ? "Не удалось снять отметку." : "Could not revoke badge.", ru))); }}>{ru ? "Снять отметку" : "Revoke badge"}</button></div>}
                 {tab === "users" && <p className="admin-muted">{ru ? "Доступны только публичные данные профиля. Личные переписки и пароли здесь не отображаются." : "Only public profile information is shown. Private chats and passwords are never displayed here."}</p>}
               </div>
             )}
