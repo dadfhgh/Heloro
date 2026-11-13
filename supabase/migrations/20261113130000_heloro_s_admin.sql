@@ -26,12 +26,19 @@ alter table public.user_reports
   add column if not exists review_note text,
   add column if not exists reviewed_by uuid references auth.users(id) on delete set null,
   add column if not exists reviewed_at timestamptz;
+alter table public.user_reports alter column reported_user_id drop not null;
 
 alter table public.user_reports
   drop constraint if exists user_reports_target_type_check;
 alter table public.user_reports
   add constraint user_reports_target_type_check
-  check (target_type in ('user', 'message', 'group', 'channel'));
+  check (
+    target_type in ('user', 'message', 'group', 'channel')
+    and (
+      (target_type = 'user' and reported_user_id is not null)
+      or (target_type <> 'user' and target_id is not null)
+    )
+  );
 
 create table if not exists public.account_restrictions (
   id uuid primary key default gen_random_uuid(),
@@ -177,6 +184,62 @@ as $$
   order by r.created_at desc
   limit 1;
 $$;
+
+create or replace function public.heloro_submit_report(
+  p_target_type text,
+  p_target_id uuid,
+  p_reported_user_id uuid,
+  p_reason text,
+  p_details text default ''
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $
+declare
+  reporter uuid := auth.uid();
+  report_id uuid;
+  owner_id uuid;
+begin
+  if reporter is null then
+    raise exception 'Authentication required' using errcode = '28000';
+  end if;
+  if p_target_type not in ('user', 'message', 'group', 'channel')
+    or p_reason not in ('spam', 'harassment', 'scam', 'inappropriate', 'other')
+    or char_length(trim(coalesce(p_details, ''))) > 1500 then
+    raise exception 'Invalid report details' using errcode = '22023';
+  end if;
+  if p_target_type = 'user' then
+    if p_reported_user_id is null or p_reported_user_id = reporter
+      or not exists (select 1 from public.profiles p where p.id = p_reported_user_id) then
+      raise exception 'Invalid user report target' using errcode = '22023';
+    end if;
+  else
+    if p_target_id is null then
+      raise exception 'Report target is required' using errcode = '22023';
+    end if;
+    if p_target_type = 'message' then
+      select m.sender_id into owner_id from public.messages m
+      where m.id = p_target_id and private.is_conversation_member(m.conversation_id);
+      if owner_id is null then raise exception 'Message not found or not accessible' using errcode = 'P0002'; end if;
+    elsif p_target_type = 'group' then
+      select r.created_by into owner_id from public.community_rooms r
+      where r.id = p_target_id and (r.is_public or private.is_community_member(r.id));
+      if owner_id is null then raise exception 'Group not found or not accessible' using errcode = 'P0002'; end if;
+    elsif p_target_type = 'channel' then
+      if not exists (select 1 from public.heloro_channels c where c.id = p_target_id) then
+        raise exception 'Channel not found' using errcode = 'P0002';
+      end if;
+    end if;
+    p_reported_user_id := owner_id;
+  end if;
+  insert into public.user_reports(reporter_id, reported_user_id, reason, details, target_type, target_id)
+  values (reporter, p_reported_user_id, p_reason, left(trim(coalesce(p_details, '')), 1500), p_target_type, p_target_id)
+  returning id into report_id;
+  return report_id;
+end;
+$;
 
 create or replace function public.heloro_admin_overview()
 returns jsonb
@@ -433,12 +496,6 @@ begin
       reviewed_at = now()
   where id = p_report_id;
 
-  insert into public.user_report_decisions(report_id, actor_id, previous_status, next_status, note)
-  values (p_report_id, actor, old_report.status, p_status, left(trim(coalesce(p_note, '')), 1000));
-
-  insert into public.admin_action_logs(actor_id, target_user_id, target_type, target_id, action, reason, details)
-  values (actor, old_report.reported_user_id, old_report.target_type, coalesce(old_report.target_id, old_report.reported_user_id),
-    'report_' || p_status, left(trim(coalesce(p_note, '')), 1000), jsonb_build_object('report_id', p_report_id));
 end;
 $$;
 
@@ -486,9 +543,6 @@ begin
     raise exception 'Support thread not found' using errcode = 'P0002';
   end if;
 
-  insert into public.admin_action_logs(actor_id, target_user_id, target_type, target_id, action, reason, details)
-  values (actor, thread_user, 'support_thread', p_thread_id, 'support_' || p_status,
-    'Support status or assignment changed', jsonb_build_object('assigned_to', p_assigned_to));
 end;
 $$;
 
@@ -612,28 +666,6 @@ create trigger audit_heloro_support_update
 after update of status, assigned_to on public.support_threads
 for each row execute function public.audit_heloro_support_update();
 
-create or replace function public.heloro_current_account_restriction()
-returns jsonb
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  select jsonb_build_object(
-    'id', r.id,
-    'restriction_type', r.restriction_type,
-    'reason', r.reason,
-    'created_at', r.created_at,
-    'expires_at', r.expires_at
-  )
-  from public.account_restrictions r
-  where r.user_id = (select auth.uid())
-    and r.revoked_at is null
-    and r.restriction_type in ('temporary_ban', 'freeze', 'ban')
-    and (r.expires_at is null or r.expires_at > now())
-  order by r.created_at desc
-  limit 1;
-$$;
 
 -- Restrictive policies add an account-status gate without widening existing table access.
 do $$
@@ -664,6 +696,7 @@ begin
 end $$;
 
 revoke all on function public.heloro_current_account_restriction() from public, anon;
+revoke all on function public.heloro_submit_report(text, uuid, uuid, text, text) from public, anon;
 revoke all on function public.heloro_admin_overview() from public, anon;
 revoke all on function public.heloro_admin_list_staff() from public, anon;
 revoke all on function public.heloro_admin_set_role(uuid, text) from public, anon;
@@ -677,6 +710,7 @@ revoke all on function public.audit_heloro_report_update() from public, anon, au
 revoke all on function public.audit_heloro_support_update() from public, anon, authenticated;
 
 grant execute on function public.heloro_current_account_restriction() to authenticated;
+grant execute on function public.heloro_submit_report(text, uuid, uuid, text, text) to authenticated;
 grant execute on function public.heloro_admin_overview() to authenticated;
 grant execute on function public.heloro_admin_list_staff() to authenticated;
 grant execute on function public.heloro_admin_set_role(uuid, text) to authenticated;
