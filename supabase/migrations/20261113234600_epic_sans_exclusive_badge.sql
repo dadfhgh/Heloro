@@ -32,14 +32,37 @@ create policy "Owner and admin grant verification badges"
     )
   );
 
+-- Epic Sans can be revoked only by the Owner. Admins retain revoke rights
+-- for ordinary blue, gold, and creator badges.
+drop policy if exists "Owner and admin revoke verification badges"
+  on public.verification_badges;
+
+create policy "Owner and admin revoke verification badges"
+  on public.verification_badges for delete to authenticated
+  using (
+    (
+      badge_type = 'epic_sans'
+      and private.has_heloro_role('owner')
+    )
+    or (
+      badge_type <> 'epic_sans'
+      and (
+        private.has_heloro_role('owner')
+        or private.has_heloro_role('admin')
+      )
+    )
+  );
+
 -- Serialize grants and check the global holder before replacing the target's
 -- existing badge. A failed duplicate grant leaves the target's old badge intact.
+-- SECURITY INVOKER is sufficient: authenticated Owners already hold the
+-- required RLS-governed SELECT / DELETE / INSERT privileges.
 create or replace function public.heloro_admin_grant_epic_sans_badge(
   p_target_user_id uuid
 )
 returns void
 language plpgsql
-security definer
+security invoker
 set search_path = ''
 as $$
 declare
@@ -74,5 +97,7 @@ begin
 end;
 $$;
 
-revoke all on function public.heloro_admin_grant_epic_sans_badge(uuid) from public;
-grant execute on function public.heloro_admin_grant_epic_sans_badge(uuid) to authenticated;
+revoke all on function public.heloro_admin_grant_epic_sans_badge(uuid)
+  from anon, service_role, public;
+grant execute on function public.heloro_admin_grant_epic_sans_badge(uuid)
+  to authenticated;
