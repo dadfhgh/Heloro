@@ -1072,3 +1072,58 @@ html[data-theme="dark"] .inbox-topbar .create-group-button:hover {
 @media (max-width: 380px) {
   .inbox-topbar .create-group-button { height: 33px; gap: 4px; padding: 0 8px; font-size: 10px; }
 }
+
+
+/* Compose placement mirrors Telegram: desktop top corner, Android floating button. */
+.inbox-create-wrap {
+  position: absolute;
+  z-index: 75;
+  top: 11px;
+  right: 13px;
+}
+.inbox-create-fab {
+  display: none;
+}
+@media (max-width: 760px) {
+  .inbox-topbar .compose-button {
+    display: none;
+  }
+  .inbox-create-wrap {
+    top: auto;
+    right: 17px;
+    bottom: calc(env(safe-area-inset-bottom) + 72px);
+  }
+  .inbox-create-fab {
+    display: grid;
+    width: 56px;
+    height: 56px;
+    place-items: center;
+    border: 0;
+    border-radius: 50%;
+    color: #fff;
+    background: #292929;
+    box-shadow: 0 3px 14px rgba(0,0,0,.22);
+  }
+  .inbox-create-fab:active {
+    transform: scale(.96);
+  }
+  .chat-create-menu {
+    top: auto;
+    right: 0;
+    bottom: calc(100% + 9px);
+    width: min(245px, calc(100vw - 30px));
+    padding: 6px;
+    border-radius: 13px;
+    box-shadow: 0 12px 35px rgba(0,0,0,.2);
+  }
+  .chat-create-menu button {
+    min-height: 48px;
+    gap: 12px;
+    padding: 0 12px;
+    font-size: 13px;
+  }
+  html[data-theme="dark"] .inbox-create-fab {
+    color: #111;
+    background: #eee;
+  }
+}
