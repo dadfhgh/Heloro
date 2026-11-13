@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import type { User } from "@supabase/supabase-js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  ArrowLeft, Bot, Check, ChevronRight, Command, MessageCircle,
+  ArrowLeft, Bot, ChevronRight, Command, MessageCircle,
   Pause, Play, Plus, Search, Send, ShieldCheck, Trash2, X,
 } from "lucide-react";
 import type { Locale } from "../../lib/i18n";
