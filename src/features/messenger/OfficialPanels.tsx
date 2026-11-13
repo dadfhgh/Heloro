@@ -3,15 +3,12 @@ import type { User } from "@supabase/supabase-js";
 import {
   BadgeCheck,
   Check,
-  CheckCircle2,
   ChevronRight,
-  CircleAlert,
   MessageCircle,
   Megaphone,
   Send,
   ShieldCheck,
   Trash2,
-  UserRound,
 } from "lucide-react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
@@ -29,15 +26,12 @@ import {
   sendDiscussionMessage,
   sendSupportMessage,
   subscribeToOfficialInserts,
-  type BadgeType,
   type ChannelComment,
   type ChannelPost,
   type DiscussionMessage,
   type SupportMessage,
   type SupportThread,
-  type UserReport,
 } from "../../lib/official";
-import { searchProfiles } from "../../lib/messenger";
 import { formatMessageTime, initials } from "../../lib/domain";
 import type { PublicProfile } from "../../lib/types";
 import type { Locale } from "../../lib/i18n";
