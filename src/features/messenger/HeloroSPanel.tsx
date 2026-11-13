@@ -34,6 +34,10 @@ type AdminThread = {
   id: string; user_id: string; status?: string; assigned_to?: string | null;
   created_at: string; updated_at: string;
 };
+type ReportDecision = {
+  id: string; report_id: string; actor_id: string;
+  previous_status: string | null; next_status: string; note: string; created_at: string;
+};
 type AuditEntry = {
   id: string; actor_id: string; target_user_id: string | null;
   target_type?: string | null; target_id?: string | null;
@@ -94,6 +98,7 @@ export default function HeloroSPanel({
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
   const [reports, setReports] = useState<AdminReport[]>([]);
+  const [reportDecisions, setReportDecisions] = useState<ReportDecision[]>([]);
   const [threads, setThreads] = useState<AdminThread[]>([]);
   const [selectedThread, setSelectedThread] = useState<AdminThread | null>(null);
   const [supportMessages, setSupportMessages] = useState<SupportMessage[]>([]);
@@ -141,7 +146,15 @@ export default function HeloroSPanel({
       .select("id, reporter_id, reported_user_id, reason, details, status, created_at, target_type, target_id, review_note")
       .order("created_at", { ascending: false }).limit(100);
     if (queryError) throw queryError;
-    setReports((data ?? []) as AdminReport[]);
+    const items = (data ?? []) as AdminReport[];
+    setReports(items);
+    if (items.length === 0) { setReportDecisions([]); return; }
+    const { data: history, error: historyError } = await client.from("user_report_decisions")
+      .select("id, report_id, actor_id, previous_status, next_status, note, created_at")
+      .in("report_id", items.map((item) => item.id))
+      .order("created_at", { ascending: false });
+    if (historyError) throw historyError;
+    setReportDecisions((history ?? []) as ReportDecision[]);
   }
 
   async function loadThreads() {
@@ -465,6 +478,7 @@ export default function HeloroSPanel({
               <small>{ru ? "Тип объекта" : "Target"}: {report.target_type || "user"} · ID: {shortId(report.target_id || report.reported_user_id)} · {new Date(report.created_at).toLocaleString()}</small>
               <p>{report.details || (ru ? "Описание отсутствует." : "No details provided.")}</p>
               <label>{ru ? "Заметка по решению" : "Decision note"}<textarea rows={2} value={reportNote[report.id] ?? report.review_note ?? ""} onChange={(event) => setReportNote((current) => ({ ...current, [report.id]: event.target.value }))} maxLength={1000} /></label>
+              {reportDecisions.filter((item) => item.report_id === report.id).map((item) => <small key={item.id} className="admin-decision-history">{new Date(item.created_at).toLocaleString()} · {item.next_status} · {shortId(item.actor_id)}{item.note ? " · "+item.note : ""}</small>)}
               <div className="admin-actions"><button disabled={busy || report.status === "reviewing"} onClick={() => void updateReport(report, "reviewing")}>{ru ? "В работу" : "Review"}</button><button disabled={busy || report.status === "resolved"} onClick={() => void updateReport(report, "resolved")}>{ru ? "Решено" : "Resolve"}</button><button disabled={busy || report.status === "dismissed"} onClick={() => void updateReport(report, "dismissed")}>{ru ? "Отклонить" : "Dismiss"}</button></div>
             </article>)}
             {reports.length === 0 && <p className="admin-muted">{ru ? "Жалоб пока нет." : "No reports yet."}</p>}
