@@ -1901,6 +1901,15 @@ html[data-theme="dark"] .profile-message-action { color: #111 !important; backgr
   color: #269bd2 !important;
   fill: rgba(38,155,210,.12);
 }
+
+/* Epic Sans uses the exact Support mark geometry, recolored violet and white. */
+.epic-sans-verified-mark {
+  display: inline-block;
+  flex: 0 0 auto;
+  vertical-align: -2px;
+  color: #9333ea !important;
+  fill: #fff;
+}
 .conversation-title-line strong,
 .navigation-item { min-width: 0; }
 .conversation-title-line strong { display: inline-flex; align-items: center; gap: 4px; }

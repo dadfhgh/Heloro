@@ -1,4 +1,4 @@
-export type BadgeType = "blue" | "gold" | "creator";
+export type BadgeType = "blue" | "gold" | "creator" | "epic_sans";
 
 export interface Profile {
   id: string;

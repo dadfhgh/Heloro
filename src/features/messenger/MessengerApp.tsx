@@ -73,6 +73,9 @@ function Avatar({ label, className = "", src }: { label: string; className?: str
 
 function VerificationMark({ type, title }: { type?: BadgeType | null; title: string }) {
   if (!type) return null;
+  if (type === "epic_sans") {
+    return <BadgeCheck size={14} className="epic-sans-verified-mark" aria-label="Epic Sans" role="img" />;
+  }
   const label = type === "blue" ? "blue" : type === "gold" ? "gold" : "creator";
   return (
     <span className={`verification-mark verification-${label}`} title={title} aria-label={title}>
@@ -332,7 +335,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
         }
         const next: Record<string, BadgeType> = {};
         for (const row of data ?? []) {
-          if (row.badge_type === "blue" || row.badge_type === "gold" || row.badge_type === "creator") {
+          if (row.badge_type === "blue" || row.badge_type === "gold" || row.badge_type === "creator" || row.badge_type === "epic_sans") {
             next[row.user_id] = row.badge_type;
           }
         }
