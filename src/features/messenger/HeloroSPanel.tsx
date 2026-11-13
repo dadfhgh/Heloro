@@ -336,16 +336,27 @@ export default function HeloroSPanel({
 
   useEffect(() => {
     if (!selectedThread) {
+      selectedThreadIdRef.current = null;
       setSupportMessages([]);
+      setReply("");
       return;
     }
+    const threadId = selectedThread.id;
+    selectedThreadIdRef.current = threadId;
     let active = true;
-    getSupportMessages(client, selectedThread.id)
-      .then((items) => { if (active) setSupportMessages(items); })
-      .catch((cause: unknown) => { if (active) setError(errorText(cause, ru ? "Не удалось загрузить переписку поддержки." : "Could not load support conversation.")); });
-    const channel = client.channel("heloro-s-admin-support-"+selectedThread.id)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "support_messages", filter: "thread_id=eq."+selectedThread.id }, (payload) => {
-        if (!active) return;
+    setSupportMessages([]);
+    getSupportMessages(client, threadId)
+      .then((items) => {
+        if (active && selectedThreadIdRef.current === threadId) setSupportMessages(items);
+      })
+      .catch((cause: unknown) => {
+        if (active && selectedThreadIdRef.current === threadId) {
+          setError(errorText(cause, ru ? "Не удалось загрузить переписку поддержки." : "Could not load support conversation.", ru));
+        }
+      });
+    const channel = client.channel("heloro-s-admin-support-"+threadId)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "support_messages", filter: "thread_id=eq."+threadId }, (payload) => {
+        if (!active || selectedThreadIdRef.current !== threadId) return;
         const item = payload.new as SupportMessage;
         setSupportMessages((current) => current.some((row) => row.id === item.id) ? current : [...current, item]);
       }).subscribe();
