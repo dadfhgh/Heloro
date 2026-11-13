@@ -1891,3 +1891,200 @@ html[data-theme="dark"] .profile-message-action { color: #111 !important; backgr
     width: calc(100% - 28px);
   }
 }
+
+
+/* Official Support: verified identity and a dedicated, polished private-chat surface. */
+.support-verified-mark {
+  display: inline-block;
+  flex: 0 0 auto;
+  vertical-align: -2px;
+  color: #269bd2 !important;
+  fill: rgba(38,155,210,.12);
+}
+.conversation-title-line strong,
+.navigation-item { min-width: 0; }
+.conversation-title-line strong { display: inline-flex; align-items: center; gap: 4px; }
+.navigation-item .support-verified-mark { margin-left: auto; }
+.support-panel { min-height: 0; }
+.support-chat-header {
+  gap: 12px;
+  min-height: 70px;
+  flex-basis: 70px;
+  padding: 0 20px;
+  background: linear-gradient(110deg, #fff 0%, #f5fbff 100%) !important;
+}
+.support-brand-avatar {
+  color: #fff !important;
+  background: linear-gradient(145deg, #43b7e8, #2186c5) !important;
+  box-shadow: 0 5px 16px rgba(38,155,210,.2) !important;
+}
+.support-chat-person { gap: 5px; }
+.support-chat-person strong {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 14px;
+}
+.support-chat-person small { color: #648093; font-size: 11px; }
+.support-official-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  padding: 7px 10px;
+  border: 1px solid #d7edf8;
+  border-radius: 999px;
+  color: #287da7;
+  background: #eef9ff;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.support-official-pill > span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #36a7d8;
+}
+.support-stream {
+  gap: 13px;
+  padding: 22px clamp(14px, 4vw, 58px) 18px;
+  background-color: #f2f8fb;
+  background-image: radial-gradient(rgba(36,133,177,.055) .7px, transparent .7px);
+  background-size: 20px 20px;
+}
+.support-welcome-card {
+  width: min(100%, 570px);
+  align-self: center;
+  display: grid;
+  grid-template-columns: 48px minmax(0,1fr);
+  align-items: center;
+  column-gap: 13px;
+  row-gap: 12px;
+  margin: 2px auto 10px;
+  padding: 17px 18px 15px;
+  border: 1px solid #dcecf4;
+  border-radius: 17px;
+  color: #294b60;
+  background: rgba(255,255,255,.94);
+  box-shadow: 0 8px 26px rgba(40,111,145,.07);
+}
+.support-welcome-icon {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  color: #fff;
+  background: linear-gradient(145deg, #49bce9, #2389c7);
+}
+.support-welcome-copy { min-width: 0; display: grid; gap: 4px; }
+.support-welcome-title { display: flex; align-items: center; gap: 5px; color: #1f3545; font-size: 14px; font-weight: 750; }
+.support-welcome-copy > span { color: #78909f; font-size: 11px; }
+.support-welcome-divider { grid-column: 1 / -1; height: 1px; background: #e9f1f5; }
+.support-welcome-card > p { grid-column: 1 / -1; margin: 0; color: #4f6878; font-size: 12px; line-height: 1.55; }
+.support-welcome-foot {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #6c8c9d;
+  font-size: 10px;
+}
+.support-welcome-foot svg { color: #3a9dc8; }
+.support-empty-state {
+  width: min(100%, 330px);
+  align-self: center;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  margin: auto;
+  padding: 12px 18px 25px;
+  color: #79909d;
+  text-align: center;
+}
+.support-empty-icon {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 3px;
+  border: 1px solid #dcebf2;
+  border-radius: 16px;
+  color: #3499c9;
+  background: rgba(255,255,255,.8);
+}
+.support-empty-state strong { color: #365568; font-size: 13px; }
+.support-empty-state > span { font-size: 11px; line-height: 1.5; }
+.support-message-row { width: 100%; }
+.support-message-bubble { max-width: min(78%, 590px); padding: 10px 13px 8px; border-radius: 15px 15px 15px 5px; }
+.support-message-row.mine .support-message-bubble { border-color: #cde8f5; border-radius: 15px 15px 5px 15px; background: #e4f4fc; }
+.support-message-bubble > strong { display: flex; align-items: center; gap: 4px; margin-bottom: 5px; color: #377b9d; font-size: 10px; }
+.support-message-row.mine .support-message-bubble > strong { color: #64879a; }
+.support-message-bubble p { line-height: 1.55; }
+.support-message-bubble time { display: block; margin-top: 5px; color: #8b9ca5; font-size: 9px; text-align: right; }
+.support-composer-wrap {
+  flex: 0 0 auto;
+  padding: 0 0 7px;
+  background: #f2f8fb;
+}
+.support-composer-wrap .system-composer {
+  width: min(calc(100% - 30px), 820px);
+  min-height: 60px;
+  margin: 8px auto 5px;
+  border-color: #dbeaf1;
+  border-radius: 17px;
+  box-shadow: 0 5px 18px rgba(35,113,151,.07);
+}
+.support-composer-wrap .system-composer input { font-size: 14px; }
+.support-composer-wrap .system-composer .send-button {
+  width: 42px;
+  height: 42px;
+  background: linear-gradient(145deg, #36aee0, #247fbd);
+}
+.support-composer-hint {
+  display: block;
+  padding: 0 18px 4px;
+  color: #91a3ad;
+  font-size: 9px;
+  text-align: center;
+}
+html[data-theme="dark"] .support-chat-header {
+  border-bottom-color: #263c49 !important;
+  background: linear-gradient(110deg, #17232b, #192c37) !important;
+}
+html[data-theme="dark"] .support-chat-person small { color: #91aebb; }
+html[data-theme="dark"] .support-official-pill { border-color: #28546a; color: #8bd2f3; background: #1b3543; }
+html[data-theme="dark"] .support-official-pill > span { background: #4ab8e7; }
+html[data-theme="dark"] .support-stream,
+html[data-theme="dark"] .support-composer-wrap { color: #d9e8ef; background-color: #111e26; }
+html[data-theme="dark"] .support-welcome-card { border-color: #294552; color: #d2e5ed; background: #1a2a34; box-shadow: 0 8px 25px rgba(0,0,0,.14); }
+html[data-theme="dark"] .support-welcome-title { color: #edf7fb; }
+html[data-theme="dark"] .support-welcome-copy > span,
+html[data-theme="dark"] .support-welcome-foot,
+html[data-theme="dark"] .support-composer-hint { color: #91aab7; }
+html[data-theme="dark"] .support-welcome-divider { background: #30434d; }
+html[data-theme="dark"] .support-welcome-card > p { color: #c1d4dd; }
+html[data-theme="dark"] .support-empty-icon { border-color: #2c4b5b; color: #78c9ec; background: #1b303b; }
+html[data-theme="dark"] .support-empty-state { color: #91aab7; }
+html[data-theme="dark"] .support-empty-state strong { color: #dcecf3; }
+html[data-theme="dark"] .support-message-bubble { border-color: #30444f; color: #e0edf2; background: #1b2a33; }
+html[data-theme="dark"] .support-message-row.mine .support-message-bubble { border-color: #28536a; background: #1b3543; }
+html[data-theme="dark"] .support-message-bubble > strong { color: #8cc9e5; }
+html[data-theme="dark"] .support-message-row.mine .support-message-bubble > strong { color: #9bbac8; }
+html[data-theme="dark"] .support-message-bubble time { color: #8ca3af; }
+html[data-theme="dark"] .support-composer-wrap .system-composer { border-color: #304651; background: #1a2a33; }
+html[data-theme="dark"] .support-composer-wrap .system-composer input { color: #edf7fb; }
+html[data-theme="dark"] .support-composer-wrap .system-composer input::placeholder { color: #91a6b1; }
+@media (max-width: 760px) {
+  .support-chat-header { min-height: 66px; flex-basis: 66px; padding: 0 13px; }
+  .support-brand-avatar { width: 44px; height: 44px; flex-basis: 44px; }
+  .support-official-pill { padding: 6px 8px; font-size: 9px; }
+  .support-stream { gap: 10px; padding: 13px 12px 12px; }
+  .support-welcome-card { grid-template-columns: 42px minmax(0,1fr); column-gap: 10px; padding: 14px 13px 12px; border-radius: 15px; }
+  .support-welcome-icon { width: 42px; height: 42px; border-radius: 13px; }
+  .support-welcome-title { font-size: 13px; }
+  .support-welcome-card > p { font-size: 11px; }
+  .support-message-bubble { max-width: 88%; }
+  .support-composer-wrap .system-composer { width: calc(100% - 20px); min-height: 56px; margin-top: 6px; }
+}
