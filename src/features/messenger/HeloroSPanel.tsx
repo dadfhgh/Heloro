@@ -269,7 +269,9 @@ export default function HeloroSPanel({
       if (rpcError) throw rpcError;
       setCommunities((current) => current.filter((row) => row.id !== item.id));
       setNotice(ru ? "Сообщество удалено для всех участников." : "Community deleted for all members.");
-      await loadAudit();
+      void loadAudit().catch((cause: unknown) => {
+        setError(errorText(cause, ru ? "Сообщество удалено, но журнал не удалось обновить." : "Community deleted, but the audit log could not be refreshed.", ru));
+      });
     } catch (cause) {
       setError(errorText(cause, ru ? "Не удалось удалить сообщество." : "Could not delete community."));
     } finally { setBusy(false); }
@@ -455,8 +457,10 @@ export default function HeloroSPanel({
         p_note: (reportNote[report.id] ?? "").trim(),
       });
       if (rpcError) throw rpcError;
-      await loadReports();
       setNotice(ru ? "Решение по жалобе сохранено." : "Report decision saved.");
+      void loadReports().catch((cause: unknown) => {
+        setError(errorText(cause, ru ? "Решение сохранено, но список жалоб не обновился." : "Decision saved, but the report list could not be refreshed.", ru));
+      });
     } catch (cause) {
       setError(errorText(cause, ru ? "Не удалось обновить жалобу." : "Could not update report."));
     } finally { setBusy(false); }
@@ -510,8 +514,10 @@ export default function HeloroSPanel({
         p_role: nextRole,
       });
       if (rpcError) throw rpcError;
-      await loadStaff();
       setNotice(ru ? "Роль обновлена." : "Role updated.");
+      void loadStaff().catch((cause: unknown) => {
+        setError(errorText(cause, ru ? "Роль изменена, но список сотрудников не обновился." : "Role changed, but the staff list could not be refreshed.", ru));
+      });
     } catch (cause) {
       setError(errorText(cause, ru ? "Не удалось изменить роль." : "Could not change role."));
     } finally { setBusy(false); }
@@ -526,8 +532,10 @@ export default function HeloroSPanel({
         p_value: value,
       });
       if (rpcError) throw rpcError;
-      await loadSettings();
       setNotice(ru ? "Настройка сохранена." : "Setting saved.");
+      void loadSettings().catch((cause: unknown) => {
+        setError(errorText(cause, ru ? "Настройка сохранена, но список параметров не обновился." : "Setting saved, but settings could not be refreshed.", ru));
+      });
     } catch (cause) {
       setError(errorText(cause, ru ? "Не удалось сохранить настройку." : "Could not save setting."));
     } finally { setBusy(false); }
@@ -557,7 +565,9 @@ export default function HeloroSPanel({
     try {
       await setVerificationBadge(client, target.id, user.id, badgeType);
       setNotice(ru ? "Отметка верификации обновлена." : "Verification badge updated.");
-      await loadAudit();
+      void loadAudit().catch((cause: unknown) => {
+        setError(errorText(cause, ru ? "Отметка обновлена, но журнал не обновился." : "Badge updated, but the audit log could not be refreshed.", ru));
+      });
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : "";
       setError(message.includes("epic_sans_badge_already_assigned")
