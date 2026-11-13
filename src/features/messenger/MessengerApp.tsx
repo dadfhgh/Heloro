@@ -11,7 +11,8 @@ import {
   Menu,
   Megaphone,
   MessageCircle,
-  MoreHorizontal,
+  MoreVertical,
+  UserRound,
   PencilLine,
   Phone,
   Search,
@@ -42,6 +43,7 @@ import OfficialPanels from "./OfficialPanels";
 import { setVerificationBadge, submitUserReport, submitContentReport } from "../../lib/official";
 import type { SettingsSection } from "./MessengerNavigation";
 import type { ThemePreference } from "../../lib/preferences";
+import "./MessengerTelegramDesign.css";
 
 type SystemView = "news" | "discussion" | "support" | "admin";
 
@@ -126,6 +128,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const [reportDetails, setReportDetails] = useState("");
   const [reportBusy, setReportBusy] = useState(false);
   const [chatFilter, setChatFilter] = useState<"all" | "personal">("all");
+  const [showChatActions, setShowChatActions] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const stickerInputRef = useRef<HTMLInputElement>(null);
   const gifInputRef = useRef<HTMLInputElement>(null);
@@ -437,6 +440,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
     setActiveId(null);
     setSystemView(null);
     setShowSearch(false);
+    setShowChatActions(false);
     setSearch("");
   }
 
@@ -627,9 +631,53 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                   <button className="icon-button" type="button" disabled title={locale === "ru" ? "Видеозвонки пока не подключены" : "Video calls are not enabled yet"} aria-label={locale === "ru" ? "Видеозвонки недоступны" : "Video calls unavailable"}>
                     <Video size={19} />
                   </button>
-                  <button className="icon-button" aria-label={locale === "ru" ? "Пожаловаться" : "Report"} title={locale === "ru" ? "Пожаловаться на пользователя" : "Report user"} onClick={() => { setReportMessageTargetId(null); setShowReport(true); }}>
-                    <MoreHorizontal size={21} />
-                  </button>
+                  <div
+                    className="chat-menu-wrap"
+                    onBlur={(event) => {
+                      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                        setShowChatActions(false);
+                      }
+                    }}
+                  >
+                    <button
+                      className="icon-button"
+                      type="button"
+                      aria-label={locale === "ru" ? "Действия с чатом" : "Chat actions"}
+                      title={locale === "ru" ? "Действия с чатом" : "Chat actions"}
+                      aria-haspopup="menu"
+                      aria-expanded={showChatActions}
+                      onClick={() => setShowChatActions((current) => !current)}
+                    >
+                      <MoreVertical size={20} />
+                    </button>
+                    {showChatActions && (
+                      <div className="chat-action-menu" role="menu">
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => {
+                            setShowChatActions(false);
+                            void openUserProfile(activeConversation.other_user_id);
+                          }}
+                        >
+                          <UserRound size={16} />
+                          {locale === "ru" ? "Открыть профиль" : "Open profile"}
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => {
+                            setShowChatActions(false);
+                            setReportMessageTargetId(null);
+                            setShowReport(true);
+                          }}
+                        >
+                          <Flag size={16} />
+                          {locale === "ru" ? "Пожаловаться" : "Report"}
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </header>
               <div className="message-stream">
