@@ -474,10 +474,13 @@ export default function HeloroSPanel({
         p_assigned_to: assignedTo,
       });
       if (rpcError) throw rpcError;
-      const refreshed = await loadThreads();
-      const current = refreshed.find((item) => item.id === thread.id);
-      if (current && selectedThreadIdRef.current === thread.id) setSelectedThread(current);
       setNotice(ru ? "Обращение обновлено." : "Support thread updated.");
+      void loadThreads().then((refreshed) => {
+        const current = refreshed.find((item) => item.id === thread.id);
+        if (current && selectedThreadIdRef.current === thread.id) setSelectedThread(current);
+      }).catch((cause: unknown) => {
+        setError(errorText(cause, ru ? "Обращение обновлено, но список поддержки не обновился." : "Support request updated, but the inbox could not be refreshed.", ru));
+      });
     } catch (cause) {
       setError(errorText(cause, ru ? "Не удалось обновить обращение." : "Could not update support thread.", ru));
     } finally { setBusy(false); }
@@ -495,10 +498,13 @@ export default function HeloroSPanel({
         setSupportMessages((current) => current.some((row) => row.id === item.id) ? current : [...current, item]);
         setReply("");
       }
-      const refreshed = await loadThreads();
-      const current = refreshed.find((thread) => thread.id === threadId);
-      if (current && selectedThreadIdRef.current === threadId) setSelectedThread(current);
       setNotice(ru ? "Ответ отправлен." : "Reply sent.");
+      void loadThreads().then((refreshed) => {
+        const current = refreshed.find((thread) => thread.id === threadId);
+        if (current && selectedThreadIdRef.current === threadId) setSelectedThread(current);
+      }).catch((cause: unknown) => {
+        setError(errorText(cause, ru ? "Ответ отправлен, но список обращений не обновился." : "Reply sent, but the support inbox could not be refreshed.", ru));
+      });
     } catch (cause) {
       setError(errorText(cause, ru ? "Не удалось отправить ответ." : "Could not send reply.", ru));
     } finally { setBusy(false); }
@@ -643,7 +649,7 @@ export default function HeloroSPanel({
         {(tab === "users" || tab === "moderation" || tab === "roles" || tab === "verification") && (
           <section className="admin-section">
             <div className="admin-section-heading"><div><h2>{tab === "users" ? (ru ? "Пользователи" : "Users") : tab === "moderation" ? (ru ? "Модерация аккаунтов" : "Account moderation") : tab === "roles" ? (ru ? "Роли и доступ" : "Roles and access") : (ru ? "Верификация" : "Verification")}</h2><p>{ru ? "Поиск по имени или @username" : "Search by name or @username"}</p></div></div>
-            <div className="admin-search"><Search size={16} /><input value={search} onChange={(event) => { setSelectedUser(null); setActiveRestrictions([]); setSearch(event.target.value); }} placeholder={ru ? "Имя пользователя или @username" : "Display name or @username"} /><button onClick={() => { setSelectedUser(null); setActiveRestrictions([]); setSearch(""); }} aria-label={ru ? "Очистить" : "Clear"}><X size={14} /></button></div>
+            <div className="admin-search"><Search size={16} /><input value={search} onChange={(event) => { setUsers([]); setSelectedUser(null); setActiveRestrictions([]); setSearch(event.target.value); }} placeholder={ru ? "Имя пользователя или @username" : "Display name or @username"} /><button onClick={() => { setUsers([]); setSelectedUser(null); setActiveRestrictions([]); setSearch(""); }} aria-label={ru ? "Очистить" : "Clear"}><X size={14} /></button></div>
             <div className="admin-user-results" aria-live="polite">
               {usersLoading && <p className="admin-muted" role="status">{ru ? "Поиск пользователей…" : "Searching users…"}</p>}
               {users.map((item) => <button key={item.id} className={"admin-user-row"+(selectedUser?.id === item.id ? " active" : "")} onClick={() => setSelectedUser(item)}>
