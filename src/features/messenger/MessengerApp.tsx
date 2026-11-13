@@ -548,7 +548,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   }
 
   async function removeDirectMessage(message: Message) {
-    if (message.sender_id !== user.id || !window.confirm(t(locale, "messageDeleteConfirm"))) return;
+    if (!window.confirm(t(locale, "messageDeleteConfirm"))) return;
     setError("");
     try {
       await deleteDirectMessage(message, user.id);
@@ -1207,9 +1207,8 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                         ) : message.body ? <p>{message.body}</p> : null}
                         <div className="message-meta">
                           <span>{formatMessageTime(message.created_at)} {mine && <CheckCheck size={13} />}</span>
-                          {mine
-                            ? <button type="button" className="message-delete-button" onClick={() => void removeDirectMessage(message)} aria-label={t(locale, "messageDelete")} title={t(locale, "messageDelete")}><Trash2 size={13} /></button>
-                            : <button type="button" className="message-delete-button" onClick={() => { setReportMessageTargetId(message.id); setReportReason("other"); setReportDetails(""); setShowReport(true); }} aria-label={locale === "ru" ? "Пожаловаться на сообщение" : "Report message"} title={locale === "ru" ? "Пожаловаться на сообщение" : "Report message"}><Flag size={13} /></button>}
+                          <button type="button" className="message-delete-button" onClick={() => void removeDirectMessage(message)} aria-label={t(locale, "messageDelete")} title={t(locale, "messageDelete")}><Trash2 size={13} /></button>
+                          {!mine && <button type="button" className="message-delete-button" onClick={() => { setReportMessageTargetId(message.id); setReportReason("other"); setReportDetails(""); setShowReport(true); }} aria-label={locale === "ru" ? "Пожаловаться на сообщение" : "Report message"} title={locale === "ru" ? "Пожаловаться на сообщение" : "Report message"}><Flag size={13} /></button>}
                         </div>
                       </div>
                     </div>
