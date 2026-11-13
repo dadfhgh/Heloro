@@ -595,6 +595,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                 locale={locale}
                 roles={roles}
                 onOpenDiscussion={() => openSystemView("discussion")}
+                onOpenNews={() => openSystemView("news")}
               />
             </div>
           ) : activeConversation ? (
