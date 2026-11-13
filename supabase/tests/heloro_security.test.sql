@@ -1,6 +1,6 @@
 begin;
 
-select plan(28);
+select plan(29);
 
 select has_table('public', 'profiles', 'profiles table exists');
 select has_table('public', 'conversations', 'conversations table exists');
@@ -23,6 +23,8 @@ select ok(has_table_privilege('authenticated', 'public.community_rooms', 'delete
 select ok(exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'community_rooms' and policyname = 'Owners delete their own communities' and cmd = 'DELETE'), 'community deletion is protected by the owner-only policy');
 select ok(exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'community_room_messages' and policyname = 'Authors and room managers delete community messages' and cmd = 'DELETE'), 'community messages have an author and manager delete policy');
 select ok(exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'messages' and policyname = 'Conversation participants delete direct messages' and cmd = 'DELETE' and qual like '%is_one_to_one_conversation_member%'), 'only one-to-one participants can delete any direct message');
+select has_table('public', 'community_admin_action_logs', 'community admin audit table exists');
+select has_function('private', 'is_one_to_one_conversation_member', array['uuid'], 'direct deletion is limited to one-to-one conversations');
 select has_column('public', 'community_room_members', 'admin_permissions', 'community admins have individual permission storage');
 select has_column('public', 'community_room_members', 'promoted_by', 'community admin promoter is recorded');
 select has_column('public', 'community_room_members', 'promoted_at', 'community admin promotion time is recorded');
