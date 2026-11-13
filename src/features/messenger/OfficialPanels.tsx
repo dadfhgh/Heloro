@@ -4,9 +4,11 @@ import {
   BadgeCheck,
   ChevronRight,
   Flag,
+  Headphones,
   MessageCircle,
   Megaphone,
   Send,
+  ShieldCheck,
   Trash2,
 } from "lucide-react";
 import type { SupabaseClient } from "@supabase/supabase-js";
