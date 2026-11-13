@@ -625,16 +625,6 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
             </button>
             <div className="brand-lockup"><div className="brand-symbol">H</div><span>HELORO</span></div>
             <button
-              className="icon-button create-group-button"
-              type="button"
-              title={locale === "ru" ? "Создать группу" : "Create group"}
-              aria-label={locale === "ru" ? "Создать группу" : "Create group"}
-              onClick={() => openCommunity(null, "group")}
-            >
-              <Users size={17} />
-              <span>{locale === "ru" ? "Группа" : "Group"}</span>
-            </button>
-            <button
               className="icon-button compose-button"
               title={t(locale, "inboxStartConversation")}
               aria-label={t(locale, "inboxStartConversation")}
@@ -644,19 +634,6 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
             >
               <PencilLine size={19} />
             </button>
-            {showCreateMenu && (
-              <div className="chat-create-menu" role="menu">
-                <button type="button" role="menuitem" onClick={() => { setShowCreateMenu(false); openSearch(); }}>
-                  <PencilLine size={17} /><span>{locale === "ru" ? "Новое сообщение" : "New message"}</span>
-                </button>
-                <button type="button" role="menuitem" onClick={() => openCommunity(null, "group")}>
-                  <Users size={17} /><span>{locale === "ru" ? "Новая группа" : "New group"}</span>
-                </button>
-                <button type="button" role="menuitem" onClick={() => openCommunity(null, "channel")}>
-                  <Megaphone size={17} /><span>{locale === "ru" ? "Новый канал" : "New channel"}</span>
-                </button>
-              </div>
-            )}
           </header>
 
           <div className="inbox-search-area">
@@ -808,6 +785,32 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
             {roles.includes("owner") && <span className="owner-mini-mark" title={t(locale, "ownerRole")}><ShieldCheck size={15} /></span>}
             <button className="icon-button profile-menu-button" title={t(locale, "settings")} aria-label={t(locale, "settings")} onClick={() => openSettings("account")}><Settings2 size={18} /></button>
           </footer>
+          <div className="inbox-create-wrap">
+            <button
+              className="inbox-create-fab"
+              type="button"
+              title={locale === "ru" ? "Создать" : "Compose"}
+              aria-label={locale === "ru" ? "Создать сообщение, группу или канал" : "Create a message, group or channel"}
+              aria-expanded={showCreateMenu}
+              aria-haspopup="menu"
+              onClick={() => setShowCreateMenu((current) => !current)}
+            >
+              <PencilLine size={22} />
+            </button>
+            {showCreateMenu && (
+              <div className="chat-create-menu" role="menu">
+                <button type="button" role="menuitem" onClick={() => { setShowCreateMenu(false); openSearch(); }}>
+                  <PencilLine size={17} /><span>{locale === "ru" ? "Новое сообщение" : "New message"}</span>
+                </button>
+                <button type="button" role="menuitem" onClick={() => openCommunity(null, "group")}>
+                  <Users size={17} /><span>{locale === "ru" ? "Новая группа" : "New group"}</span>
+                </button>
+                <button type="button" role="menuitem" onClick={() => openCommunity(null, "channel")}>
+                  <Megaphone size={17} /><span>{locale === "ru" ? "Новый канал" : "New channel"}</span>
+                </button>
+              </div>
+            )}
+          </div>
         </aside>
 
         <section className="conversation-panel">
