@@ -47,7 +47,6 @@ import CommunityHub from "./CommunityHub";
 import { setVerificationBadge, submitUserReport, submitContentReport } from "../../lib/official";
 import type { SettingsSection } from "./MessengerNavigation";
 import type { ThemePreference } from "../../lib/preferences";
-import epicSansBadgeArt from "./epic-sans-badge.svg";
 import "./MessengerTelegramDesign.css";
 import "./MessengerCommunity.css";
 
@@ -78,11 +77,7 @@ function VerificationMark({ type, title }: { type?: BadgeType | null; title: str
   const accessibleTitle = type === "epic_sans" ? "Epic Sans" : title;
   return (
     <span className={`verification-mark verification-${label}`} title={accessibleTitle} aria-label={accessibleTitle}>
-      {type === "epic_sans" ? (
-        <img className="epic-sans-badge-art" src={epicSansBadgeArt} alt="" aria-hidden="true" draggable={false} />
-      ) : (
-        <BadgeCheck size={14} strokeWidth={2.8} />
-      )}
+      <BadgeCheck size={14} strokeWidth={2.8} />
     </span>
   );
 }
