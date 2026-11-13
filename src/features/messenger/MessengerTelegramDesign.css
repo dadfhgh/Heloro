@@ -701,6 +701,8 @@
   border-radius: 50%;
   background: #777;
 }
+.profile-view-avatar { aspect-ratio: 1 / 1; flex: 0 0 88px; overflow: hidden; border-radius: 50%; }
+.profile-view-avatar img { display: block; width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
 .profile-view-heading { color: #777; }
 .profile-view-heading button { color: #666; }
 .profile-view-content h2 { color: #222; font-size: 18px; }
@@ -1175,4 +1177,314 @@ html[data-theme="dark"] .inbox-topbar .create-group-button:hover {
     height: 21px;
     flex: 0 0 21px;
   }
+}
+
+
+/* Telegram-style full-screen New Message flow */
+.new-message-screen {
+  position: absolute;
+  z-index: 120;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  color: #202124;
+  background: #fff;
+}
+.new-message-header {
+  flex: 0 0 58px;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-height: 58px;
+  padding: 0 12px;
+  border-bottom: 1px solid #e9e9e9;
+  background: #fff;
+}
+.new-message-back {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  color: #555;
+  background: transparent;
+}
+.new-message-back:hover { background: #f1f1f1; }
+.new-message-header h2 {
+  min-width: 0;
+  margin: 0;
+  color: #202124;
+  font-size: 17px;
+  font-weight: 650;
+}
+.new-message-search-area {
+  flex: 0 0 auto;
+  padding: 10px 13px 8px;
+  border-bottom: 1px solid #ededed;
+  background: #fff;
+}
+.new-message-search {
+  min-height: 43px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 13px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  color: #777;
+  background: #f1f2f3;
+}
+.new-message-search:focus-within {
+  border-color: #c9cacc;
+  background: #fff;
+  box-shadow: 0 0 0 2px rgba(0,0,0,.04);
+}
+.new-message-search input {
+  width: 100%;
+  min-width: 0;
+  min-height: 41px;
+  border: 0;
+  outline: 0;
+  color: #202124;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+}
+.new-message-search input::placeholder { color: #8c8c8c; }
+.new-message-clear {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  color: #777;
+  background: transparent;
+}
+.new-message-actions {
+  flex: 0 0 auto;
+  padding: 3px 0;
+  border-bottom: 7px solid #f3f3f3;
+  background: #fff;
+}
+.new-message-actions button {
+  width: 100%;
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  gap: 17px;
+  padding: 0 19px;
+  border: 0;
+  color: #303030;
+  background: #fff;
+  text-align: left;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 550;
+}
+.new-message-actions button svg {
+  flex: 0 0 22px;
+  color: #656565;
+}
+.new-message-actions button:hover { background: #f5f5f5; }
+.new-message-people {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: #fff;
+  scrollbar-width: thin;
+}
+.new-message-section-title {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  padding: 8px 16px 3px;
+  color: #858585;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .045em;
+  text-transform: uppercase;
+}
+.new-message-person {
+  width: 100%;
+  min-height: 69px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  border: 0;
+  border-bottom: 1px solid #f0f0f0;
+  color: #222;
+  background: #fff;
+  text-align: left;
+  font: inherit;
+}
+.new-message-person:hover { background: #f6f6f6; }
+.new-message-person .avatar {
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+  border-radius: 50%;
+}
+.new-message-person-copy {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: grid;
+  gap: 4px;
+}
+.new-message-person-copy strong {
+  overflow: hidden;
+  color: #252525;
+  font-size: 14px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.new-message-person-copy small {
+  overflow: hidden;
+  color: #888;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.new-message-person > svg,
+.new-message-person time {
+  flex: 0 0 auto;
+  color: #888;
+}
+.new-message-person time { font-size: 11px; }
+.new-message-empty {
+  display: grid;
+  justify-items: center;
+  gap: 9px;
+  padding: 36px 22px;
+  color: #8a8a8a;
+  text-align: center;
+  font-size: 13px;
+}
+.new-message-empty strong { color: #555; font-size: 14px; }
+.new-message-empty p { max-width: 270px; margin: 0; line-height: 1.45; }
+
+html[data-theme="dark"] .new-message-screen,
+html[data-theme="dark"] .new-message-header,
+html[data-theme="dark"] .new-message-search-area,
+html[data-theme="dark"] .new-message-actions,
+html[data-theme="dark"] .new-message-people,
+html[data-theme="dark"] .new-message-person { color: #eee; background: #181818; }
+html[data-theme="dark"] .new-message-header,
+html[data-theme="dark"] .new-message-search-area,
+html[data-theme="dark"] .new-message-person { border-color: #303030; }
+html[data-theme="dark"] .new-message-header h2,
+html[data-theme="dark"] .new-message-actions button,
+html[data-theme="dark"] .new-message-person-copy strong { color: #eee; }
+html[data-theme="dark"] .new-message-back { color: #ccc; }
+html[data-theme="dark"] .new-message-back:hover,
+html[data-theme="dark"] .new-message-person:hover,
+html[data-theme="dark"] .new-message-actions button:hover { background: #272727; }
+html[data-theme="dark"] .new-message-search { color: #aaa; background: #252525; }
+html[data-theme="dark"] .new-message-search:focus-within { border-color: #555; background: #202020; }
+html[data-theme="dark"] .new-message-search input { color: #eee; }
+html[data-theme="dark"] .new-message-search input::placeholder,
+html[data-theme="dark"] .new-message-person-copy small,
+html[data-theme="dark"] .new-message-person time { color: #999; }
+html[data-theme="dark"] .new-message-actions { border-bottom-color: #292929; }
+html[data-theme="dark"] .new-message-actions button svg,
+html[data-theme="dark"] .new-message-person > svg { color: #aaa; }
+html[data-theme="dark"] .new-message-section-title { color: #999; }
+html[data-theme="dark"] .new-message-empty strong { color: #ccc; }
+
+@media (max-width: 760px) {
+  .new-message-screen {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    box-sizing: border-box;
+  }
+  .new-message-header { flex-basis: 56px; min-height: 56px; }
+  .new-message-search-area { padding: 9px 12px; }
+  .new-message-person { min-height: 72px; padding: 8px 13px; }
+  .new-message-person .avatar { width: 49px; height: 49px; flex-basis: 49px; }
+}
+
+
+/* Persistent mobile navigation inspired by Telegram Android 12.4 */
+.mobile-menu-icon { display: none; }
+.mobile-bottom-nav { display: none; }
+@media (max-width: 760px) {
+  .desktop-menu-icon { display: none; }
+  .mobile-menu-icon { display: block; }
+  .inbox-profile { display: none; }
+  .mobile-bottom-nav {
+    position: absolute;
+    z-index: 130;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    min-height: 62px;
+    padding: 5px 5px max(5px, env(safe-area-inset-bottom));
+    border-top: 1px solid #e7e7e7;
+    background: rgba(255,255,255,.97);
+    box-sizing: border-box;
+  }
+  .mobile-bottom-nav button {
+    display: flex;
+    min-width: 0;
+    min-height: 50px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 4px 2px;
+    border: 0;
+    border-radius: 11px;
+    color: #777;
+    background: transparent;
+    font: inherit;
+    font-size: 10px;
+    font-weight: 600;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .mobile-bottom-nav button.active {
+    color: #171717;
+    background: #efefef;
+  }
+  .mobile-bottom-nav button svg { flex: 0 0 auto; }
+  html[data-theme="dark"] .mobile-bottom-nav {
+    border-color: #303030;
+    background: rgba(24,24,24,.97);
+  }
+  html[data-theme="dark"] .mobile-bottom-nav button { color: #aaa; }
+  html[data-theme="dark"] .mobile-bottom-nav button.active {
+    color: #fff;
+    background: #303030;
+  }
+  .conversation-list { padding-bottom: 72px; }
+  .inbox-create-wrap { bottom: calc(env(safe-area-inset-bottom) + 76px); }
+  .contacts-screen .new-message-people { padding-bottom: 70px; }
+}
+
+
+/* Dark theme: New Group / New Channel actions must not retain light surfaces. */
+html[data-theme="dark"] .new-message-actions {
+  background: #181818;
+}
+html[data-theme="dark"] .new-message-actions button {
+  color: #f5f5f5;
+  background: #181818;
+}
+html[data-theme="dark"] .new-message-actions button svg {
+  color: #dedede;
+}
+html[data-theme="dark"] .new-message-actions button:hover,
+html[data-theme="dark"] .new-message-actions button:focus-visible {
+  color: #fff;
+  background: #292929;
 }
