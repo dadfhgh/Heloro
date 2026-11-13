@@ -101,7 +101,7 @@ grant execute on function private.can_manage_community_admins(uuid) to authentic
 create table if not exists public.community_admin_action_logs (
   id uuid primary key default gen_random_uuid(),
   room_id uuid not null references public.community_rooms(id) on delete cascade,
-  actor_id uuid not null references auth.users(id) on delete restrict,
+  actor_id uuid references auth.users(id) on delete set null,
   target_user_id uuid not null references auth.users(id) on delete cascade,
   action text not null check (action in ('promoted', 'permissions_updated', 'demoted')),
   previous_role text,
@@ -155,7 +155,7 @@ begin
     or jsonb_typeof(p_permissions) <> 'object'
     or (p_permissions - array['change_info', 'delete_messages', 'post_messages', 'manage_admins']::text[]) <> '{}'::jsonb
     or exists (
-      select 1 from jsonb_each(p_permissions) item
+      select 1 from jsonb_each(p_permissions) as item(key, value)
       where jsonb_typeof(item.value) <> 'boolean'
     ) then
     raise exception 'Invalid administrator permissions' using errcode = '22023';
@@ -264,7 +264,7 @@ begin
   from public.community_room_members m
   where m.room_id = p_room_id and m.user_id = p_user_id;
 
-  if target_role <> 'admin' then
+  if target_role is distinct from 'admin' then
     raise exception 'Target user is not an administrator' using errcode = 'P0002';
   end if;
   if caller_role <> 'owner' and (
