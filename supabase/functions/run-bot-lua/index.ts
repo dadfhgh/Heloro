@@ -1,6 +1,17 @@
 import { createClient } from "npm:@supabase/supabase-js@2.57.0";
 import { executeLua } from "./runtime.ts";
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Content-Type": "application/json",
+};
+
+function json(body: Record<string, unknown>, status = 200) {
+  return new Response(JSON.stringify(body), { status, headers: corsHeaders });
+}
+
 Deno.serve(async (request: Request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (request.method !== "POST") return json({ error: "Method not allowed" }, 405);
