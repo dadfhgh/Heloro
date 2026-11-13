@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { User } from "@supabase/supabase-js";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { ArrowLeft, ImagePlus, MessageCircle, Megaphone, Send, Users, X, Check, PencilLine, ChevronRight } from "lucide-react";
+import { ArrowLeft, ImagePlus, MessageCircle, Megaphone, Send, Users, X, Check, PencilLine, ChevronRight, Trash2 } from "lucide-react";
 import type { Locale } from "../../lib/i18n";
 import { searchProfiles } from "../../lib/messenger";
 import type { PublicProfile } from "../../lib/types";
@@ -464,11 +464,55 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
     }
   }
 
+  async function deleteRoom() {
+    if (!room || room.created_by !== user.id || memberRole !== "owner") return;
+    const roomLabel = room.kind === "channel" ? (ru ? "канал" : "channel") : (ru ? "группу" : "group");
+    const confirmed = window.confirm(ru
+      ? `Удалить ${roomLabel} «${room.name}»? Все сообщения, участники и ссылка сообщества будут удалены. Это действие нельзя отменить.`
+      : `Delete the ${roomLabel} “${room.name}”? All messages, members and its public link will be removed. This cannot be undone.`);
+    if (!confirmed) return;
+
+    setBusy(true);
+    setError("");
+    try {
+      const { data, error: deleteError } = await client.from("community_rooms")
+        .delete()
+        .eq("id", room.id)
+        .eq("created_by", user.id)
+        .select("id")
+        .maybeSingle();
+      if (deleteError) throw deleteError;
+      if (!data) throw new Error(ru ? "Удаление запрещено: проверь, что ты владелец сообщества." : "Delete was not allowed. Check that you own this community.");
+      setShowRoomInfo(false);
+      setRoom(null);
+      setMemberRole(null);
+      setMessages([]);
+      onRoomsChanged?.();
+      onClose();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : (ru ? "Не удалось удалить сообщество." : "Could not delete the community."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function deleteMessage(item: RoomMessage) {
-    if (!room || !window.confirm(ru ? "Удалить сообщение для всех?" : "Delete this message for everyone?")) return;
-    const { error: deleteError } = await client.from("community_room_messages").delete().eq("id", item.id);
-    if (deleteError) setError(deleteError.message);
-    else setMessages((current) => current.filter((message) => message.id !== item.id));
+    if (!room || busy) return;
+    const confirmed = window.confirm(ru ? "Удалить сообщение для всех?" : "Delete this message for everyone?");
+    if (!confirmed) return;
+    setBusy(true);
+    setError("");
+    try {
+      const { data, error: deleteError } = await client.from("community_room_messages")
+        .delete().eq("id", item.id).select("id").maybeSingle();
+      if (deleteError) throw deleteError;
+      if (!data) throw new Error(ru ? "Сообщение не найдено или удаление запрещено." : "Message not found or delete not allowed.");
+      setMessages((current) => current.filter((message) => message.id !== item.id));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : (ru ? "Не удалось удалить сообщение." : "Could not delete the message."));
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -731,6 +775,11 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
                 <div className="community-info-admin-actions">
                   <button type="button" onClick={() => { setRoomNameDraft(room.name); setRoomUsernameDraft(room.username); setRoomDescriptionDraft(room.description); setRoomEditing((current) => !current); setError(""); }}><PencilLine size={17} />{ru ? "Изменить информацию" : "Edit information"}</button>
                   <button type="button" onClick={() => avatarInput.current?.click()} disabled={busy}><ImagePlus size={17} />{ru ? "Изменить фото" : "Change photo"}</button>
+                  {room.created_by === user.id && memberRole === "owner" && (
+                    <button className="danger" type="button" onClick={() => void deleteRoom()} disabled={busy}>
+                      <Trash2 size={17} />{busy ? (ru ? "Удаление…" : "Deleting…") : (room.kind === "channel" ? (ru ? "Удалить канал" : "Delete channel") : (ru ? "Удалить группу" : "Delete group"))}
+                    </button>
+                  )}
                 </div>
               )}
               {!memberRole && room.is_public && (
