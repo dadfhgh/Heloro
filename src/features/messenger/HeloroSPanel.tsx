@@ -581,6 +581,20 @@ export default function HeloroSPanel({
     } finally { setBusy(false); }
   }
 
+  async function revokeBadge(target: AdminUser) {
+    if (!window.confirm(ru ? "Снять отметку верификации?" : "Revoke this verification badge?")) return;
+    setBusy(true); clearMessages();
+    try {
+      await setVerificationBadge(client, target.id, user.id, null);
+      setNotice(ru ? "Отметка снята." : "Badge revoked.");
+      void loadAudit().catch((cause: unknown) => {
+        setError(errorText(cause, ru ? "Отметка снята, но журнал не обновился." : "Badge revoked, but the audit log could not be refreshed.", ru));
+      });
+    } catch (cause) {
+      setError(errorText(cause, ru ? "Не удалось снять отметку." : "Could not revoke badge.", ru));
+    } finally { setBusy(false); }
+  }
+
   function visibleTabs() {
     return tabItems.filter((item) => {
       if (item.id === "roles" || item.id === "settings") return isOwner;
@@ -682,7 +696,7 @@ export default function HeloroSPanel({
                   </div>
                 )}
                 {tab === "roles" && isOwner && <div className="admin-role-editor"><select value={roleChoice} onChange={(event) => setRoleChoice(event.target.value)}><option value="admin">Admin</option><option value="moderator">Moderator</option></select><button disabled={busy || selectedUser.id === user.id} onClick={() => void changeRole(selectedUser, roleChoice)}>{ru ? "Назначить роль" : "Assign role"}</button><button className="admin-secondary-action" disabled={busy || selectedUser.id === user.id} onClick={() => void changeRole(selectedUser, null)}>{ru ? "Снять роль" : "Remove role"}</button></div>}
-                {tab === "verification" && canManageBadges && <div className="admin-role-editor"><select value={badgeType} onChange={(event) => setBadgeType(event.target.value as BadgeType)}><option value="blue">{ru ? "Синяя — подтверждённая личность" : "Blue — verified identity"}</option><option value="gold">{ru ? "Золотая — организация" : "Gold — organization"}</option><option value="creator">{ru ? "Автор" : "Creator"}</option><option value="epic_sans" disabled={!isOwner}>{ru ? "Epic Sans — эксклюзивная фиолетовая звезда" : "Epic Sans — exclusive violet star"}</option></select><button disabled={busy} onClick={() => void saveBadge(selectedUser)}>{ru ? "Выдать отметку" : "Grant badge"}</button><button className="admin-secondary-action" disabled={busy} onClick={() => { if (window.confirm(ru ? "Снять отметку верификации?" : "Revoke this verification badge?")) void setVerificationBadge(client, selectedUser.id, user.id, null).then(() => loadAudit()).then(() => setNotice(ru ? "Отметка снята." : "Badge revoked.")).catch((cause: unknown) => setError(errorText(cause, ru ? "Не удалось снять отметку." : "Could not revoke badge.", ru))); }}>{ru ? "Снять отметку" : "Revoke badge"}</button></div>}
+                {tab === "verification" && canManageBadges && <div className="admin-role-editor"><select value={badgeType} onChange={(event) => setBadgeType(event.target.value as BadgeType)}><option value="blue">{ru ? "Синяя — подтверждённая личность" : "Blue — verified identity"}</option><option value="gold">{ru ? "Золотая — организация" : "Gold — organization"}</option><option value="creator">{ru ? "Автор" : "Creator"}</option><option value="epic_sans" disabled={!isOwner}>{ru ? "Epic Sans — эксклюзивная фиолетовая звезда" : "Epic Sans — exclusive violet star"}</option></select><button disabled={busy} onClick={() => void saveBadge(selectedUser)}>{ru ? "Выдать отметку" : "Grant badge"}</button><button className="admin-secondary-action" disabled={busy} onClick={() => void revokeBadge(selectedUser)}>{ru ? "Снять отметку" : "Revoke badge"}</button></div>}
                 {tab === "users" && <p className="admin-muted">{ru ? "Доступны только публичные данные профиля. Личные переписки и пароли здесь не отображаются." : "Only public profile information is shown. Private chats and passwords are never displayed here."}</p>}
               </div>
             )}
