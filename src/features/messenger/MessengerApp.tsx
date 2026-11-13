@@ -1392,17 +1392,33 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
       {showProfile && (
         <div className="profile-view-overlay" onClick={() => { setShowProfile(false); setMobileTab("chats"); }}>
           <section className="profile-view-card" role="dialog" aria-modal="true" aria-labelledby="profile-view-title" onClick={(event) => event.stopPropagation()}>
-            <div className="profile-view-cover" />
+            <header className="profile-view-topbar">
+              <button className="icon-button" type="button" onClick={() => { setShowProfile(false); setMobileTab("chats"); }} aria-label={locale === "ru" ? "Назад" : "Back"}><ArrowLeft size={20} /></button>
+              <strong>{t(locale, "profileViewTitle")}</strong>
+              <span className="profile-view-topbar-spacer" />
+            </header>
             <div className="profile-view-content">
-              <div className="profile-view-heading"><span>{t(locale, "profileViewTitle")}</span><button className="icon-button" type="button" onClick={() => { setShowProfile(false); setMobileTab("chats"); }} aria-label={t(locale, "settingsClose")}><X size={18} /></button></div>
               {profileLoading ? <p className="profile-view-loading">{t(locale, "appLoading")}</p> : viewedProfile ? <>
-                <Avatar label={viewedProfile.display_name || viewedProfile.username} className="profile-view-avatar" src={viewedProfile.avatar_url} />
-                <h2 id="profile-view-title">{viewedProfile.display_name || viewedProfile.username}<VerificationMark type={viewedProfile.badge_type} title={locale === "ru" ? "Аккаунт подтверждён HELORO" : "Verified by HELORO"} /></h2>
-                <p className="profile-view-username">@{viewedProfile.username}</p>
-                {viewedProfile.id === user.id && <>
+                <div className="profile-view-cover" />
+                <div className="profile-view-hero">
+                  <Avatar label={viewedProfile.display_name || viewedProfile.username} className="profile-view-avatar" src={viewedProfile.avatar_url} />
+                  <h2 id="profile-view-title">{viewedProfile.display_name || viewedProfile.username}<VerificationMark type={viewedProfile.badge_type} title={locale === "ru" ? "Аккаунт подтверждён HELORO" : "Verified by HELORO"} /></h2>
+                  <p className="profile-view-username">@{viewedProfile.username}</p>
+                </div>
+                <div className="profile-info-card">
+                  <div className="profile-info-row">
+                    <UserRound size={19} />
+                    <span><small>{locale === "ru" ? "Имя пользователя" : "Username"}</small><strong>@{viewedProfile.username}</strong></span>
+                  </div>
+                  <div className="profile-info-row">
+                    <ShieldCheck size={19} />
+                    <span><small>{locale === "ru" ? "Статус аккаунта" : "Account status"}</small><strong>{viewedProfile.badge_type ? (locale === "ru" ? "Подтверждён HELORO" : "Verified by HELORO") : (locale === "ru" ? "Пользователь HELORO" : "HELORO user")}</strong></span>
+                  </div>
+                </div>
+                {viewedProfile.id === user.id ? <>
                   <input ref={avatarInputRef} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(event) => void handleAvatarSelect(event.target.files?.[0])} />
                   <div className="profile-actions-row">
-                    <button className="profile-view-action" type="button" disabled={avatarBusy} onClick={() => avatarInputRef.current?.click()}><ImagePlus size={16} />{avatarBusy ? t(locale, "profilePhotoUploading") : (locale === "ru" ? "Фото профиля" : "Profile photo")}</button>
+                    <button className="profile-view-action" type="button" disabled={avatarBusy} onClick={() => avatarInputRef.current?.click()}><ImagePlus size={17} />{avatarBusy ? t(locale, "profilePhotoUploading") : (locale === "ru" ? "Изменить фото" : "Change photo")}</button>
                     {!profileEditing && <button className="profile-view-action" type="button" onClick={() => { setProfileNameDraft(viewedProfile.display_name); setProfileUsernameDraft(viewedProfile.username); setProfileEditing(true); }}>{locale === "ru" ? "Изменить профиль" : "Edit profile"}</button>}
                   </div>
                   {profileEditing && (
@@ -1415,7 +1431,13 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                       </div>
                     </form>
                   )}
-                </>}
+                </> : (
+                  <div className="profile-actions-row">
+                    <button className="profile-view-action profile-message-action" type="button" onClick={() => { setShowProfile(false); void startConversation(viewedProfile); }}>
+                      <MessageCircle size={17} />{locale === "ru" ? "Написать сообщение" : "Send message"}
+                    </button>
+                  </div>
+                )}
                 {canManageBadges && viewedProfile.badge_type && <button className="profile-view-remove-badge" type="button" disabled={profileBusy} onClick={() => void removeProfileBadge()}><ShieldCheck size={16} />{profileBusy ? t(locale, "profileBadgeRemoving") : t(locale, "profileBadgeRemove")}</button>}
               </> : <p className="profile-view-loading">{profileError || t(locale, "profileLoadError")}</p>}
               {profileError && viewedProfile && <p className="profile-view-error" role="alert">{profileError}</p>}
