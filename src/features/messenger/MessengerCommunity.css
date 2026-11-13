@@ -827,7 +827,11 @@ html[data-theme="dark"] .community-room-edit label { color: #bbb; }
   font-size: 13px;
 }
 .community-info-admin-actions button svg { color: #777; }
+.community-info-admin-actions button.danger { color: #b42318; }
+.community-info-admin-actions button.danger svg { color: #b42318; }
 .community-info-admin-actions button:disabled { opacity: .55; }
+html[data-theme="dark"] .community-info-admin-actions button.danger { color: #ff8a80; background: #211515; }
+html[data-theme="dark"] .community-info-admin-actions button.danger svg { color: #ff8a80; }
 .community-info-edit { margin-top: 15px; }
 .community-info-join { width: 100%; min-height: 48px; margin-top: 14px; font-size: 14px; }
 
