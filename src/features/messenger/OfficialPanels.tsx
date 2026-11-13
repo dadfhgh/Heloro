@@ -284,9 +284,11 @@ function NewsChannel({
                         <button className="system-delete-button" type="button" onClick={() => void removeComment(item.id)} disabled={busy}>
                           <Trash2 size={12} /> {ru ? "Удалить для всех" : "Delete for everyone"}
                         </button>
-                      <button className="system-delete-button" type="button" onClick={() => void reportChannelContent(item.id)} disabled={busy}>
-                        <Flag size={12} /> {ru ? "Пожаловаться" : "Report"}
-                      </button>
+                      )}
+                      {item.user_id !== user.id && (
+                        <button className="system-delete-button" type="button" onClick={() => void reportChannelContent(item.id)} disabled={busy}>
+                          <Flag size={12} /> {ru ? "Пожаловаться" : "Report"}
+                        </button>
                       )}
                     </div>
                   </div>
@@ -394,6 +396,8 @@ function DiscussionChat({ client, user, locale, roles }: Omit<Props, "view" | "o
                   <button className="system-delete-button" type="button" onClick={() => void removeMessage(item.id)} disabled={busy}>
                     <Trash2 size={12} /> {ru ? "Удалить для всех" : "Delete for everyone"}
                   </button>
+                )}
+                {item.user_id !== user.id && (
                   <button className="system-delete-button" type="button" onClick={() => void reportDiscussionMessage(item.id)} disabled={busy}>
                     <Flag size={12} /> {ru ? "Пожаловаться" : "Report"}
                   </button>
