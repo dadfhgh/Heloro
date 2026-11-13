@@ -79,6 +79,9 @@ export type SettingsSection =
 
 type UserPreferences = {
   message_notifications: boolean;
+  theme_preference: ThemePreference;
+  interface_language: Locale;
+  account_settings_initialized: boolean;
   group_notifications: boolean;
   sound_enabled: boolean;
   preview_enabled: boolean;
@@ -90,6 +93,9 @@ type UserPreferences = {
 
 const defaultPreferences: UserPreferences = {
   message_notifications: true,
+  theme_preference: "system",
+  interface_language: "ru",
+  account_settings_initialized: false,
   group_notifications: true,
   sound_enabled: true,
   preview_enabled: true,
@@ -173,25 +179,38 @@ export function MessengerSettings({
     setPreferencesLoading(true);
     void (async () => {
       try {
+        const columns = "message_notifications, group_notifications, sound_enabled, preview_enabled, last_seen_visibility, profile_photo_visibility, allow_group_invites, auto_download_media, theme_preference, interface_language, account_settings_initialized";
         const { data, error } = await client.from("user_preferences")
-          .select("message_notifications, group_notifications, sound_enabled, preview_enabled, last_seen_visibility, profile_photo_visibility, allow_group_invites, auto_download_media")
+          .select(columns)
           .eq("user_id", userId).maybeSingle();
         if (!active) return;
         if (error) {
           setPreferencesError(error.message);
           return;
         }
-        if (data) {
-          setPreferences({ ...defaultPreferences, ...data } as UserPreferences);
-        } else {
-          const { data: created, error: insertError } = await client.from("user_preferences")
-            .upsert({ user_id: userId, ...defaultPreferences }, { onConflict: "user_id" })
-            .select("message_notifications, group_notifications, sound_enabled, preview_enabled, last_seen_visibility, profile_photo_visibility, allow_group_invites, auto_download_media")
-            .single();
-          if (!active) return;
-          if (insertError) setPreferencesError(insertError.message);
-          else if (created) setPreferences({ ...defaultPreferences, ...created } as UserPreferences);
+        if (data?.account_settings_initialized) {
+          const loaded = { ...defaultPreferences, ...data } as UserPreferences;
+          setPreferences(loaded);
+          onThemeChange(loaded.theme_preference);
+          onLocaleChange(loaded.interface_language);
+          return;
         }
+
+        // On the first settings visit, preserve this device's existing local choices,
+        // then use the account row as the cross-device source of truth.
+        const baseline = {
+          ...(data ?? defaultPreferences),
+          theme_preference: theme,
+          interface_language: locale,
+          account_settings_initialized: true,
+        };
+        const { data: initialized, error: saveError } = await client.from("user_preferences")
+          .upsert({ user_id: userId, ...baseline }, { onConflict: "user_id" })
+          .select(columns)
+          .single();
+        if (!active) return;
+        if (saveError) setPreferencesError(saveError.message);
+        else if (initialized) setPreferences({ ...defaultPreferences, ...initialized } as UserPreferences);
       } catch (cause) {
         if (active) setPreferencesError(cause instanceof Error ? cause.message : "Could not load preferences.");
       } finally {
@@ -199,7 +218,7 @@ export function MessengerSettings({
       }
     })();
     return () => { active = false; };
-  }, [client, userId]);
+  }, [client, userId, onThemeChange, onLocaleChange]);
 
   async function updatePreference<K extends keyof UserPreferences>(key: K, value: UserPreferences[K]) {
     const previous = preferences;
@@ -213,6 +232,8 @@ export function MessengerSettings({
     );
     if (error) {
       setPreferences(previous);
+      if (key === "theme_preference") onThemeChange(previous.theme_preference);
+      if (key === "interface_language") onLocaleChange(previous.interface_language);
       setPreferencesError(error.message);
     }
     setSavingPreference(false);
@@ -287,9 +308,9 @@ export function MessengerSettings({
               <div className="settings-section-content">
                 <p className="settings-description">{ru ? "Выберите светлое или тёмное оформление HELORO." : "Choose the HELORO light or dark appearance."}</p>
                 <div className="theme-choice-list">
-                  <button type="button" className={theme === "light" ? "active" : ""} aria-pressed={theme === "light"} onClick={() => onThemeChange("light")}><Sun size={18} /><span>{ru ? "Светлая" : "Light"}</span>{theme === "light" && <Check size={17} />}</button>
-                  <button type="button" className={theme === "dark" ? "active" : ""} aria-pressed={theme === "dark"} onClick={() => onThemeChange("dark")}><Moon size={18} /><span>{ru ? "Тёмная" : "Dark"}</span>{theme === "dark" && <Check size={17} />}</button>
-                  <button type="button" className={theme === "system" ? "active" : ""} aria-pressed={theme === "system"} onClick={() => onThemeChange("system")}><Cloud size={18} /><span>{ru ? "Как на устройстве" : "Use device setting"}</span>{theme === "system" && <Check size={17} />}</button>
+                  <button type="button" className={theme === "light" ? "active" : ""} aria-pressed={theme === "light"} onClick={() => { onThemeChange("light"); void updatePreference("theme_preference", "light"); }}><Sun size={18} /><span>{ru ? "Светлая" : "Light"}</span>{theme === "light" && <Check size={17} />}</button>
+                  <button type="button" className={theme === "dark" ? "active" : ""} aria-pressed={theme === "dark"} onClick={() => { onThemeChange("dark"); void updatePreference("theme_preference", "dark"); }}><Moon size={18} /><span>{ru ? "Тёмная" : "Dark"}</span>{theme === "dark" && <Check size={17} />}</button>
+                  <button type="button" className={theme === "system" ? "active" : ""} aria-pressed={theme === "system"} onClick={() => { onThemeChange("system"); void updatePreference("theme_preference", "system"); }}><Cloud size={18} /><span>{ru ? "Как на устройстве" : "Use device setting"}</span>{theme === "system" && <Check size={17} />}</button>
                 </div>
                 <p className="settings-muted-note">{ru ? "Тема сохраняется в браузере на этом устройстве." : "The theme preference is stored in this browser on this device."}</p>
               </div>
@@ -298,8 +319,8 @@ export function MessengerSettings({
               <div className="settings-section-content">
                 <p className="settings-description">{ru ? "Язык интерфейса приложения." : "Application interface language."}</p>
                 <div className="theme-choice-list">
-                  <button type="button" className={locale === "ru" ? "active" : ""} aria-pressed={locale === "ru"} onClick={() => onLocaleChange("ru")}><span>Русский</span>{locale === "ru" && <Check size={17} />}</button>
-                  <button type="button" className={locale === "en" ? "active" : ""} aria-pressed={locale === "en"} onClick={() => onLocaleChange("en")}><span>English</span>{locale === "en" && <Check size={17} />}</button>
+                  <button type="button" className={locale === "ru" ? "active" : ""} aria-pressed={locale === "ru"} onClick={() => { onLocaleChange("ru"); void updatePreference("interface_language", "ru"); }}><span>Русский</span>{locale === "ru" && <Check size={17} />}</button>
+                  <button type="button" className={locale === "en" ? "active" : ""} aria-pressed={locale === "en"} onClick={() => { onLocaleChange("en"); void updatePreference("interface_language", "en"); }}><span>English</span>{locale === "en" && <Check size={17} />}</button>
                 </div>
               </div>
             )}
