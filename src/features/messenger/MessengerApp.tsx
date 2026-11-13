@@ -47,6 +47,7 @@ import CommunityHub from "./CommunityHub";
 import { setVerificationBadge, submitUserReport, submitContentReport } from "../../lib/official";
 import type { SettingsSection } from "./MessengerNavigation";
 import type { ThemePreference } from "../../lib/preferences";
+import epicSansBadgeArt from "./epic-sans-badge.svg";
 import "./MessengerTelegramDesign.css";
 import "./MessengerCommunity.css";
 
@@ -78,14 +79,7 @@ function VerificationMark({ type, title }: { type?: BadgeType | null; title: str
   return (
     <span className={`verification-mark verification-${label}`} title={accessibleTitle} aria-label={accessibleTitle}>
       {type === "epic_sans" ? (
-        <svg className="epic-sans-badge-art" viewBox="0 0 88 24" aria-hidden="true" focusable="false" shapeRendering="crispEdges">
-          <rect className="epic-sans-badge-bg" x="1" y="1" width="86" height="22" rx="3" />
-          <path className="epic-sans-pixel-star-shadow" d="M12 2h4l3 6 7 1v4l-6 4 2 5h-4l-4-3-4 3H6l2-5-6-4V9l7-1z" />
-          <path className="epic-sans-pixel-star" d="M12 1h4l3 6 7 1v4l-6 4 2 5h-4l-4-3-4 3H6l2-5-6-4V8l7-1z" />
-          <rect className="epic-sans-star-glint" x="13" y="8" width="3" height="3" />
-          <text className="epic-sans-wordmark" x="31" y="15.6">EPIC SANS</text>
-          <rect className="epic-sans-pixel-accent" x="79" y="4" width="3" height="3" />
-        </svg>
+        <img className="epic-sans-badge-art" src={epicSansBadgeArt} alt="" aria-hidden="true" draggable={false} />
       ) : (
         <BadgeCheck size={14} strokeWidth={2.8} />
       )}
