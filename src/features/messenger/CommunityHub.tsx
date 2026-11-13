@@ -27,6 +27,7 @@ type RoomAdminEntry = {
   promoted_by: string | null;
   promoted_at: string | null;
   profile: PublicProfile | null;
+  promoter: PublicProfile | null;
 };
 type Props = { client: SupabaseClient; user: User; locale: Locale; contacts?: PublicProfile[]; initialRoomId?: string | null; initialCreateKind?: "group" | "channel" | null; onRoomsChanged?: () => void; onClose: () => void };
 
@@ -546,6 +547,7 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
     if (!room || !canManageRoomAdmins) return;
     setAdminBusy(true);
     setAdminError("");
+    setAdminManagementOpen(true);
     try {
       const { data, error: membersError } = await client.from("community_room_members")
         .select("user_id, role, joined_at, admin_permissions, promoted_by, promoted_at")
@@ -570,7 +572,7 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
       );
       setRoomAdmins(rows
         .filter((row) => row.role === "owner" || row.role === "admin")
-        .map((row) => ({ ...row, role: row.role as "owner" | "admin", profile: byId.get(row.user_id) ?? null })));
+        .map((row) => ({ ...row, role: row.role as "owner" | "admin", profile: byId.get(row.user_id) ?? null, promoter: row.promoted_by ? byId.get(row.promoted_by) ?? null : null })));
       setEligibleAdminMembers(rows
         .filter((row) => row.role === "member")
         .map((row) => byId.get(row.user_id))
@@ -926,7 +928,7 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
                 <h2>{ru ? "Текущие администраторы" : "Current administrators"}</h2>
                 {roomAdmins.map((admin) => {
                   const label = admin.profile?.display_name || admin.profile?.username || (ru ? "Участник" : "Member");
-                  const appointedBy = admin.promoted_by ? roomAdmins.find((entry) => entry.user_id === admin.promoted_by)?.profile?.username : null;
+                  const appointedBy = admin.promoter?.username || admin.promoter?.display_name || null;
                   const appointedAt = new Date(admin.promoted_at || admin.joined_at).toLocaleDateString(ru ? "ru-RU" : "en-US");
                   return (
                     <article className="community-admin-person" key={admin.user_id}>
@@ -940,7 +942,7 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
                       </div>
                       {admin.role === "admin" && admin.user_id !== user.id && (
                         <div className="community-admin-person-actions">
-                          <button type="button" onClick={() => editAdminPermissions(admin.user_id)}>{ru ? "Права" : "Rights"}</button>
+                          {memberRole === "owner" && <button type="button" onClick={() => editAdminPermissions(admin.user_id)}>{ru ? "Права" : "Rights"}</button>}
                           {(memberRole === "owner" || admin.promoted_by === user.id) && (
                             <button className="community-admin-remove" type="button" onClick={() => void removeCommunityAdmin(admin.user_id)} disabled={adminBusy}>{ru ? "Снять" : "Remove"}</button>
                           )}
