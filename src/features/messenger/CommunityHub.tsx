@@ -183,7 +183,6 @@ export default function CommunityHub({ client, user, locale, initialRoomId = nul
       if (updateError) { await storage.remove([path]); throw updateError; }
       const updated = { ...room, avatar_url: url };
       setRoom(updated);
-      setRooms((current) => current.map((item) => item.id === room.id ? updated : item));
       onRoomsChanged?.();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : (ru ? "Не удалось изменить аватар." : "Could not update avatar."));
