@@ -1554,3 +1554,91 @@ html[data-theme="dark"] .settings-owner svg { color: #eee; }
   html[data-theme="light"] *,
   html[data-theme="dark"] * { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
 }
+
+
+/* Chat inbox: remove remaining blue accents in both monochrome themes */
+html[data-theme="light"] .messenger-stage .chat-filter-tabs {
+  background: #f1f1f1;
+  border-color: #e2e2e2;
+}
+html[data-theme="light"] .messenger-stage .chat-filter-tabs button {
+  color: #666;
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+html[data-theme="light"] .messenger-stage .chat-filter-tabs button.active {
+  color: #111;
+  background: #dedede;
+  border-color: #d2d2d2;
+  box-shadow: none;
+}
+html[data-theme="light"] .messenger-stage .conversation-item,
+html[data-theme="light"] .messenger-stage .person-result {
+  color: #222;
+  border-color: #e5e5e5;
+}
+html[data-theme="light"] .messenger-stage .conversation-item:hover,
+html[data-theme="light"] .messenger-stage .person-result:hover {
+  background: #f2f2f2;
+}
+html[data-theme="light"] .messenger-stage .conversation-item.selected {
+  color: #111;
+  background: #e5e5e5;
+}
+html[data-theme="light"] .messenger-stage .person-result > svg,
+html[data-theme="light"] .messenger-stage .preview-check,
+html[data-theme="light"] .messenger-stage .system-verified-mark {
+  color: #777;
+}
+html[data-theme="light"] .messenger-stage .system-avatar,
+html[data-theme="light"] .messenger-stage .system-admin-icon,
+html[data-theme="light"] .messenger-stage .system-news-avatar,
+html[data-theme="light"] .messenger-stage .system-support-avatar {
+  color: #fff;
+  background: #333;
+  box-shadow: none;
+}
+
+html[data-theme="dark"] .messenger-stage .chat-filter-tabs {
+  background: #1c1c1c;
+  border-color: #333;
+}
+html[data-theme="dark"] .messenger-stage .chat-filter-tabs button {
+  color: #aaa;
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+html[data-theme="dark"] .messenger-stage .chat-filter-tabs button.active {
+  color: #fff;
+  background: #383838;
+  border-color: #484848;
+  box-shadow: none;
+}
+html[data-theme="dark"] .messenger-stage .conversation-item,
+html[data-theme="dark"] .messenger-stage .person-result {
+  color: #eee;
+  border-color: #303030;
+}
+html[data-theme="dark"] .messenger-stage .conversation-item:hover,
+html[data-theme="dark"] .messenger-stage .person-result:hover {
+  background: #242424;
+}
+html[data-theme="dark"] .messenger-stage .conversation-item.selected {
+  color: #fff;
+  background: #303030;
+}
+html[data-theme="dark"] .messenger-stage .person-result > svg,
+html[data-theme="dark"] .messenger-stage .preview-check,
+html[data-theme="dark"] .messenger-stage .system-verified-mark {
+  color: #aaa;
+}
+html[data-theme="dark"] .messenger-stage .system-avatar,
+html[data-theme="dark"] .messenger-stage .system-admin-icon,
+html[data-theme="dark"] .messenger-stage .system-news-avatar,
+html[data-theme="dark"] .messenger-stage .system-support-avatar {
+  color: #111;
+  background: #e5e5e5;
+  box-shadow: none;
+}
