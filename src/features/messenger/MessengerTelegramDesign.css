@@ -36,6 +36,7 @@
   -webkit-backdrop-filter: none;
 }
 .inbox-panel {
+  position: relative;
   display: flex;
   flex-direction: column;
   padding: 0;
