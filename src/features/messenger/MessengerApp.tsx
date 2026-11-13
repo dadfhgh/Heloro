@@ -582,6 +582,15 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
               </div>
             ) : showSearch && search.trim().length > 1 ? (
               <>
+                {visibleCommunityRooms.length > 0 && <>
+                  <div className="section-label">{locale === "ru" ? "Группы и каналы" : "Groups and channels"}</div>
+                  {visibleCommunityRooms.map((room) => (
+                    <button className="conversation-item community-inbox-item" type="button" key={room.id} onClick={() => { setCommunityInitialRoomId(room.id); setCommunityInitialCreateKind(null); setShowCommunityHub(true); }}>
+                      <div className="community-inbox-avatar">{room.avatar_url ? <img src={room.avatar_url} alt="" /> : room.kind === "channel" ? <Megaphone size={19} /> : <Users size={19} />}</div>
+                      <span className="conversation-copy"><span className="conversation-title-line"><strong>{room.name}</strong><time>{room.kind === "channel" ? (locale === "ru" ? "Канал" : "Channel") : (locale === "ru" ? "Группа" : "Group")}</time></span><span className="conversation-preview-line"><small>{room.description || (locale === "ru" ? "Открыть сообщество" : "Open community")}</small></span></span>
+                    </button>
+                  ))}
+                </>}
                 <div className="section-label">{locale === "ru" ? "Люди" : "People"}</div>
                 {searching ? (
                   <p className="muted small-copy">{t(locale, "inboxSearching")}</p>
