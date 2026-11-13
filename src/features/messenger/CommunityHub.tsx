@@ -392,57 +392,167 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
     <section className="community-embedded" aria-label={ru ? "Переписка сообщества" : "Community conversation"}>
       <div className="community-panel community-pane">
         <header className="community-header">
-          <button className="icon-button" type="button" onClick={onClose} aria-label={ru ? "Назад к чатам" : "Back to chats"}><ArrowLeft size={19} /></button>
-          <div><strong>{room ? room.name : (createKind === "group" ? (ru ? "Новая группа" : "New group") : (ru ? "Новый канал" : "New channel"))}</strong><small>{room ? `@${room.username}` : (ru ? "Создание сообщества" : "Create a community")}</small></div>
+          <button
+            className="icon-button"
+            type="button"
+            onClick={() => {
+              if (createKind === "group" && createStep === "details") {
+                setCreateStep("members");
+                setError("");
+              } else if (createKind === "channel" && createStep === "visibility") {
+                setCreateStep("details");
+                setError("");
+              } else {
+                onClose();
+              }
+            }}
+            aria-label={ru ? "Назад" : "Back"}
+          ><ArrowLeft size={19} /></button>
+          <div>
+            <strong>{room ? room.name : (createKind === "group" ? (ru ? "Новая группа" : "New group") : (ru ? "Новый канал" : "New channel"))}</strong>
+            <small>{room
+              ? (room.is_public ? "@" + room.username : (ru ? "Частное сообщество" : "Private community"))
+              : createKind === "group"
+                ? (createStep === "members" ? (ru ? "Добавить участников" : "Add members") : (ru ? "Название и фото" : "Name and photo"))
+                : (createStep === "details" ? (ru ? "Название и описание" : "Name and description") : (ru ? "Тип канала" : "Channel type"))}</small>
+          </div>
         </header>
 
-        {createKind ? (
-          <form className="community-create-form" onSubmit={createRoom}>
-            <label>{ru ? "Название" : "Name"}<input value={name} onChange={(event) => setName(event.target.value)} minLength={2} maxLength={64} required placeholder={createKind === "group" ? (ru ? "Например, Друзья" : "For example, Friends") : (ru ? "Название канала" : "Channel name")} /></label>
-            <label>{ru ? "Описание" : "Description"}<textarea value={description} onChange={(event) => setDescription(event.target.value)} maxLength={500} rows={3} placeholder={ru ? "Кратко расскажите о сообществе" : "Describe the community"} /></label>
-            <label>{ru ? "Ссылка / имя пользователя" : "Public link / username"}
-              <div className="community-username-field"><span>@</span><input value={username} onChange={(event) => setUsername(event.target.value.replace(/^@/, "").toLowerCase().replace(/[^a-z0-9_]/g, "").slice(0, 32))} minLength={5} maxLength={32} pattern="[a-z][a-z0-9_]{4,31}" required autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder={createKind === "group" ? "my_group" : "my_channel"} /></div>
-            </label>
-            {createKind === "group" && (
-              <div className="community-member-picker">
-                <label>{ru ? "Добавить участников" : "Add members"}</label>
-                <input
-                  value={memberSearch}
-                  onChange={(event) => setMemberSearch(event.target.value)}
-                  maxLength={64}
-                  placeholder={ru ? "Найти по @username или имени" : "Find by @username or name"}
-                />
-                {selectedMembers.length > 0 && (
-                  <div className="community-selected-members">
-                    {selectedMembers.map((item) => (
-                      <button type="button" key={item.id} onClick={() => setSelectedMembers((current) => current.filter((selected) => selected.id !== item.id))}>
-                        @{item.username}<X size={13} />
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {memberSearch.trim().length > 1 && (
-                  <div className="community-member-results">
-                    {memberResults.length === 0
-                      ? <p>{ru ? "Ничего не найдено" : "No users found"}</p>
-                      : memberResults.map((item) => (
-                        <button type="button" key={item.id} onClick={() => { setSelectedMembers((current) => current.length >= 99 || current.some((selected) => selected.id === item.id) ? current : [...current, item]); setMemberSearch(""); setMemberResults([]); }}>
-                          <span><strong>{item.display_name}</strong><small>@{item.username}</small></span><Check size={15} />
-                        </button>
-                      ))}
-                  </div>
-                )}
-                <small className="community-member-count">{ru ? `Выбрано: ${selectedMembers.length}` : `Selected: ${selectedMembers.length}`}</small>
+        {createKind === "group" && createStep === "members" ? (
+          <div className="community-create-members">
+            <div className="community-create-intro">
+              <strong>{ru ? "Выберите участников" : "Choose members"}</strong>
+              <p>{ru ? "Добавьте людей из недавних чатов или найдите их по username. Группу можно создать и без приглашений." : "Pick people from recent chats or search by username. You can also create the group without inviting anyone."}</p>
+            </div>
+            {renderMemberPicker(ru ? "Контакты" : "Contacts", ru ? "Выберите участников" : "Select members")}
+            <div className="community-create-footer">
+              <button className="community-primary" type="button" onClick={() => { setCreateStep("details"); setError(""); }}>
+                {ru ? "Далее" : "Next"}{selectedMembers.length > 0 ? " · " + selectedMembers.length : ""}
+              </button>
+            </div>
+          </div>
+        ) : createKind && createStep === "details" ? (
+          <form className="community-create-form" onSubmit={createKind === "group" ? createRoom : advanceToVisibility}>
+            <div className="community-photo-row">
+              <input
+                ref={createAvatarInput}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                hidden
+                onChange={(event) => chooseCreateAvatar(event.target.files?.[0])}
+              />
+              <button
+                className="community-avatar-picker"
+                type="button"
+                onClick={() => createAvatarInput.current?.click()}
+                aria-label={ru ? "Добавить фото" : "Add photo"}
+              >
+                {createAvatarPreview ? <img src={createAvatarPreview} alt="" /> : <ImagePlus size={27} />}
+              </button>
+              <div>
+                <strong>{ru ? "Фото сообщества" : "Community photo"}</strong>
+                <small>{ru ? "Необязательно · PNG, JPEG или WebP до 3 МБ" : "Optional · PNG, JPEG or WebP up to 3 MB"}</small>
               </div>
+            </div>
+            <label>{ru ? "Название" : "Name"}
+              <input
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                minLength={2}
+                maxLength={64}
+                required
+                placeholder={createKind === "group" ? (ru ? "Название группы" : "Group name") : (ru ? "Название канала" : "Channel name")}
+              />
+            </label>
+            {createKind === "channel" && (
+              <label>{ru ? "Описание" : "Description"}
+                <textarea
+                  value={description}
+                  onChange={(event) => setDescription(event.target.value)}
+                  maxLength={500}
+                  rows={3}
+                  placeholder={ru ? "О чём этот канал?" : "What is this channel about?"}
+                />
+              </label>
             )}
-            <p className="community-muted">{ru ? "Ты автоматически станешь владельцем и первым участником. По @username другие смогут найти открытую группу или канал и вступить." : "You automatically become the owner and first member. People can find the public group or channel by its @username and join."}</p>
-            <button className="community-primary" type="submit" disabled={busy || name.trim().length < 2}>{busy ? (ru ? "Создание…" : "Creating…") : (ru ? "Создать" : "Create")}</button>
+            {createKind === "group" && (
+              <p className="community-muted">
+                {ru
+                  ? "Участников: " + selectedMembers.length + ". Группа будет закрытой — добавлять людей сможете вы и администраторы."
+                  : "Members: " + selectedMembers.length + ". The group will be private; you and admins can add people."}
+              </p>
+            )}
+            <div className="community-create-footer">
+              {createKind === "group" ? (
+                <button className="community-primary" type="submit" disabled={busy || name.trim().length < 2}>
+                  {busy ? (ru ? "Создание…" : "Creating…") : (ru ? "Создать группу" : "Create group")}
+                </button>
+              ) : (
+                <button className="community-primary" type="submit" disabled={name.trim().length < 2}>
+                  {ru ? "Далее" : "Next"}
+                </button>
+              )}
+            </div>
+          </form>
+        ) : createKind === "channel" && createStep === "visibility" ? (
+          <form className="community-create-form community-channel-visibility" onSubmit={createRoom}>
+            <div className="community-create-intro">
+              <strong>{ru ? "Какой будет канал?" : "Choose channel type"}</strong>
+              <p>{ru ? "Публичный канал можно найти в поиске. Частный доступен только приглашённым участникам." : "Public channels can be found in search. Private channels are only accessible to invited members."}</p>
+            </div>
+            <div className="community-visibility-options">
+              <label className={"community-visibility-option" + (isPublic ? " active" : "")}>
+                <input type="radio" name="channel-visibility" checked={isPublic} onChange={() => setIsPublic(true)} />
+                <span>
+                  <strong>{ru ? "Публичный канал" : "Public channel"}</strong>
+                  <small>{ru ? "Любой сможет найти его по ссылке и подписаться" : "Anyone can find it by its username and subscribe"}</small>
+                </span>
+              </label>
+              <label className={"community-visibility-option" + (!isPublic ? " active" : "")}>
+                <input type="radio" name="channel-visibility" checked={!isPublic} onChange={() => setIsPublic(false)} />
+                <span>
+                  <strong>{ru ? "Частный канал" : "Private channel"}</strong>
+                  <small>{ru ? "Только вы приглашаете подписчиков" : "Only people you invite can subscribe"}</small>
+                </span>
+              </label>
+            </div>
+            {isPublic ? (
+              <label>{ru ? "Ссылка канала" : "Channel username"}
+                <div className="community-username-field">
+                  <span>@</span>
+                  <input
+                    value={username}
+                    onChange={(event) => setUsername(event.target.value.toLowerCase().replace(/^@/, "").replace(/[^a-z0-9_]/g, "").slice(0, 32))}
+                    minLength={5}
+                    maxLength={32}
+                    pattern="[a-z][a-z0-9_]{4,31}"
+                    required
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    placeholder="my_channel"
+                  />
+                </div>
+                <small className="community-muted">{ru ? "5–32 символа: латинские буквы, цифры и _" : "5–32 characters: a–z, 0–9 and _"}</small>
+              </label>
+            ) : (
+              <p className="community-muted">{ru ? "Канал не будет отображаться в поиске. Его участниками станут только приглашённые люди." : "This channel will not appear in search. Only invited people will be subscribers."}</p>
+            )}
+            {renderMemberPicker(ru ? "Добавить подписчиков" : "Add subscribers", ru ? "Выбранные люди будут подписаны сразу" : "Selected people will be subscribed immediately")}
+            <div className="community-create-footer">
+              <button className="community-secondary" type="button" onClick={() => { setCreateStep("details"); setError(""); }}>
+                {ru ? "Назад" : "Back"}
+              </button>
+              <button className="community-primary" type="submit" disabled={busy || name.trim().length < 2 || (isPublic && !/^[a-z][a-z0-9_]{4,31}$/.test(username.trim().replace(/^@/, "").toLowerCase()))}>
+                {busy ? (ru ? "Создание…" : "Creating…") : (ru ? "Создать канал" : "Create channel")}
+              </button>
+            </div>
           </form>
         ) : room ? (
           <div className="community-room-view">
             <div className="community-room-summary">
               <RoomAvatar room={room} />
-              <div><strong>{room.name}</strong><p>{room.description || (ru ? "Без описания" : "No description")}</p></div>
+              <div><strong>{room.name}</strong><p>{room.is_public ? "@" + room.username : (ru ? "Частное сообщество" : "Private community")}</p></div>
               {memberRole && ["owner", "admin"].includes(memberRole) && <>
                 <input ref={avatarInput} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(event) => void changeRoomAvatar(event.target.files?.[0])} />
                 <button className="icon-button" type="button" onClick={() => avatarInput.current?.click()} disabled={busy} title={ru ? "Изменить аватар" : "Change avatar"} aria-label={ru ? "Изменить аватар" : "Change avatar"}><ImagePlus size={18} /></button>
