@@ -196,7 +196,7 @@ returns uuid
 language plpgsql
 security definer
 set search_path = ''
-as $
+as $report$
 declare
   reporter uuid := auth.uid();
   report_id uuid;
@@ -205,11 +205,13 @@ begin
   if reporter is null then
     raise exception 'Authentication required' using errcode = '28000';
   end if;
-  if p_target_type not in ('user', 'message', 'group', 'channel')
+  if p_target_type is null or p_reason is null
+    or p_target_type not in ('user', 'message', 'group', 'channel')
     or p_reason not in ('spam', 'harassment', 'scam', 'inappropriate', 'other')
     or char_length(trim(coalesce(p_details, ''))) > 1500 then
     raise exception 'Invalid report details' using errcode = '22023';
   end if;
+
   if p_target_type = 'user' then
     if p_reported_user_id is null or p_reported_user_id = reporter
       or not exists (select 1 from public.profiles p where p.id = p_reported_user_id) then
@@ -226,24 +228,36 @@ begin
         select cm.sender_id into owner_id from public.community_room_messages cm
         where cm.id = p_target_id and private.is_community_member(cm.room_id);
       end if;
+      if owner_id is null then
+        select dm.user_id into owner_id from public.channel_discussion_messages dm
+        where dm.id = p_target_id;
+      end if;
       if owner_id is null then raise exception 'Message not found or not accessible' using errcode = 'P0002'; end if;
     elsif p_target_type = 'group' then
       select r.created_by into owner_id from public.community_rooms r
       where r.id = p_target_id and (r.is_public or private.is_community_member(r.id));
       if owner_id is null then raise exception 'Group not found or not accessible' using errcode = 'P0002'; end if;
     elsif p_target_type = 'channel' then
-      if not exists (select 1 from public.heloro_channels c where c.id = p_target_id) then
-        raise exception 'Channel not found' using errcode = 'P0002';
+      select cp.author_id into owner_id from public.channel_posts cp where cp.id = p_target_id;
+      if owner_id is null then
+        select cc.user_id into owner_id
+        from public.channel_comments cc
+        join public.channel_posts cp on cp.id = cc.post_id
+        where cc.id = p_target_id;
+      end if;
+      if owner_id is null and not exists (select 1 from public.heloro_channels c where c.id = p_target_id) then
+        raise exception 'Channel or channel content not found' using errcode = 'P0002';
       end if;
     end if;
     p_reported_user_id := owner_id;
   end if;
+
   insert into public.user_reports(reporter_id, reported_user_id, reason, details, target_type, target_id)
   values (reporter, p_reported_user_id, p_reason, left(trim(coalesce(p_details, '')), 1500), p_target_type, p_target_id)
   returning id into report_id;
   return report_id;
 end;
-$;
+$report$;
 
 create or replace function public.heloro_admin_overview()
 returns jsonb
