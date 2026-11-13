@@ -224,14 +224,22 @@ export async function sendMediaMessage(
 }
 
 export async function deleteDirectMessage(message: Message, currentUserId: string): Promise<void> {
-  if (message.sender_id !== currentUserId) throw new Error("You can only delete your own messages.");
-  if (message.media?.path) {
-    const { error: mediaError } = await client().storage.from("message-media").remove([message.media.path]);
-    if (mediaError) throw mediaError;
-  }
-  const { data, error } = await client().from("messages").delete().eq("id", message.id).select("id").maybeSingle();
+  if (!currentUserId) throw new Error("Authentication required.");
+  const { data, error } = await client().from("messages")
+    .delete()
+    .eq("id", message.id)
+    .eq("conversation_id", message.conversation_id)
+    .select("id")
+    .maybeSingle();
   if (error) throw error;
   if (!data) throw new Error("Message not found or delete permission denied.");
+
+  // The database policy authorizes this action for either participant in a
+  // one-to-one conversation. The storage policy mirrors that exact scope.
+  if (message.media?.path) {
+    const { error: mediaError } = await client().storage.from("message-media").remove([message.media.path]);
+    if (mediaError) console.warn("Message was deleted, but its media cleanup failed.", mediaError);
+  }
 }
 
 export function subscribeToMessages(
