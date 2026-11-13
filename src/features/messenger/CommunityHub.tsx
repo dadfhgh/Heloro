@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { User } from "@supabase/supabase-js";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { ArrowLeft, ImagePlus, MessageCircle, Megaphone, Send, Users, X, Check, PencilLine, ChevronRight, Trash2 } from "lucide-react";
+import { ArrowLeft, ImagePlus, MessageCircle, Megaphone, Send, Users, X, Check, PencilLine, ChevronRight, Trash2, ShieldCheck } from "lucide-react";
 import type { Locale } from "../../lib/i18n";
 import { searchProfiles } from "../../lib/messenger";
 import type { PublicProfile } from "../../lib/types";
+import { canDeleteCommunityMessage, EMPTY_COMMUNITY_ADMIN_PERMISSIONS, hasCommunityPermission, type CommunityAdminPermissions } from "../../lib/communityPermissions";
 
 type Room = {
   id: string;
@@ -18,6 +19,15 @@ type Room = {
   updated_at: string;
 };
 type RoomMessage = { id: string; room_id: string; sender_id: string; body: string; created_at: string };
+type RoomAdminEntry = {
+  user_id: string;
+  role: "owner" | "admin";
+  joined_at: string;
+  admin_permissions: Partial<CommunityAdminPermissions> | null;
+  promoted_by: string | null;
+  promoted_at: string | null;
+  profile: PublicProfile | null;
+};
 type Props = { client: SupabaseClient; user: User; locale: Locale; contacts?: PublicProfile[]; initialRoomId?: string | null; initialCreateKind?: "group" | "channel" | null; onRoomsChanged?: () => void; onClose: () => void };
 
 function RoomAvatar({ room, className = "" }: { room: Room; className?: string }) {
@@ -39,6 +49,14 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
   const ru = locale === "ru";
   const [room, setRoom] = useState<Room | null>(null);
   const [memberRole, setMemberRole] = useState<string | null>(null);
+  const [myAdminPermissions, setMyAdminPermissions] = useState<Partial<CommunityAdminPermissions>>(EMPTY_COMMUNITY_ADMIN_PERMISSIONS);
+  const [adminManagementOpen, setAdminManagementOpen] = useState(false);
+  const [roomAdmins, setRoomAdmins] = useState<RoomAdminEntry[]>([]);
+  const [eligibleAdminMembers, setEligibleAdminMembers] = useState<PublicProfile[]>([]);
+  const [editingAdminId, setEditingAdminId] = useState<string | null>(null);
+  const [permissionsDraft, setPermissionsDraft] = useState<CommunityAdminPermissions>(EMPTY_COMMUNITY_ADMIN_PERMISSIONS);
+  const [adminBusy, setAdminBusy] = useState(false);
+  const [adminError, setAdminError] = useState("");
   const [showRoomInfo, setShowRoomInfo] = useState(false);
   const [memberCount, setMemberCount] = useState<number | null>(null);
   const [messages, setMessages] = useState<RoomMessage[]>([]);
@@ -64,6 +82,10 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
   const createAvatarInput = useRef<HTMLInputElement>(null);
   const avatarInput = useRef<HTMLInputElement>(null);
   const messagesEnd = useRef<HTMLDivElement>(null);
+  const canChangeRoomInfo = hasCommunityPermission(memberRole, myAdminPermissions, "change_info");
+  const canDeleteRoomMessages = hasCommunityPermission(memberRole, myAdminPermissions, "delete_messages");
+  const canManageRoomAdmins = hasCommunityPermission(memberRole, myAdminPermissions, "manage_admins");
+  const canPostChannelMessages = hasCommunityPermission(memberRole, myAdminPermissions, "post_messages");
 
   async function loadRooms() {
     const { data, error: loadError } = await client.from("community_rooms")
@@ -252,11 +274,15 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
     setRoomDescriptionDraft(nextRoom.description);
     setRoom(nextRoom);
     setMemberRole(null);
+    setMyAdminPermissions(EMPTY_COMMUNITY_ADMIN_PERMISSIONS);
+    setAdminManagementOpen(false);
+    setEditingAdminId(null);
     setMessages([]);
     const { data, error: membershipError } = await client.from("community_room_members")
-      .select("role").eq("room_id", nextRoom.id).eq("user_id", user.id).maybeSingle();
+      .select("role, admin_permissions").eq("room_id", nextRoom.id).eq("user_id", user.id).maybeSingle();
     if (membershipError) { setError(membershipError.message); return; }
     setMemberRole((data?.role as string | undefined) ?? null);
+    setMyAdminPermissions((data?.admin_permissions as Partial<CommunityAdminPermissions> | null) ?? EMPTY_COMMUNITY_ADMIN_PERMISSIONS);
   }
 
   async function joinPublicRoom() {
@@ -266,6 +292,7 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
       const { error: joinError } = await client.rpc("join_public_community_room", { target_room_id: room.id });
       if (joinError) throw joinError;
       setMemberRole("member");
+      setMyAdminPermissions(EMPTY_COMMUNITY_ADMIN_PERMISSIONS);
       await loadMessages(room.id);
       onRoomsChanged?.();
     } catch (cause) {
@@ -394,7 +421,7 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
 
   async function saveRoomDetails(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!room || !memberRole || !["owner", "admin"].includes(memberRole)) return;
+    if (!room || !canChangeRoomInfo) return;
     const nextName = roomNameDraft.trim();
     const nextDescription = roomDescriptionDraft.trim();
     const normalized = roomUsernameDraft.trim().replace(/^@/, "").toLowerCase();
@@ -437,7 +464,7 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
   }
 
   async function changeRoomAvatar(file?: File) {
-    if (!file || !room || !memberRole || !["owner", "admin"].includes(memberRole)) return;
+    if (!file || !room || !canChangeRoomInfo) return;
     const extensions: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" };
     const extension = extensions[file.type];
     if (!extension || file.size < 1 || file.size > 3 * 1024 * 1024) {
@@ -512,6 +539,99 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
       setError(cause instanceof Error ? cause.message : (ru ? "Не удалось удалить сообщение." : "Could not delete the message."));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function loadAdminManagement() {
+    if (!room || !canManageRoomAdmins) return;
+    setAdminBusy(true);
+    setAdminError("");
+    try {
+      const { data, error: membersError } = await client.from("community_room_members")
+        .select("user_id, role, joined_at, admin_permissions, promoted_by, promoted_at")
+        .eq("room_id", room.id)
+        .order("joined_at", { ascending: true });
+      if (membersError) throw membersError;
+      const rows = (data ?? []) as Array<{
+        user_id: string;
+        role: string;
+        joined_at: string;
+        admin_permissions: Partial<CommunityAdminPermissions> | null;
+        promoted_by: string | null;
+        promoted_at: string | null;
+      }>;
+      const profileIds = [...new Set(rows.flatMap((row) => [row.user_id, row.promoted_by].filter((id): id is string => Boolean(id))))];
+      const { data: profiles, error: profilesError } = profileIds.length
+        ? await client.from("profiles").select("id, username, display_name, avatar_url").in("id", profileIds)
+        : { data: [], error: null };
+      if (profilesError) throw profilesError;
+      const byId = new Map<string, PublicProfile>(
+        (profiles ?? []).map((profile) => [profile.id as string, profile as PublicProfile]),
+      );
+      setRoomAdmins(rows
+        .filter((row) => row.role === "owner" || row.role === "admin")
+        .map((row) => ({ ...row, role: row.role as "owner" | "admin", profile: byId.get(row.user_id) ?? null })));
+      setEligibleAdminMembers(rows
+        .filter((row) => row.role === "member")
+        .map((row) => byId.get(row.user_id))
+        .filter((profile): profile is PublicProfile => Boolean(profile)));
+      setAdminManagementOpen(true);
+    } catch (cause) {
+      setAdminError(cause instanceof Error ? cause.message : (ru ? "Не удалось загрузить администраторов." : "Could not load administrators."));
+    } finally {
+      setAdminBusy(false);
+    }
+  }
+
+  function editAdminPermissions(userId: string) {
+    const existing = roomAdmins.find((entry) => entry.user_id === userId);
+    setEditingAdminId(userId);
+    setPermissionsDraft({
+      ...EMPTY_COMMUNITY_ADMIN_PERMISSIONS,
+      ...(existing?.admin_permissions ?? {}),
+    });
+    setAdminError("");
+  }
+
+  async function saveAdminPermissions() {
+    if (!room || !editingAdminId || adminBusy) return;
+    setAdminBusy(true);
+    setAdminError("");
+    try {
+      const { error: saveError } = await client.rpc("set_community_admin_permissions", {
+        p_room_id: room.id,
+        p_user_id: editingAdminId,
+        p_permissions: permissionsDraft,
+      });
+      if (saveError) throw saveError;
+      setEditingAdminId(null);
+      setPermissionsDraft(EMPTY_COMMUNITY_ADMIN_PERMISSIONS);
+      await loadAdminManagement();
+    } catch (cause) {
+      setAdminError(cause instanceof Error ? cause.message : (ru ? "Не удалось сохранить права администратора." : "Could not save administrator permissions."));
+    } finally {
+      setAdminBusy(false);
+    }
+  }
+
+  async function removeCommunityAdmin(userId: string) {
+    if (!room || adminBusy || userId === user.id) return;
+    const confirmed = window.confirm(ru ? "Снять права администратора у этого участника?" : "Remove administrator rights from this member?");
+    if (!confirmed) return;
+    setAdminBusy(true);
+    setAdminError("");
+    try {
+      const { error: removeError } = await client.rpc("remove_community_admin", {
+        p_room_id: room.id,
+        p_user_id: userId,
+      });
+      if (removeError) throw removeError;
+      setEditingAdminId(null);
+      await loadAdminManagement();
+    } catch (cause) {
+      setAdminError(cause instanceof Error ? cause.message : (ru ? "Не удалось снять права администратора." : "Could not remove administrator rights."));
+    } finally {
+      setAdminBusy(false);
     }
   }
 
@@ -685,12 +805,12 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
                     <article className={"community-message " + (item.sender_id === user.id ? "mine" : "")} key={item.id}>
                       {item.sender_id !== user.id && <small>{ru ? "Участник" : "Member"}</small>}
                       <p>{item.body}</p><footer><time>{new Date(item.created_at).toLocaleTimeString(ru ? "ru-RU" : "en-US", { hour: "2-digit", minute: "2-digit" })}</time>
-                      {(item.sender_id === user.id || ["owner", "admin"].includes(memberRole)) && <button type="button" onClick={() => void deleteMessage(item)}>{ru ? "Удалить" : "Delete"}</button>}</footer>
+                      {canDeleteCommunityMessage(memberRole, myAdminPermissions, item.sender_id, user.id) && <button type="button" onClick={() => void deleteMessage(item)}>{ru ? "Удалить" : "Delete"}</button>}</footer>
                     </article>
                   ))}
                   <div ref={messagesEnd} />
                 </div>
-                {(room.kind === "group" || ["owner", "admin"].includes(memberRole)) ? (
+                {(room.kind === "group" || canPostChannelMessages) ? (
                   <form className="community-composer" onSubmit={sendMessage}><input value={draft} onChange={(event) => setDraft(event.target.value)} maxLength={4000} placeholder={ru ? "Сообщение…" : "Message…"} /><button type="submit" disabled={busy || !draft.trim()} aria-label={ru ? "Отправить" : "Send"}><Send size={18} /></button></form>
                 ) : <p className="community-muted community-readonly">{ru ? "Публиковать в этом канале может только администрация." : "Only channel admins can publish here."}</p>}
               </>
@@ -711,7 +831,7 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
             <header className="community-info-header">
               <button className="icon-button" type="button" onClick={() => { setShowRoomInfo(false); setRoomEditing(false); setError(""); }} aria-label={ru ? "Назад к чату" : "Back to chat"}><ArrowLeft size={20} /></button>
               <strong>{ru ? "Информация" : "Information"}</strong>
-              {memberRole && ["owner", "admin"].includes(memberRole) ? (
+              {canChangeRoomInfo ? (
                 <button className="icon-button" type="button" onClick={() => { setRoomNameDraft(room.name); setRoomUsernameDraft(room.username); setRoomDescriptionDraft(room.description); setRoomEditing((current) => !current); setError(""); }} aria-label={ru ? "Изменить информацию" : "Edit information"} title={ru ? "Изменить информацию" : "Edit information"}><PencilLine size={19} /></button>
               ) : <span className="community-info-header-spacer" />}
             </header>
@@ -719,7 +839,7 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
               <div className="community-info-hero">
                 <div className="community-info-avatar-wrap">
                   <RoomAvatar room={room} className="community-info-avatar" />
-                  {memberRole && ["owner", "admin"].includes(memberRole) && (
+                  {canChangeRoomInfo && (
                     <>
                       <input ref={avatarInput} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(event) => void changeRoomAvatar(event.target.files?.[0])} />
                       <button className="community-info-avatar-edit" type="button" onClick={() => avatarInput.current?.click()} disabled={busy} aria-label={ru ? "Изменить фото сообщества" : "Change community photo"}><ImagePlus size={19} /></button>
@@ -753,7 +873,7 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
                   <div className="community-info-detail"><p>{room.description}</p></div>
                 </div>
               )}
-              {roomEditing && memberRole && ["owner", "admin"].includes(memberRole) && (
+              {roomEditing && canChangeRoomInfo && (
                 <form className="community-room-edit community-info-edit community-details-edit" onSubmit={saveRoomDetails}>
                   <label>{ru ? "Название" : "Name"}
                     <input className="community-details-input" value={roomNameDraft} onChange={(event) => setRoomNameDraft(event.target.value.slice(0, 64))} minLength={2} maxLength={64} required />
@@ -771,10 +891,15 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
                   </div>
                 </form>
               )}
-              {memberRole && ["owner", "admin"].includes(memberRole) && (
+              {(canChangeRoomInfo || canManageRoomAdmins || memberRole === "owner") && (
                 <div className="community-info-admin-actions">
-                  <button type="button" onClick={() => { setRoomNameDraft(room.name); setRoomUsernameDraft(room.username); setRoomDescriptionDraft(room.description); setRoomEditing((current) => !current); setError(""); }}><PencilLine size={17} />{ru ? "Изменить информацию" : "Edit information"}</button>
-                  <button type="button" onClick={() => avatarInput.current?.click()} disabled={busy}><ImagePlus size={17} />{ru ? "Изменить фото" : "Change photo"}</button>
+                  {canChangeRoomInfo && <>
+                    <button type="button" onClick={() => { setRoomNameDraft(room.name); setRoomUsernameDraft(room.username); setRoomDescriptionDraft(room.description); setRoomEditing((current) => !current); setError(""); }}><PencilLine size={17} />{ru ? "Изменить информацию" : "Edit information"}</button>
+                    <button type="button" onClick={() => avatarInput.current?.click()} disabled={busy}><ImagePlus size={17} />{ru ? "Изменить фото" : "Change photo"}</button>
+                  </>}
+                  {canManageRoomAdmins && (
+                    <button type="button" onClick={() => void loadAdminManagement()} disabled={adminBusy}><ShieldCheck size={17} />{ru ? "Администраторы и права" : "Administrators and permissions"}</button>
+                  )}
                   {room.created_by === user.id && memberRole === "owner" && (
                     <button className="danger" type="button" onClick={() => void deleteRoom()} disabled={busy}>
                       <Trash2 size={17} />{busy ? (ru ? "Удаление…" : "Deleting…") : (room.kind === "channel" ? (ru ? "Удалить канал" : "Delete channel") : (ru ? "Удалить группу" : "Delete group"))}
@@ -785,6 +910,98 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
               {!memberRole && room.is_public && (
                 <button className="community-primary community-info-join" type="button" onClick={() => void joinPublicRoom()} disabled={busy}>{room.kind === "channel" ? (ru ? "Подписаться" : "Subscribe") : (ru ? "Вступить в группу" : "Join group")}</button>
               )}
+            </div>
+          </section>
+        )}
+
+        {adminManagementOpen && room && (
+          <section className="community-admin-screen" role="dialog" aria-modal="true" aria-label={ru ? "Администраторы группы" : "Group administrators"}>
+            <header className="community-info-header">
+              <button className="icon-button" type="button" onClick={() => { setAdminManagementOpen(false); setEditingAdminId(null); setAdminError(""); }} aria-label={ru ? "Назад" : "Back"}><ArrowLeft size={20} /></button>
+              <strong>{ru ? "Администраторы" : "Administrators"}</strong>
+              <span className="community-info-header-spacer" />
+            </header>
+            <div className="community-admin-scroll">
+              <section className="community-admin-section">
+                <h2>{ru ? "Текущие администраторы" : "Current administrators"}</h2>
+                {roomAdmins.map((admin) => {
+                  const label = admin.profile?.display_name || admin.profile?.username || (ru ? "Участник" : "Member");
+                  const appointedBy = admin.promoted_by ? roomAdmins.find((entry) => entry.user_id === admin.promoted_by)?.profile?.username : null;
+                  const appointedAt = new Date(admin.promoted_at || admin.joined_at).toLocaleDateString(ru ? "ru-RU" : "en-US");
+                  return (
+                    <article className="community-admin-person" key={admin.user_id}>
+                      <div className="community-admin-person-avatar">
+                        {admin.profile?.avatar_url ? <img src={admin.profile.avatar_url} alt="" /> : label.slice(0, 1).toUpperCase()}
+                      </div>
+                      <div className="community-admin-person-copy">
+                        <strong>{label}</strong>
+                        <small>{admin.role === "owner" ? (ru ? "Владелец" : "Owner") : (ru ? "Администратор" : "Administrator")}</small>
+                        <small>{(ru ? "Назначен: " : "Appointed: ") + appointedAt + (appointedBy ? " · " + (ru ? "кем" : "by") + " @" + appointedBy : "")}</small>
+                      </div>
+                      {admin.role === "admin" && admin.user_id !== user.id && (
+                        <div className="community-admin-person-actions">
+                          <button type="button" onClick={() => editAdminPermissions(admin.user_id)}>{ru ? "Права" : "Rights"}</button>
+                          {(memberRole === "owner" || admin.promoted_by === user.id) && (
+                            <button className="community-admin-remove" type="button" onClick={() => void removeCommunityAdmin(admin.user_id)} disabled={adminBusy}>{ru ? "Снять" : "Remove"}</button>
+                          )}
+                        </div>
+                      )}
+                    </article>
+                  );
+                })}
+              </section>
+
+              <section className="community-admin-section">
+                <h2>{ru ? "Назначить администратора" : "Add an administrator"}</h2>
+                {eligibleAdminMembers.length === 0
+                  ? <p className="community-admin-empty">{ru ? "Нет участников, которых можно назначить." : "There are no eligible members to promote."}</p>
+                  : eligibleAdminMembers.map((profile) => (
+                    <button className="community-admin-candidate" type="button" key={profile.id} onClick={() => editAdminPermissions(profile.id)}>
+                      <span className="community-admin-person-avatar">{profile.avatar_url ? <img src={profile.avatar_url} alt="" /> : (profile.display_name || profile.username).slice(0, 1).toUpperCase()}</span>
+                      <span><strong>{profile.display_name || profile.username}</strong><small>@{profile.username}</small></span>
+                      <ChevronRight size={17} />
+                    </button>
+                  ))}
+              </section>
+
+              {editingAdminId && (
+                <section className="community-admin-section community-admin-editor">
+                  <h2>{roomAdmins.some((admin) => admin.user_id === editingAdminId)
+                    ? (ru ? "Права администратора" : "Administrator permissions")
+                    : (ru ? "Назначение администратора" : "Promote member")}</h2>
+                  <p className="community-admin-hint">{ru
+                    ? "Выбери только те действия, которые этому администратору действительно нужны. Владелец сохраняет полный доступ."
+                    : "Grant only the actions this administrator needs. The owner always keeps full access."}</p>
+                  <label className="community-admin-permission">
+                    <input type="checkbox" checked={permissionsDraft.change_info} onChange={(event) => setPermissionsDraft((current) => ({ ...current, change_info: event.target.checked }))} />
+                    <span><strong>{ru ? "Изменение информации" : "Change group info"}</strong><small>{ru ? "Название, описание и фотография" : "Name, description and photo"}</small></span>
+                  </label>
+                  <label className="community-admin-permission">
+                    <input type="checkbox" checked={permissionsDraft.delete_messages} onChange={(event) => setPermissionsDraft((current) => ({ ...current, delete_messages: event.target.checked }))} />
+                    <span><strong>{ru ? "Удаление сообщений" : "Delete messages"}</strong><small>{ru ? "Удалять сообщения других участников" : "Delete messages sent by other members"}</small></span>
+                  </label>
+                  {room.kind === "channel" && (
+                    <label className="community-admin-permission">
+                      <input type="checkbox" checked={permissionsDraft.post_messages} onChange={(event) => setPermissionsDraft((current) => ({ ...current, post_messages: event.target.checked }))} />
+                      <span><strong>{ru ? "Публикация сообщений" : "Publish messages"}</strong><small>{ru ? "Публиковать записи в канале" : "Publish posts in this channel"}</small></span>
+                    </label>
+                  )}
+                  {memberRole === "owner" && (
+                    <label className="community-admin-permission">
+                      <input type="checkbox" checked={permissionsDraft.manage_admins} onChange={(event) => setPermissionsDraft((current) => ({ ...current, manage_admins: event.target.checked }))} />
+                      <span><strong>{ru ? "Назначение администраторов" : "Manage administrators"}</strong><small>{ru ? "Назначать участников и управлять правами администраторов с меньшими полномочиями" : "Promote members and manage administrators with lower authority"}</small></span>
+                    </label>
+                  )}
+                  <p className="community-admin-hint">{ru
+                    ? "Приглашения, блокировка участников, закрепление сообщений, темы и звонки пока не поддерживаются в HELORO — эти права не отображаются как активные."
+                    : "Invites, member bans, pinned messages, topics and calls are not implemented in HELORO yet, so they are not shown as active permissions."}</p>
+                  <div className="community-admin-editor-actions">
+                    <button type="button" className="community-secondary" onClick={() => { setEditingAdminId(null); setPermissionsDraft(EMPTY_COMMUNITY_ADMIN_PERMISSIONS); }} disabled={adminBusy}>{ru ? "Отмена" : "Cancel"}</button>
+                    <button type="button" className="community-primary" onClick={() => void saveAdminPermissions()} disabled={adminBusy}>{adminBusy ? (ru ? "Сохранение…" : "Saving…") : (ru ? "Сохранить" : "Save")}</button>
+                  </div>
+                </section>
+              )}
+              {adminError && <p className="community-error" role="alert">{adminError}</p>}
             </div>
           </section>
         )}
