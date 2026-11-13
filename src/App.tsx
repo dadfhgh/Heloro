@@ -77,7 +77,7 @@ function AuthenticatedApp({
   useEffect(() => {
     let active = true;
     setRestrictionLoading(true);
-    void client.rpc("heloro_current_account_restriction")
+    void Promise.resolve(client.rpc("heloro_current_account_restriction"))
       .then(({ data, error }) => {
         if (!active) return;
         if (error) {
@@ -85,6 +85,12 @@ function AuthenticatedApp({
           setRestriction(null);
         } else {
           setRestriction((data as { restriction_type: string; reason: string; expires_at: string | null } | null) ?? null);
+        }
+      })
+      .catch((cause: unknown) => {
+        if (active) {
+          console.warn("HELORO restriction lookup failed:", cause);
+          setRestriction(null);
         }
       })
       .finally(() => { if (active) setRestrictionLoading(false); });
