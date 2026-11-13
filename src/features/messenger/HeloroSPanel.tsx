@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { User } from "@supabase/supabase-js";
 import {
   Activity, BadgeCheck, Ban, Check, CheckCircle2, CircleAlert,
@@ -13,6 +13,7 @@ import {
 import { formatMessageTime } from "../../lib/domain";
 import type { Locale } from "../../lib/i18n";
 import type { PublicProfile } from "../../lib/types";
+import { adminErrorMessage, escapeAdminLikePattern, normalizeAdminSearch } from "./adminPanelUtils";
 
 type Props = {
   client: SupabaseClient;
@@ -45,7 +46,8 @@ type AuditEntry = {
   action: string; reason?: string | null; details?: Record<string, unknown>;
   created_at: string;
 };
-type StaffEntry = { user_id: string; role: string; granted_at: string };
+type StaffEntry = { user_id: string; role: string; granted_at: string; username?: string | null; display_name?: string | null };
+type ActiveRestriction = { id: string; restriction_type: string; reason: string; created_at: string; expires_at: string | null; revoked_at: string | null; created_by: string };
 type Overview = {
   users_total: number; registrations_24h: number; active_users_24h: number;
   messages_total: number; messages_24h: number; reports_open: number;
@@ -75,8 +77,8 @@ const settingDefinitions = [
   { key: "public_channels_enabled", ru: "Публичные каналы", en: "Public channels" },
 ];
 
-function errorText(cause: unknown, fallback: string) {
-  return cause instanceof Error ? cause.message : fallback;
+function errorText(cause: unknown, fallback: string, ru: boolean) {
+  return adminErrorMessage(cause, fallback, ru ? "ru" : "en");
 }
 
 function shortId(value: string | null | undefined) {
@@ -93,16 +95,23 @@ export default function HeloroSPanel({
   const canManageBadges = isOwner || isAdmin;
   const [tab, setTab] = useState<TabId>("overview");
   const [busy, setBusy] = useState(false);
+  const [loadingTab, setLoadingTab] = useState<TabId | null>(null);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const selectedUserIdRef = useRef<string | null>(null);
+  const selectedThreadIdRef = useRef<string | null>(null);
+  const userSearchRequestRef = useRef(0);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [overview, setOverview] = useState<Overview | null>(null);
   const [search, setSearch] = useState("");
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
+  useEffect(() => { selectedUserIdRef.current = selectedUser?.id ?? null; }, [selectedUser]);
   const [reports, setReports] = useState<AdminReport[]>([]);
   const [reportDecisions, setReportDecisions] = useState<ReportDecision[]>([]);
   const [threads, setThreads] = useState<AdminThread[]>([]);
   const [selectedThread, setSelectedThread] = useState<AdminThread | null>(null);
+  useEffect(() => { selectedThreadIdRef.current = selectedThread?.id ?? null; }, [selectedThread]);
   const [supportMessages, setSupportMessages] = useState<SupportMessage[]>([]);
   const [reply, setReply] = useState("");
   const [audit, setAudit] = useState<AuditEntry[]>([]);
@@ -128,21 +137,44 @@ export default function HeloroSPanel({
     setOverview(data as Overview);
   }
 
-  async function loadUsers(query: string) {
-    let request = client.from("profiles")
-      .select("id, username, display_name, avatar_url, created_at")
-      .order("created_at", { ascending: false })
-      .limit(30);
-    const normalized = query.trim().replace(/^@/, "").replace(/[%,_()]/g, "");
-    if (normalized.length >= 2) {
-      request = request.or("username.ilike.%"+normalized+"%,display_name.ilike.%"+normalized+"%");
-    } else if (query.trim().length > 0) {
-      setUsers([]);
+  async function loadUsers(query: string, isCurrent: () => boolean = () => true) {
+    const raw = query.trim();
+    const normalized = normalizeAdminSearch(raw);
+    if (raw.length > 0 && normalized.length < 2) {
+      if (isCurrent()) setUsers([]);
       return;
     }
-    const { data, error: queryError } = await request;
-    if (queryError) throw queryError;
-    setUsers((data ?? []) as AdminUser[]);
+
+    const columns = "id, username, display_name, avatar_url, created_at";
+    if (raw.length === 0) {
+      const { data, error: queryError } = await client.from("profiles")
+        .select(columns).order("created_at", { ascending: false }).limit(30);
+      if (queryError) throw queryError;
+      if (isCurrent()) setUsers((data ?? []) as AdminUser[]);
+      return;
+    }
+
+    const pattern = "%" + escapeAdminLikePattern(normalized) + "%";
+    const usernameQuery = client.from("profiles").select(columns)
+      .ilike("username", pattern).order("created_at", { ascending: false }).limit(30);
+    const queries = raw.startsWith("@")
+      ? [usernameQuery]
+      : [
+          usernameQuery,
+          client.from("profiles").select(columns)
+            .ilike("display_name", pattern).order("created_at", { ascending: false }).limit(30),
+        ];
+    const results = await Promise.all(queries);
+    const failed = results.find((result) => result.error);
+    if (failed?.error) throw failed.error;
+    const merged = new Map<string, AdminUser>();
+    for (const result of results) {
+      for (const item of (result.data ?? []) as AdminUser[]) merged.set(item.id, item);
+    }
+    const items = [...merged.values()]
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .slice(0, 30);
+    if (isCurrent()) setUsers(items);
   }
 
   async function loadReports() {
