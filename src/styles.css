@@ -2310,3 +2310,23 @@ html[data-theme="dark"] .community-username-field {
     margin: 8px 10px max(12px, env(safe-area-inset-bottom));
   }
 }
+
+/* Empty conversation panel: helpful action without the old "choose a chat" placeholder. */
+.empty-chat-find {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  margin-top: 10px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 12px;
+  color: #fff;
+  background: #319fc2;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.empty-chat-find:hover { background: #238eb3; }
+html[data-theme="dark"] .empty-chat-find { color: #fff; background: #328eaa; }
