@@ -226,6 +226,8 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   }
 
   function openCommunity(roomId: string | null, createKind: "group" | "channel" | null = null) {
+    setMobileTab("chats");
+    setShowContactsScreen(false);
     setActiveId(null);
     setSystemView(null);
     setActiveCommunityRoomId(roomId);
@@ -658,6 +660,8 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   }
 
   function openSearch() {
+    setMobileTab("chats");
+    setShowContactsScreen(false);
     setShowComposeScreen(false);
     setSystemView(null);
     setActiveId(null);
@@ -669,6 +673,8 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   }
 
   function openSystemView(view: SystemView) {
+    setMobileTab("chats");
+    setShowContactsScreen(false);
     setShowComposeScreen(false);
     setActiveId(null);
     setActiveCommunityRoomId(null);
@@ -681,6 +687,8 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   }
 
   function closeConversation() {
+    setMobileTab("chats");
+    setShowContactsScreen(false);
     setShowComposeScreen(false);
     setActiveId(null);
     setActiveCommunityRoomId(null);
