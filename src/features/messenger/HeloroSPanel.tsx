@@ -333,30 +333,50 @@ export default function HeloroSPanel({
 
   async function applyRestriction() {
     if (!selectedUser || !restrictionReason.trim()) return;
-    if (!window.confirm(ru ? "Подтвердить это действие модерации?" : "Confirm this moderation action?")) return;
-    if (restrictionType === "temporary_ban" && !restrictionUntil) {
-      setError(ru ? "Укажите дату окончания временного ограничения." : "Set an expiry for the temporary restriction.");
-      return;
+    const targetUserId = selectedUser.id;
+    const maxDays = isOwner || isAdmin ? 30 : 1;
+    let expiresAt: string | null = null;
+    if (restrictionType === "temporary_ban") {
+      const expiryTime = new Date(restrictionUntil).getTime();
+      const maxExpiry = Date.now() + maxDays * 24 * 60 * 60 * 1000;
+      if (!restrictionUntil || !Number.isFinite(expiryTime) || expiryTime <= Date.now() || expiryTime > maxExpiry) {
+        setError(ru
+          ? `Укажите срок в будущем, не более чем на ${maxDays} дн.`
+          : `Choose a future expiry within ${maxDays} day(s).`);
+        return;
+      }
+      expiresAt = new Date(expiryTime).toISOString();
     }
+    if (!window.confirm(ru ? "Подтвердить это действие модерации?" : "Confirm this moderation action?")) return;
     setBusy(true); clearMessages();
     try {
-      const expiresAt = restrictionType === "temporary_ban" ? new Date(restrictionUntil).toISOString() : null;
       const { error: rpcError } = await client.rpc("heloro_admin_apply_restriction", {
-        p_target_user_id: selectedUser.id,
+        p_target_user_id: targetUserId,
         p_restriction_type: restrictionType,
         p_reason: restrictionReason.trim(),
         p_expires_at: expiresAt,
       });
       if (rpcError) throw rpcError;
-      setNotice(ru ? "Действие модерации записано." : "Moderation action saved.");
+
+      setNotice(ru ? "Действие модерации сохранено." : "Moderation action saved.");
       setRestrictionReason("");
-      await loadAudit();
+      setRestrictionUntil("");
+
+      try {
+        const refreshed = await loadSelectedRestrictions(targetUserId);
+        if (selectedUserIdRef.current === targetUserId) setActiveRestrictions(refreshed);
+      } catch (refreshError) {
+        setError(errorText(refreshError, ru ? "Действие применено, но список не удалось обновить." : "Action applied, but the restriction list could not be refreshed.", ru));
+      }
+      void loadAudit().catch((cause: unknown) => {
+        setError(errorText(cause, ru ? "Действие сохранено, но журнал не обновился." : "Action saved, but the audit log could not be refreshed.", ru));
+      });
     } catch (cause) {
-      setError(errorText(cause, ru ? "Не удалось применить ограничение." : "Could not apply restriction."));
+      setError(errorText(cause, ru ? "Не удалось применить ограничение." : "Could not apply restriction.", ru));
     } finally { setBusy(false); }
   }
 
-  async function revokeRestriction(restrictionId: string) {
+  async function revokeRestriction(restrictionId: string, targetUserId: string) {
     if (!window.confirm(ru ? "Снять это ограничение?" : "Revoke this restriction?")) return;
     setBusy(true); clearMessages();
     try {
@@ -365,30 +385,34 @@ export default function HeloroSPanel({
         p_reason: ru ? "Снято через HELORO S" : "Revoked from HELORO S",
       });
       if (rpcError) throw rpcError;
-      setNotice(ru ? "Ограничение снято." : "Restriction lifted.");
-      await loadAudit();
-    } catch (cause) {
-      setError(errorText(cause, ru ? "Не удалось снять ограничение." : "Could not lift restriction."));
-    } finally { setBusy(false); }
-  }
 
-  async function loadSelectedRestrictions(targetUserId = selectedUser?.id): Promise<ActiveRestriction[]> {
-    if (!targetUserId) return [];
-    const { data, error: queryError } = await client.from("account_restrictions")
-      .select("id, restriction_type, reason, created_at, expires_at, revoked_at, created_by")
-      .eq("user_id", targetUserId).is("revoked_at", null).order("created_at", { ascending: false });
-    if (queryError) throw queryError;
-    return ((data ?? []) as ActiveRestriction[]).filter((item) => !item.expires_at || new Date(item.expires_at).getTime() > Date.now());
+      setNotice(ru ? "Ограничение снято." : "Restriction lifted.");
+      try {
+        const refreshed = await loadSelectedRestrictions(targetUserId);
+        if (selectedUserIdRef.current === targetUserId) setActiveRestrictions(refreshed);
+      } catch (refreshError) {
+        setError(errorText(refreshError, ru ? "Ограничение снято, но список не удалось обновить." : "Restriction revoked, but the list could not be refreshed.", ru));
+      }
+      void loadAudit().catch((cause: unknown) => {
+        setError(errorText(cause, ru ? "Ограничение снято, но журнал не обновился." : "Restriction revoked, but the audit log could not be refreshed.", ru));
+      });
+    } catch (cause) {
+      setError(errorText(cause, ru ? "Не удалось снять ограничение." : "Could not lift restriction.", ru));
+    } finally { setBusy(false); }
   }
 
   const [activeRestrictions, setActiveRestrictions] = useState<ActiveRestriction[]>([]);
   useEffect(() => {
     let active = true;
     if (tab !== "moderation" || !selectedUser) { setActiveRestrictions([]); return; }
-    loadSelectedRestrictions().then((items) => { if (active) setActiveRestrictions(items); })
-      .catch((cause: unknown) => { if (active) setError(errorText(cause, ru ? "Не удалось загрузить ограничения." : "Could not load restrictions.")); });
+    const targetUserId = selectedUser.id;
+    loadSelectedRestrictions(targetUserId).then((items) => {
+      if (active && selectedUserIdRef.current === targetUserId) setActiveRestrictions(items);
+    }).catch((cause: unknown) => {
+      if (active) setError(errorText(cause, ru ? "Не удалось загрузить ограничения." : "Could not load restrictions.", ru));
+    });
     return () => { active = false; };
-  }, [client, tab, selectedUser]);
+  }, [client, tab, selectedUser, ru]);
 
   async function updateReport(report: AdminReport, status: string) {
     setBusy(true); clearMessages();
