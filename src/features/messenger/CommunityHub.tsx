@@ -5,7 +5,7 @@ import { ArrowLeft, ImagePlus, MessageCircle, Megaphone, Send, Users, X, Check, 
 import type { Locale } from "../../lib/i18n";
 import { searchProfiles } from "../../lib/messenger";
 import type { PublicProfile } from "../../lib/types";
-import { canDeleteCommunityMessage, EMPTY_COMMUNITY_ADMIN_PERMISSIONS, hasCommunityPermission, type CommunityAdminPermissions } from "../../lib/communityPermissions";
+import { canDeleteCommunityMessage, canManageCommunityAdmin, EMPTY_COMMUNITY_ADMIN_PERMISSIONS, hasCommunityPermission, type CommunityAdminPermissions } from "../../lib/communityPermissions";
 
 type Room = {
   id: string;
@@ -937,15 +937,14 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
                       </div>
                       <div className="community-admin-person-copy">
                         <strong>{label}</strong>
+                        <small>@{admin.profile?.username || admin.user_id.slice(0, 8)}</small>
                         <small>{admin.role === "owner" ? (ru ? "Владелец" : "Owner") : (ru ? "Администратор" : "Administrator")}</small>
                         <small>{(ru ? "Назначен: " : "Appointed: ") + appointedAt + (appointedBy ? " · " + (ru ? "кем" : "by") + " @" + appointedBy : "")}</small>
                       </div>
-                      {admin.role === "admin" && admin.user_id !== user.id && (
+                      {admin.role === "admin" && admin.user_id !== user.id && canManageCommunityAdmin(memberRole, myAdminPermissions, admin.role, admin.admin_permissions) && (
                         <div className="community-admin-person-actions">
-                          {memberRole === "owner" && <button type="button" onClick={() => editAdminPermissions(admin.user_id)}>{ru ? "Права" : "Rights"}</button>}
-                          {(memberRole === "owner" || admin.promoted_by === user.id) && (
-                            <button className="community-admin-remove" type="button" onClick={() => void removeCommunityAdmin(admin.user_id)} disabled={adminBusy}>{ru ? "Снять" : "Remove"}</button>
-                          )}
+                          <button type="button" onClick={() => editAdminPermissions(admin.user_id)}>{ru ? "Права" : "Rights"}</button>
+                          <button className="community-admin-remove" type="button" onClick={() => void removeCommunityAdmin(admin.user_id)} disabled={adminBusy}>{ru ? "Снять" : "Remove"}</button>
                         </div>
                       )}
                     </article>
