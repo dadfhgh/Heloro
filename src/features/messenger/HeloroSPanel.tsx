@@ -26,7 +26,7 @@ type Props = {
 type TabId = "overview" | "users" | "moderation" | "reports" | "support" | "audit" | "settings" | "security" | "verification" | "channels" | "roles";
 type AdminUser = PublicProfile & { created_at: string };
 type AdminReport = {
-  id: string; reporter_id: string; reported_user_id: string; reason: string;
+  id: string; reporter_id: string; reported_user_id: string | null; reason: string;
   details: string; status: string; created_at: string;
   target_type?: string; target_id?: string | null; review_note?: string | null;
 };
@@ -281,7 +281,7 @@ export default function HeloroSPanel({
       .select("id, restriction_type, reason, created_at, expires_at, revoked_at")
       .eq("user_id", selectedUser.id).is("revoked_at", null).order("created_at", { ascending: false });
     if (queryError) throw queryError;
-    return (data ?? []) as { id: string; restriction_type: string; reason: string; created_at: string; expires_at: string | null; revoked_at: string | null }[];
+    return ((data ?? []) as { id: string; restriction_type: string; reason: string; created_at: string; expires_at: string | null; revoked_at: string | null }[]).filter((item) => !item.expires_at || new Date(item.expires_at).getTime() > Date.now());
   }
 
   const [activeRestrictions, setActiveRestrictions] = useState<{ id: string; restriction_type: string; reason: string; created_at: string; expires_at: string | null; revoked_at: string | null }[]>([]);
@@ -464,7 +464,7 @@ export default function HeloroSPanel({
                   </div>
                 )}
                 {tab === "roles" && isOwner && <div className="admin-role-editor"><select value={roleChoice} onChange={(event) => setRoleChoice(event.target.value)}><option value="admin">Admin</option><option value="moderator">Moderator</option></select><button disabled={busy || selectedUser.id === user.id} onClick={() => void changeRole(selectedUser, roleChoice)}>{ru ? "Назначить роль" : "Assign role"}</button><button className="admin-secondary-action" disabled={busy || selectedUser.id === user.id} onClick={() => void changeRole(selectedUser, null)}>{ru ? "Снять роль" : "Remove role"}</button></div>}
-                {tab === "verification" && canManageBadges && <div className="admin-role-editor"><select value={badgeType} onChange={(event) => setBadgeType(event.target.value)}><option value="blue">{ru ? "Синяя — подтверждённая личность" : "Blue — verified identity"}</option><option value="gold">{ru ? "Золотая — организация" : "Gold — organization"}</option><option value="creator">{ru ? "Автор" : "Creator"}</option></select><button disabled={busy} onClick={() => void saveBadge(selectedUser)}>{ru ? "Выдать отметку" : "Grant badge"}</button><button className="admin-secondary-action" disabled={busy} onClick={() => void setVerificationBadge(client, selectedUser.id, user.id, null).then(() => loadAudit()).then(() => setNotice(ru ? "Отметка снята." : "Badge revoked.")).catch((cause: unknown) => setError(errorText(cause, "Could not revoke badge.")))}>{ru ? "Снять отметку" : "Revoke badge"}</button></div>}
+                {tab === "verification" && canManageBadges && <div className="admin-role-editor"><select value={badgeType} onChange={(event) => setBadgeType(event.target.value as BadgeType)}><option value="blue">{ru ? "Синяя — подтверждённая личность" : "Blue — verified identity"}</option><option value="gold">{ru ? "Золотая — организация" : "Gold — organization"}</option><option value="creator">{ru ? "Автор" : "Creator"}</option></select><button disabled={busy} onClick={() => void saveBadge(selectedUser)}>{ru ? "Выдать отметку" : "Grant badge"}</button><button className="admin-secondary-action" disabled={busy} onClick={() => { if (window.confirm(ru ? "Снять отметку верификации?" : "Revoke this verification badge?")) void setVerificationBadge(client, selectedUser.id, user.id, null).then(() => loadAudit()).then(() => setNotice(ru ? "Отметка снята." : "Badge revoked.")).catch((cause: unknown) => setError(errorText(cause, "Could not revoke badge."))); }}>{ru ? "Снять отметку" : "Revoke badge"}</button></div>}
                 {tab === "users" && <p className="admin-muted">{ru ? "Доступны только публичные данные профиля. Личные переписки и пароли здесь не отображаются." : "Only public profile information is shown. Private chats and passwords are never displayed here."}</p>}
               </div>
             )}
