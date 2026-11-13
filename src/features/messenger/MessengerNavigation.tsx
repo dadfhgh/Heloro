@@ -134,6 +134,7 @@ type SettingsProps = {
   onThemeChange: (theme: ThemePreference) => void;
   onLocaleChange: (locale: Locale) => void;
   onClose: () => void;
+  onOpenMyProfile: () => void;
   onOpenSupport: () => void;
   onOpenAdmin: () => void;
   onSignOut: () => void;
@@ -177,6 +178,7 @@ export function MessengerSettings({
   onThemeChange,
   onLocaleChange,
   onClose,
+  onOpenMyProfile,
   onOpenSupport,
   onOpenAdmin,
   onSignOut,
@@ -218,7 +220,7 @@ export function MessengerSettings({
                 </div>
                 <div className="settings-info-row"><span>{ru ? "Имя профиля" : "Profile name"}</span><strong>{profile.display_name}</strong></div>
                 <div className="settings-info-row"><span>HELORO ID</span><strong>@{profile.username}</strong></div>
-                <p className="settings-muted-note">{ru ? "Изменение имени и фотографии профиля будет добавлено отдельно." : "Profile name and photo editing will be added separately."}</p>
+                <button type="button" className="settings-action-button" onClick={onOpenMyProfile}><Users size={18} /> {ru ? "Открыть мой профиль" : "Open my profile"}</button>
                 <button type="button" className="settings-signout" onClick={onSignOut}><span>{ru ? "Выйти из аккаунта" : "Sign out"}</span></button>
               </div>
             )}
