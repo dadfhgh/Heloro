@@ -170,7 +170,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
 
   const visibleCommunityRooms = useMemo(() => {
     const query = search.trim().toLocaleLowerCase().replace(/^@/, "");
-    const source = showSearch ? [...communityRooms, ...communitySearchRooms] : communityRooms;
+    const source = chatFilter === "personal" ? [] : (showSearch ? [...communityRooms, ...communitySearchRooms] : communityRooms);
     const unique = new Map(source.map((item) => [item.id, item]));
     return [...unique.values()].filter((item) =>
       !query || item.name.toLocaleLowerCase().includes(query) ||
@@ -993,6 +993,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
             onLocaleChange={onLocaleChange}
             onClose={() => setShowSettings(false)}
             onOpenSupport={() => { setShowSettings(false); openSystemView("support"); }}
+            onOpenMyProfile={() => { setShowSettings(false); void openUserProfile(user.id); }}
             onOpenAdmin={() => { setShowSettings(false); openSystemView("admin"); }}
             onSignOut={() => void signOut()}
           />
