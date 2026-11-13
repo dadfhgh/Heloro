@@ -277,7 +277,7 @@ export function MessengerSettings({
     devices: ru ? "Активные сеансы и входы" : "Active sessions and sign-ins",
     calls: ru ? "Аудио- и видеозвонки" : "Audio and video calls",
     appearance: ru ? (theme === "dark" ? "Тёмная тема" : theme === "light" ? "Светлая тема" : "Как на устройстве") : (theme === "dark" ? "Dark theme" : theme === "light" ? "Light theme" : "Use device setting"),
-    language: ru ? (locale === "ru" ? "Русский" : "English") : (locale === "ru" ? "Russian" : "English"),
+    language: locale === "ru" ? "Русский" : "English",
     chats: ru ? "Предпросмотр и поведение чатов" : "Chat previews and behavior",
     storage: ru ? "Автозагрузка медиа" : "Automatic media download",
     bots: ru ? "Создание и управление ботами" : "Create and manage bots",
