@@ -1,15 +1,14 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { User } from "@supabase/supabase-js";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { ArrowLeft, ImagePlus, MessageCircle, Megaphone, Plus, Send, Users, X } from "lucide-react";
-import { searchProfiles } from "../../lib/messenger";
-import type { PublicProfile } from "../../lib/types";
+import { ArrowLeft, ImagePlus, MessageCircle, Megaphone, Send, Users } from "lucide-react";
 import type { Locale } from "../../lib/i18n";
 
 type Room = {
   id: string;
   kind: "group" | "channel";
   name: string;
+  username: string;
   description: string;
   avatar_url: string | null;
   created_by: string;
@@ -36,16 +35,13 @@ export default function CommunityHub({ client, user, locale, initialRoomId = nul
   const [createKind, setCreateKind] = useState<"group" | "channel" | null>(initialCreateKind);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [memberQuery, setMemberQuery] = useState("");
-  const [memberResults, setMemberResults] = useState<PublicProfile[]>([]);
-  const [selectedMembers, setSelectedMembers] = useState<PublicProfile[]>([]);
-  const [searchBusy, setSearchBusy] = useState(false);
+  const [username, setUsername] = useState("");
   const avatarInput = useRef<HTMLInputElement>(null);
   const messagesEnd = useRef<HTMLDivElement>(null);
 
   async function loadRooms() {
     const { data, error: loadError } = await client.from("community_rooms")
-      .select("id, kind, name, description, avatar_url, created_by, is_public, updated_at")
+      .select("id, kind, name, username, description, avatar_url, created_by, is_public, updated_at")
       .order("updated_at", { ascending: false });
     if (loadError) throw loadError;
     const next = (data ?? []) as Room[];
@@ -76,20 +72,6 @@ export default function CommunityHub({ client, user, locale, initialRoomId = nul
     return () => { active = false; };
   }, [client, ru, initialRoomId]);
 
-  useEffect(() => {
-    if (memberQuery.trim().replace(/^@/, "").length < 2 || !createKind || createKind !== "group") {
-      setMemberResults([]);
-      return;
-    }
-    let active = true;
-    setSearchBusy(true);
-    const timer = window.setTimeout(() => {
-      searchProfiles(memberQuery, user.id).then((items) => { if (active) setMemberResults(items); })
-        .catch((cause: unknown) => { if (active) setError(cause instanceof Error ? cause.message : "Search failed."); })
-        .finally(() => { if (active) setSearchBusy(false); });
-    }, 250);
-    return () => { active = false; window.clearTimeout(timer); };
-  }, [memberQuery, createKind, user.id]);
 
   useEffect(() => {
     if (!room || !memberRole) { setMessages([]); return; }
@@ -134,34 +116,38 @@ export default function CommunityHub({ client, user, locale, initialRoomId = nul
 
   async function createRoom(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const normalizedUsername = username.trim().replace(/^@/, "").toLowerCase();
     if (!createKind || name.trim().length < 2) return;
-    if (createKind === "group" && selectedMembers.length === 0) {
-      setError(ru ? "Добавьте хотя бы одного участника." : "Add at least one member.");
+    if (!/^[a-z][a-z0-9_]{4,31}$/.test(normalizedUsername)) {
+      setError(ru
+        ? "Адрес должен начинаться с латинской буквы и содержать 5–32 символа: a–z, 0–9 или _."
+        : "The handle must start with a Latin letter and contain 5–32 characters: a–z, 0–9 or _.");
       return;
     }
     setBusy(true); setError("");
     try {
       const { data, error: createError } = await client.rpc("create_community_room", {
-        p_kind: createKind, p_name: name.trim(), p_description: description.trim(),
-        p_member_ids: createKind === "group" ? selectedMembers.map((person) => person.id) : [],
+        p_kind: createKind, p_name: name.trim(), p_username: normalizedUsername,
+        p_description: description.trim(), p_member_ids: [],
       });
       if (createError) throw createError;
       if (typeof data !== "string") throw new Error("The community could not be created.");
       const nextRoom: Room = {
-        id: data, kind: createKind, name: name.trim(), description: description.trim(),
-        avatar_url: null, created_by: user.id, is_public: createKind === "channel", updated_at: new Date().toISOString(),
+        id: data, kind: createKind, name: name.trim(), username: normalizedUsername,
+        description: description.trim(), avatar_url: null, created_by: user.id,
+        is_public: createKind === "channel", updated_at: new Date().toISOString(),
       };
       setRooms((current) => [nextRoom, ...current]);
-      setCreateKind(null); setName(""); setDescription(""); setSelectedMembers([]); setMemberQuery("");
+      setCreateKind(null); setName(""); setUsername(""); setDescription("");
       setRoom(nextRoom); setMemberRole("owner"); setMessages([]); onRoomsChanged?.();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : (ru ? "Не удалось создать." : "Could not create."));
+      const failure = cause as { code?: string; message?: string };
+      if (failure.code === "23505" || /already taken|duplicate key/i.test(failure.message || "")) {
+        setError(ru ? "Этот @username уже занят. Выбери другой." : "That @username is already taken. Choose another.");
+      } else {
+        setError(failure.message || (ru ? "Не удалось создать." : "Could not create."));
+      }
     } finally { setBusy(false); }
-  }
-
-  function toggleMember(person: PublicProfile) {
-    setSelectedMembers((current) => current.some((item) => item.id === person.id)
-      ? current.filter((item) => item.id !== person.id) : [...current, person].slice(0, 99));
   }
 
   async function sendMessage(event: FormEvent<HTMLFormElement>) {
@@ -218,27 +204,21 @@ export default function CommunityHub({ client, user, locale, initialRoomId = nul
   }
 
   return (
-    <div className="community-overlay" onClick={onClose}>
-      <section className="community-panel" role="dialog" aria-modal="true" aria-label={ru ? "Группы и каналы" : "Groups and channels"} onClick={(event) => event.stopPropagation()}>
+    <section className="community-embedded" aria-label={ru ? "Переписка сообщества" : "Community conversation"}>
+      <div className="community-panel community-pane">
         <header className="community-header">
-          {(room || createKind) && <button className="icon-button" type="button" onClick={() => { setRoom(null); setMemberRole(null); setCreateKind(null); setError(""); }} aria-label={ru ? "Назад" : "Back"}><ArrowLeft size={19} /></button>}
-          <div><strong>{room ? room.name : createKind ? (createKind === "group" ? (ru ? "Новая группа" : "New group") : (ru ? "Новый канал" : "New channel")) : (ru ? "Группы и каналы" : "Groups and channels")}</strong><small>{room ? (room.kind === "group" ? (ru ? "Группа" : "Group") : (ru ? "Канал" : "Channel")) : (ru ? "Сообщества HELORO" : "HELORO communities")}</small></div>
-          <button className="icon-button" type="button" onClick={onClose} aria-label={ru ? "Закрыть" : "Close"}><X size={19} /></button>
+          <button className="icon-button" type="button" onClick={onClose} aria-label={ru ? "Назад к чатам" : "Back to chats"}><ArrowLeft size={19} /></button>
+          <div><strong>{room ? room.name : (createKind === "group" ? (ru ? "Новая группа" : "New group") : (ru ? "Новый канал" : "New channel"))}</strong><small>{room ? `@${room.username}` : (ru ? "Создание сообщества" : "Create a community")}</small></div>
         </header>
 
         {createKind ? (
           <form className="community-create-form" onSubmit={createRoom}>
             <label>{ru ? "Название" : "Name"}<input value={name} onChange={(event) => setName(event.target.value)} minLength={2} maxLength={64} required placeholder={createKind === "group" ? (ru ? "Например, Друзья" : "For example, Friends") : (ru ? "Название канала" : "Channel name")} /></label>
             <label>{ru ? "Описание" : "Description"}<textarea value={description} onChange={(event) => setDescription(event.target.value)} maxLength={500} rows={3} placeholder={ru ? "Кратко расскажите о сообществе" : "Describe the community"} /></label>
-            {createKind === "group" && <>
-              <label>{ru ? "Добавить участников" : "Add members"}<input value={memberQuery} onChange={(event) => setMemberQuery(event.target.value)} placeholder="@username" /></label>
-              {searchBusy && <small className="community-muted">{ru ? "Поиск…" : "Searching…"}</small>}
-              <div className="community-member-results">{memberResults.filter((person) => !selectedMembers.some((item) => item.id === person.id)).map((person) => (
-                <button type="button" key={person.id} onClick={() => toggleMember(person)}><span>{person.display_name || person.username}<small>@{person.username}</small></span><Plus size={16} /></button>
-              ))}</div>
-              {selectedMembers.length > 0 && <div className="community-selected-members">{selectedMembers.map((person) => <button type="button" key={person.id} onClick={() => toggleMember(person)}>{person.display_name || person.username} <X size={12} /></button>)}</div>}
-            </>}
-            {createKind === "channel" && <p className="community-muted">{ru ? "Публичный канал: пользователи смогут найти его и подписаться. Публиковать смогут владелец и назначенные администраторы." : "Public channel: people can discover and subscribe. Only the owner and assigned admins can publish."}</p>}
+            <label>{ru ? "Ссылка / имя пользователя" : "Public link / username"}
+              <div className="community-username-field"><span>@</span><input value={username} onChange={(event) => setUsername(event.target.value.replace(/^@/, "").toLowerCase().replace(/[^a-z0-9_]/g, "").slice(0, 32))} minLength={5} maxLength={32} pattern="[a-z][a-z0-9_]{4,31}" required autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder={createKind === "group" ? "my_group" : "my_channel"} /></div>
+            </label>
+            <p className="community-muted">{ru ? "Ты автоматически станешь владельцем и первым участником. Других можно добавить позже." : "You automatically become the owner and first member. Others can be added later."}</p>
             <button className="community-primary" type="submit" disabled={busy || name.trim().length < 2}>{busy ? (ru ? "Создание…" : "Creating…") : (ru ? "Создать" : "Create")}</button>
           </form>
         ) : room ? (
@@ -286,7 +266,7 @@ export default function CommunityHub({ client, user, locale, initialRoomId = nul
           </div>
         )}
         {error && <p className="community-error" role="alert">{error}</p>}
-      </section>
-    </div>
+      </div>
+    </section>
   );
 }
