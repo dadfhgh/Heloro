@@ -75,12 +75,17 @@ function VerificationMark({ type, title }: { type?: BadgeType | null; title: str
   );
 }
 
-function EmptyChat({ locale }: { locale: Locale }) {
+function EmptyChat({ locale, onFindFriend }: { locale: Locale; onFindFriend: () => void }) {
   return (
     <div className="empty-chat">
       <div className="empty-chat-icon"><MessageCircle size={28} /></div>
-      <h2>{t(locale, "chatSelectTitle")}</h2>
-      <p>{t(locale, "chatSelectDescription")}</p>
+      <h2>{locale === "ru" ? "HELORO — общение рядом" : "HELORO — conversations start here"}</h2>
+      <p>{locale === "ru"
+        ? "Открой переписку из списка или найди друга по имени пользователя."
+        : "Open a conversation from the list or find a friend by username."}</p>
+      <button type="button" className="empty-chat-find" onClick={onFindFriend}>
+        <Search size={16} /> {locale === "ru" ? "Найти друга" : "Find a friend"}
+      </button>
     </div>
   );
 }
@@ -139,7 +144,6 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const gifInputRef = useRef<HTMLInputElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const initialChatSelectionRef = useRef(false);
   const isStaff = roles.some((role) => role === "owner" || role === "admin" || role === "moderator");
   const canManageBadges = roles.includes("owner") || roles.includes("admin");
 
@@ -176,7 +180,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
     setActiveId((current) => {
       if (selectId) return selectId;
       if (current && updated.some((item) => item.conversation_id === current)) return current;
-      return updated[0]?.conversation_id ?? null;
+      return null;
     });
     if (selectId) setSystemView(null);
   }
@@ -235,10 +239,6 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
       .then((items) => {
         if (!active) return;
         setInbox(items);
-        if (!initialChatSelectionRef.current && items.length > 0) {
-          initialChatSelectionRef.current = true;
-          setActiveId((current) => current ?? items[0].conversation_id);
-        }
       })
       .catch((cause: unknown) => {
         if (active) setError(cause instanceof Error ? cause.message : t(locale, "inboxLoadFailed"));
@@ -547,7 +547,9 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
       setShowSearch(false);
       setSearch("");
       setResults([]);
-      setActiveId((current) => current ?? inbox[0]?.conversation_id ?? null);
+      void refreshInbox().catch((cause: unknown) => {
+        setError(cause instanceof Error ? cause.message : t(locale, "inboxLoadFailed"));
+      });
       setShowSettings(false);
     } else if (tab === "contacts") {
       setShowSearch(true);
@@ -690,7 +692,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                     <MessageCircle size={17} />
                   </button>
                 ))}
-                <button className="cancel-search" onClick={() => { setShowSearch(false); setSearch(""); setResults([]); setActiveId((current) => current ?? inbox[0]?.conversation_id ?? null); setHomeTab("chats"); }}>
+                <button className="cancel-search" onClick={() => { setShowSearch(false); setSearch(""); setResults([]); setActiveId(null); setHomeTab("chats"); void refreshInbox().catch((cause: unknown) => setError(cause instanceof Error ? cause.message : t(locale, "inboxLoadFailed"))); }}>
                   {t(locale, "inboxBack")}
                 </button>
               </>
@@ -881,7 +883,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
               <div className="chat-footnote"><ShieldCheck size={13} /> {t(locale, "messageSecurityNote")}</div>
             </>
           ) : (
-            <EmptyChat locale={locale} />
+            <EmptyChat locale={locale} onFindFriend={openSearch} />
           )}
         </section>
       </div>
