@@ -173,12 +173,12 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   async function refreshInbox(selectId?: string) {
     const updated = await getInbox();
     setInbox(updated);
-    if (selectId) {
-      setActiveId(selectId);
-      setSystemView(null);
-    } else if (activeId && !updated.some((item) => item.conversation_id === activeId)) {
-      setActiveId(null);
-    }
+    setActiveId((current) => {
+      if (selectId) return selectId;
+      if (current && updated.some((item) => item.conversation_id === current)) return current;
+      return updated[0]?.conversation_id ?? null;
+    });
+    if (selectId) setSystemView(null);
   }
 
   async function refreshCommunityRooms() {
@@ -547,6 +547,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
       setShowSearch(false);
       setSearch("");
       setResults([]);
+      setActiveId((current) => current ?? inbox[0]?.conversation_id ?? null);
       setShowSettings(false);
     } else if (tab === "contacts") {
       setShowSearch(true);
@@ -689,7 +690,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                     <MessageCircle size={17} />
                   </button>
                 ))}
-                <button className="cancel-search" onClick={() => { setShowSearch(false); setSearch(""); setResults([]); }}>
+                <button className="cancel-search" onClick={() => { setShowSearch(false); setSearch(""); setResults([]); setActiveId((current) => current ?? inbox[0]?.conversation_id ?? null); setHomeTab("chats"); }}>
                   {t(locale, "inboxBack")}
                 </button>
               </>
