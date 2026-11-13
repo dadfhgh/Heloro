@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { User } from "@supabase/supabase-js";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { ArrowLeft, ImagePlus, MessageCircle, Megaphone, Send, Users, X, Check } from "lucide-react";
+import { ArrowLeft, ImagePlus, MessageCircle, Megaphone, Send, Users, X, Check, PencilLine } from "lucide-react";
 import type { Locale } from "../../lib/i18n";
 import { searchProfiles } from "../../lib/messenger";
 import type { PublicProfile } from "../../lib/types";
@@ -37,6 +37,8 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [username, setUsername] = useState("");
+  const [roomUsernameDraft, setRoomUsernameDraft] = useState("");
+  const [roomEditing, setRoomEditing] = useState(false);
   const [memberSearch, setMemberSearch] = useState("");
   const [memberResults, setMemberResults] = useState<PublicProfile[]>([]);
   const [selectedMembers, setSelectedMembers] = useState<PublicProfile[]>([]);
@@ -155,6 +157,10 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
   function advanceToVisibility(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (name.trim().length < 2) return;
+    if (!/^[a-z][a-z0-9_]{4,31}$/.test(username.trim().replace(/^@/, "").toLowerCase())) {
+      setError(ru ? "Укажи @username: 5–32 символа, латинские буквы, цифры и _." : "Enter a @username: 5–32 characters, using a–z, 0–9 and _.");
+      return;
+    }
     setError("");
     setCreateStep("visibility");
   }
@@ -211,6 +217,8 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
 
   async function openRoom(nextRoom: Room) {
     setError("");
+    setRoomEditing(false);
+    setRoomUsernameDraft(nextRoom.username);
     setRoom(nextRoom);
     setMemberRole(null);
     setMessages([]);
@@ -239,17 +247,15 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
     if (!createKind || name.trim().length < 2) return;
 
     const normalizedUsername = username.trim().replace(/^@/, "").toLowerCase();
-    if (createKind === "channel" && isPublic && !/^[a-z][a-z0-9_]{4,31}$/.test(normalizedUsername)) {
+    if (!/^[a-z][a-z0-9_]{4,31}$/.test(normalizedUsername)) {
       setError(ru
-        ? "Для публичного канала нужен @username: 5–32 символа, латинские буквы, цифры или _."
-        : "A public channel needs a username: 5–32 characters, using a–z, 0–9 and _.");
+        ? "Username должен содержать 5–32 символа: латинские буквы, цифры и _."
+        : "Username must be 5–32 characters, using a–z, 0–9 and _.");
       return;
     }
 
     const isRoomPublic = createKind === "channel" && isPublic;
-    const handle = isRoomPublic
-      ? normalizedUsername
-      : "private_" + createKind + "_" + crypto.randomUUID().replace(/-/g, "").slice(0, 12);
+    const handle = normalizedUsername;
 
     setBusy(true);
     setError("");
@@ -314,6 +320,7 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
       setIsPublic(false);
       setName("");
       setUsername("");
+      setRoomEditing(false);
       setDescription("");
       setMemberSearch("");
       setMemberResults([]);
@@ -351,6 +358,38 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : (ru ? "Не удалось отправить сообщение." : "Could not send message."));
     } finally { setBusy(false); }
+  }
+
+  async function saveRoomUsername(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!room || !memberRole || !["owner", "admin"].includes(memberRole)) return;
+    const normalized = roomUsernameDraft.trim().replace(/^@/, "").toLowerCase();
+    if (!/^[a-z][a-z0-9_]{4,31}$/.test(normalized)) {
+      setError(ru ? "Username: 5–32 символа, латинские буквы, цифры и _." : "Username: 5–32 characters, using a–z, 0–9 and _.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      const { data, error: updateError } = await client.from("community_rooms")
+        .update({ username: normalized, updated_at: new Date().toISOString() })
+        .eq("id", room.id)
+        .select("id, username")
+        .single();
+      if (updateError) throw updateError;
+      if (!data) throw new Error("Username was not saved.");
+      setRoom({ ...room, username: data.username });
+      setRoomUsernameDraft(data.username);
+      setRoomEditing(false);
+      onRoomsChanged?.();
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : "";
+      setError(/duplicate|unique|already taken|23505/i.test(message)
+        ? (ru ? "Этот @username уже занят. Выбери другой." : "That @username is already taken. Choose another.")
+        : (message || (ru ? "Не удалось изменить @username." : "Could not update @username.")));
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function changeRoomAvatar(file?: File) {
@@ -475,6 +514,13 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
                 />
               </label>
             )}
+            <label>{ru ? "Ссылка сообщества" : "Community username"}
+              <div className="community-username-field">
+                <span>@</span>
+                <input value={username} onChange={(event) => setUsername(event.target.value.toLowerCase().replace(/^@/, "").replace(/[^a-z0-9_]/g, "").slice(0, 32))} minLength={5} maxLength={32} pattern="[a-z][a-z0-9_]{4,31}" required autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder={createKind === "group" ? "my_group" : "my_channel"} />
+              </div>
+              <small className="community-muted">{ru ? "5–32 символа: латинские буквы, цифры и _" : "5–32 characters: a–z, 0–9 and _"}</small>
+            </label>
             {createKind === "group" && (
               <p className="community-muted">
                 {ru
@@ -484,7 +530,7 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
             )}
             <div className="community-create-footer">
               {createKind === "group" ? (
-                <button className="community-primary" type="submit" disabled={busy || name.trim().length < 2}>
+                <button className="community-primary" type="submit" disabled={busy || name.trim().length < 2 || !/^[a-z][a-z0-9_]{4,31}$/.test(username.trim().replace(/^@/, "").toLowerCase())}>
                   {busy ? (ru ? "Создание…" : "Creating…") : (ru ? "Создать группу" : "Create group")}
                 </button>
               ) : (
@@ -516,26 +562,7 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
                 </span>
               </label>
             </div>
-            {isPublic ? (
-              <label>{ru ? "Ссылка канала" : "Channel username"}
-                <div className="community-username-field">
-                  <span>@</span>
-                  <input
-                    value={username}
-                    onChange={(event) => setUsername(event.target.value.toLowerCase().replace(/^@/, "").replace(/[^a-z0-9_]/g, "").slice(0, 32))}
-                    minLength={5}
-                    maxLength={32}
-                    pattern="[a-z][a-z0-9_]{4,31}"
-                    required
-                    autoCapitalize="none"
-                    autoCorrect="off"
-                    spellCheck={false}
-                    placeholder="my_channel"
-                  />
-                </div>
-                <small className="community-muted">{ru ? "5–32 символа: латинские буквы, цифры и _" : "5–32 characters: a–z, 0–9 and _"}</small>
-              </label>
-            ) : (
+            {!isPublic && (
               <p className="community-muted">{ru ? "Канал не будет отображаться в поиске. Его участниками станут только приглашённые люди." : "This channel will not appear in search. Only invited people will be subscribers."}</p>
             )}
             {renderMemberPicker(ru ? "Добавить подписчиков" : "Add subscribers", ru ? "Выбранные люди будут подписаны сразу" : "Selected people will be subscribed immediately")}
@@ -552,12 +579,24 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
           <div className="community-room-view">
             <div className="community-room-summary">
               <RoomAvatar room={room} />
-              <div><strong>{room.name}</strong><p>{room.is_public ? "@" + room.username : (ru ? "Частное сообщество" : "Private community")}</p></div>
+              <div><strong>{room.name}</strong><p>@{room.username}{!room.is_public ? " · " + (ru ? "частное" : "private") : ""}</p></div>
               {memberRole && ["owner", "admin"].includes(memberRole) && <>
                 <input ref={avatarInput} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(event) => void changeRoomAvatar(event.target.files?.[0])} />
                 <button className="icon-button" type="button" onClick={() => avatarInput.current?.click()} disabled={busy} title={ru ? "Изменить аватар" : "Change avatar"} aria-label={ru ? "Изменить аватар" : "Change avatar"}><ImagePlus size={18} /></button>
+                <button className="icon-button" type="button" onClick={() => { setRoomUsernameDraft(room.username); setRoomEditing((current) => !current); setError(""); }} disabled={busy} title={ru ? "Изменить @username" : "Edit @username"} aria-label={ru ? "Изменить @username" : "Edit @username"}><PencilLine size={18} /></button>
               </>}
             </div>
+            {roomEditing && memberRole && ["owner", "admin"].includes(memberRole) && (
+              <form className="community-room-edit" onSubmit={saveRoomUsername}>
+                <label>{ru ? "Ссылка сообщества" : "Community username"}
+                  <div className="community-username-field"><span>@</span><input value={roomUsernameDraft} onChange={(event) => setRoomUsernameDraft(event.target.value.toLowerCase().replace(/^@/, "").replace(/[^a-z0-9_]/g, "").slice(0, 32))} minLength={5} maxLength={32} pattern="[a-z][a-z0-9_]{4,31}" required autoCapitalize="none" autoCorrect="off" spellCheck={false} /></div>
+                </label>
+                <div className="community-room-edit-actions">
+                  <button className="community-secondary" type="button" onClick={() => { setRoomEditing(false); setRoomUsernameDraft(room.username); setError(""); }}>{ru ? "Отмена" : "Cancel"}</button>
+                  <button className="community-primary" type="submit" disabled={busy || roomUsernameDraft.trim().replace(/^@/, "") === room.username}>{busy ? (ru ? "Сохранение…" : "Saving…") : (ru ? "Сохранить" : "Save")}</button>
+                </div>
+              </form>
+            )}
             {!memberRole ? (
               <div className="community-join"><p>{room.kind === "group" ? (ru ? "Вступи в группу, чтобы читать и отправлять сообщения." : "Join this group to read and send messages.") : (ru ? "Подпишись, чтобы читать публикации канала." : "Subscribe to read channel posts.")}</p><button className="community-primary" type="button" onClick={() => void joinPublicRoom()} disabled={busy}>{room.kind === "group" ? (ru ? "Вступить в группу" : "Join group") : (ru ? "Подписаться" : "Subscribe")}</button></div>
             ) : (
