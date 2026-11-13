@@ -580,11 +580,25 @@ export default function HeloroSPanel({
     return tabItems.filter((item) => {
       if (item.id === "roles" || item.id === "settings") return isOwner;
       if (item.id === "verification") return canManageBadges;
-      if (item.id === "security") return isOwner || isAdmin;
-      if (item.id === "groups") return isOwner || isAdmin;
+      if (item.id === "security" || item.id === "groups") return isOwner || isAdmin;
       return true;
     });
   }
+
+  function filteredCommunities() {
+    const query = communitySearch.trim().replace(/^@/, "").toLocaleLowerCase();
+    if (!query) return communities;
+    return communities.filter((item) => (item.name + " " + (item.username ?? "")).toLocaleLowerCase().includes(query));
+  }
+
+  useEffect(() => {
+    if (!visibleTabs().some((item) => item.id === tab)) {
+      setTab("overview");
+      setSelectedUser(null);
+      setSelectedThread(null);
+      setActiveRestrictions([]);
+    }
+  }, [isOwner, isAdmin, canManageBadges, tab]);
 
   if (!staff) return null;
 
@@ -737,14 +751,14 @@ export default function HeloroSPanel({
             <div className="admin-section-heading"><div><h2>{ru ? "Группы и сообщества" : "Groups and communities"}</h2><p>{ru ? "Удаление тестовых и других сообществ для всех участников. Официальная поддержка и системный канал здесь не отображаются." : "Delete test and other communities for everyone. Official Support and the system channel are not listed here."}</p></div><button className="admin-icon-action" disabled={busy} onClick={() => void refreshAdminData(() => loadCommunities(), ru ? "Не удалось загрузить сообщества." : "Could not load communities.")}><RefreshCw size={15} /></button></div>
             <div className="admin-search"><Search size={16} /><input value={communitySearch} onChange={(event) => setCommunitySearch(event.target.value)} placeholder={ru ? "Поиск по названию или @username" : "Search by name or @username"} /><button onClick={() => setCommunitySearch("")} aria-label={ru ? "Очистить" : "Clear"}><X size={14} /></button></div>
             <div className="admin-user-results">
-              {communities.filter((item) => (item.name + " " + (item.username ?? "")).toLowerCase().includes(communitySearch.trim().replace(/^@/, "").toLowerCase())).map((item) => (
+              {filteredCommunities().map((item) => (
                 <article className="admin-record-card" key={item.id}>
                   <div className="admin-record-heading"><strong>{item.kind === "group" ? (ru ? "Группа" : "Group") : (ru ? "Канал" : "Channel")} · {item.name}</strong><span>{item.member_count} {ru ? "участников" : "members"}</span></div>
                   <small>{item.username ? "@" + item.username + " · " : ""}{ru ? "Создано" : "Created"}: {new Date(item.created_at).toLocaleString()} · ID: {shortId(item.id)}</small>
                   <div className="admin-actions"><button className="system-delete-button" disabled={busy} onClick={() => void deleteCommunity(item)}><Ban size={14} />{ru ? "Удалить для всех" : "Delete for everyone"}</button></div>
                 </article>
               ))}
-              {communities.length === 0 && <p className="admin-muted">{ru ? "Сообществ нет или серверное обновление ещё не установлено." : "No communities found, or the backend migration is not installed yet."}</p>}
+              {filteredCommunities().length === 0 && <p className="admin-muted">{communities.length === 0 ? (ru ? "Сообществ пока нет." : "No communities found.") : (ru ? "По этому запросу ничего не найдено." : "No communities match this search.")}</p>}
             </div>
             <p className="admin-privacy-note">{ru ? "Доступ есть только у Owner и Admin. Каждое удаление проверяется на сервере и записывается в журнал действий. Обычные участники и модераторы не могут удалять сообщества через эту панель." : "Only Owner and Admin can use this action. Every deletion is authorized server-side and recorded in the audit log. Members and moderators cannot delete communities from this panel."}</p>
           </section>
