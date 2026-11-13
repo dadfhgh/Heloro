@@ -2127,3 +2127,74 @@ html[data-theme="dark"] .community-composer { border-color: #3a5360; background:
   .community-panel { width: 100%; max-height: 100dvh; min-height: 100dvh; border: 0; border-radius: 0; }
   .community-header { min-height: max(62px, calc(env(safe-area-inset-top) + 56px)); padding-top: max(10px, env(safe-area-inset-top)); }
 }
+
+
+/* Telegram-like unified group/channel list and quick-create menu */
+.community-inbox-section {
+  padding: 2px 0 5px;
+  border-bottom: 1px solid #edf1f4;
+}
+.community-inbox-avatar {
+  display: grid;
+  width: 49px;
+  height: 49px;
+  flex: 0 0 49px;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 50%;
+  color: #fff;
+  background: linear-gradient(145deg, #75c8c1, #5b9fc5);
+}
+.community-inbox-avatar img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+.community-inbox-item .conversation-copy strong { display: inline-flex; align-items: center; }
+.community-inbox-item .conversation-title-line time { text-transform: none; }
+.chat-create-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  background: transparent;
+}
+.chat-create-menu {
+  position: fixed;
+  right: 18px;
+  bottom: max(88px, calc(env(safe-area-inset-bottom) + 82px));
+  display: grid;
+  width: min(270px, calc(100vw - 28px));
+  padding: 6px;
+  border: 1px solid rgba(218,232,237,.96);
+  border-radius: 17px;
+  background: rgba(255,255,255,.98);
+  box-shadow: 0 15px 44px rgba(26,60,78,.22);
+}
+.chat-create-menu button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 48px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 11px;
+  color: #38576a;
+  background: transparent;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 650;
+}
+.chat-create-menu button:hover { background: #eff7fa; }
+.chat-create-menu button svg { color: #3298bb; }
+html[data-theme="dark"] .community-inbox-section { border-color: #334a56; }
+html[data-theme="dark"] .chat-create-menu {
+  border-color: #3a5360;
+  background: rgba(34,54,64,.98);
+}
+html[data-theme="dark"] .chat-create-menu button { color: #dce8ec; }
+html[data-theme="dark"] .chat-create-menu button:hover { background: #294653; }
+@media (max-width: 760px) {
+  .community-inbox-item { min-height: 70px; }
+  .community-inbox-avatar { width: 47px; height: 47px; flex-basis: 47px; }
+  .chat-create-menu {
+    right: 16px;
+    bottom: max(84px, calc(env(safe-area-inset-bottom) + 78px));
+  }
+}
