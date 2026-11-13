@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import type { Locale } from "../../lib/i18n";
 import "./MessengerBots.css";
+import BotLuaStudio from "./BotLuaStudio";
 
 type BotProfile = {
   id: string;
@@ -330,7 +331,21 @@ export default function BotsHub({ client, user, locale, onClose }: Props) {
     setDraft("");
     setBusy(true);
     setError("");
-    const { error: sendError } = await client.rpc("send_bot_message", { p_chat_id: chatId, p_body: body });
+    let sendError: { message: string } | null = null;
+    const { error: runtimeError } = await client.functions.invoke("run-bot-lua", {
+      body: { action: "run", chat_id: chatId, message: body },
+    });
+    if (runtimeError) {
+      const status = (runtimeError as unknown as { context?: { status?: number } }).context?.status;
+      const missingFunction = status === 404 || /function.*not found|not found.*function/i.test(runtimeError.message);
+      if (missingFunction) {
+        // Keep the original command bot working until the Lua Edge Function is deployed.
+        const legacy = await client.rpc("send_bot_message", { p_chat_id: chatId, p_body: body });
+        sendError = legacy.error;
+      } else {
+        sendError = runtimeError;
+      }
+    }
     if (sendError) {
       setDraft(body);
       setError(sendError.message);
@@ -412,6 +427,7 @@ export default function BotsHub({ client, user, locale, onClose }: Props) {
 
         {view === "manage" && selectedBot && (
           <div className="bots-manage-view">
+            <BotLuaStudio client={client} botId={selectedBot.id} locale={locale} />
             <div className="bots-manage-profile"><span className="bots-large-avatar"><Bot size={30} /></span><div><strong>{selectedBot.display_name}</strong><small>@{selectedBot.username}</small><span className={selectedBot.is_active ? "bots-status-active" : "bots-status-off"}>{selectedBot.is_active ? (ru ? "Активен" : "Active") : (ru ? "Отключён" : "Disabled")}</span></div></div>
             <form className="bots-form bots-edit-form" onSubmit={saveBot}>
               <label>{ru ? "Название" : "Display name"}<input value={editName} onChange={(event) => setEditName(event.target.value)} minLength={2} maxLength={64} required /></label>
@@ -454,7 +470,7 @@ export default function BotsHub({ client, user, locale, onClose }: Props) {
               {messages.map((message) => <div key={message.id} className={message.sender_kind === "user" ? "bots-message bots-message-user" : "bots-message bots-message-bot"}><p>{message.body}</p><small>{new Date(message.created_at).toLocaleTimeString(ru ? "ru-RU" : "en-US", { hour: "2-digit", minute: "2-digit" })}</small></div>)}
             </div>
             <form className="bots-chat-composer" onSubmit={sendMessage}><input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder={ru ? "Напишите боту или отправьте /команду…" : "Message the bot or send a /command…"} maxLength={4000} /><button type="submit" disabled={busy || !draft.trim()} aria-label={ru ? "Отправить" : "Send"}><Send size={18} /></button></form>
-            <p className="bots-chat-note"><MessageCircle size={13} />{ru ? "Пока работают команды и заранее заданные ответы. Произвольный код ботов и Mini Apps — отдельный этап." : "Commands and configured replies are supported now. Arbitrary bot code and Mini Apps are a separate stage."}</p>
+            <p className="bots-chat-note"><MessageCircle size={13} />{ru ? "Ответы могут обрабатываться опубликованным Lua-скриптом или стандартными командами. Код выполняется на сервере." : "Replies can be handled by a published Lua script or the built-in commands. Scripts run server-side."}</p>
           </div>
         )}
       </section>

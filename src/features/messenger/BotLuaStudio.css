@@ -1,0 +1,70 @@
+.bot-lua-studio {
+  display: grid; gap: 12px; padding: 15px; margin: 2px 0 16px;
+  border: 1px solid #dedede; border-radius: 12px; background: #fafafa;
+}
+.bot-lua-heading { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.bot-lua-heading-icon { display: grid; place-items: center; width: 38px; height: 38px; flex: 0 0 38px; border-radius: 10px; color: #222; background: #e8e8e8; }
+.bot-lua-heading-copy { display: grid; gap: 3px; min-width: 0; }
+.bot-lua-heading-copy strong { color: #222; font-size: 13px; }
+.bot-lua-heading-copy small { color: #888; font-size: 10px; }
+.bot-lua-status { margin-left: auto; padding: 5px 8px; border: 1px solid #ddd; border-radius: 20px; color: #555; background: #fff; font-size: 9px; font-weight: 700; white-space: nowrap; }
+.bot-lua-version-row { display: flex; justify-content: space-between; gap: 8px; color: #888; font-size: 10px; }
+.bot-lua-editor-wrap { overflow: hidden; border: 1px solid #333; border-radius: 10px; background: #171717; }
+.bot-lua-editor-toolbar, .bot-lua-editor-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 11px; color: #aaa; background: #202020; font: 10px ui-monospace, SFMono-Regular, Menlo, monospace; }
+.bot-lua-editor-toolbar { border-bottom: 1px solid #333; }
+.bot-lua-editor-toolbar > span:first-child { display: flex; align-items: center; gap: 7px; color: #eee; }
+.bot-lua-live-dot { width: 7px; height: 7px; border-radius: 50%; background: #8bc59a; }
+.bot-lua-editor { display: block; width: 100%; min-height: 260px; padding: 14px; border: 0; outline: 0; resize: vertical; color: #e8e8e8; background: #171717; font: 12px/1.65 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; tab-size: 2; white-space: pre; overflow: auto; }
+.bot-lua-editor:focus { box-shadow: inset 0 0 0 1px #888; }
+.bot-lua-editor-footer { border-top: 1px solid #333; font-size: 9px; }
+.bot-lua-snippets { display: flex; flex-wrap: wrap; gap: 6px; }
+.bot-lua-snippets button { min-height: 32px; padding: 0 9px; border: 1px solid #ddd; border-radius: 7px; color: #555; background: #fff; font: inherit; font-size: 10px; cursor: pointer; }
+.bot-lua-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.bot-lua-actions button { display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 42px; padding: 0 10px; border: 1px solid #ccc; border-radius: 8px; font: inherit; font-size: 11px; font-weight: 700; cursor: pointer; }
+.bot-lua-secondary { color: #333; background: #fff; }
+.bot-lua-publish { color: #fff; border-color: #222 !important; background: #222; }
+.bot-lua-actions button:disabled, .bot-lua-test button:disabled { opacity: .5; cursor: not-allowed; }
+.bot-lua-test { display: grid; gap: 10px; padding: 12px; border: 1px solid #e2e2e2; border-radius: 9px; background: #fff; }
+.bot-lua-test-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.bot-lua-test-heading > div { display: flex; align-items: center; gap: 7px; color: #333; font-size: 11px; }
+.bot-lua-test-heading > span { color: #888; font-size: 9px; text-align: right; }
+.bot-lua-test label { display: grid; gap: 6px; color: #666; font-size: 10px; font-weight: 650; }
+.bot-lua-test-input { display: flex; gap: 6px; min-width: 0; }
+.bot-lua-test-input input { flex: 1; min-width: 0; height: 39px; padding: 0 10px; border: 1px solid #ddd; border-radius: 7px; color: #222; background: #fff; font: inherit; font-size: 12px; }
+.bot-lua-test-input button { display: flex; align-items: center; justify-content: center; gap: 5px; min-width: 88px; padding: 0 9px; border: 1px solid #222; border-radius: 7px; color: #fff; background: #222; font: inherit; font-size: 10px; font-weight: 700; }
+.bot-lua-error { display: flex; align-items: flex-start; gap: 7px; padding: 9px 10px; border: 1px solid #e4caca; border-radius: 7px; color: #943d3d; background: #fff5f5; font-size: 10px; line-height: 1.5; }
+.bot-lua-output { display: grid; gap: 6px; padding: 10px; border: 1px solid #ddd; border-radius: 8px; background: #fff; }
+.bot-lua-output-title { display: flex; align-items: center; gap: 6px; color: #426b4c; font-size: 10px; font-weight: 700; }
+.bot-lua-output pre { margin: 0; padding: 8px; border-radius: 6px; color: #ddd; background: #222; font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+.bot-lua-output pre.bot-lua-log { color: #aaa; }
+.bot-lua-output pre.bot-lua-error-line { color: #ffb5b5; }
+.bot-lua-output small { color: #888; font-size: 9px; }
+.bot-lua-api-note { display: flex; align-items: flex-start; gap: 8px; color: #777; }
+.bot-lua-api-note svg { flex: 0 0 auto; margin-top: 2px; }
+.bot-lua-api-note p { margin: 0; font-size: 10px; line-height: 1.5; }
+.bot-lua-history { border-top: 1px solid #e3e3e3; padding-top: 10px; color: #666; font-size: 10px; }
+.bot-lua-history summary { display: flex; align-items: center; gap: 6px; cursor: pointer; font-weight: 650; list-style: none; }
+.bot-lua-history > div { display: flex; justify-content: space-between; gap: 10px; padding: 7px 2px; border-bottom: 1px solid #eee; }
+.bot-lua-history time { color: #999; font-size: 9px; }
+.bot-lua-loading { color: #888; font-size: 10px; }
+html[data-theme="dark"] .bot-lua-studio { border-color: #343434; background: #202020; }
+html[data-theme="dark"] .bot-lua-heading-icon { color: #eee; background: #333; }
+html[data-theme="dark"] .bot-lua-heading-copy strong { color: #eee; }
+html[data-theme="dark"] .bot-lua-status,
+html[data-theme="dark"] .bot-lua-snippets button,
+html[data-theme="dark"] .bot-lua-test,
+html[data-theme="dark"] .bot-lua-output { border-color: #444; color: #ccc; background: #292929; }
+html[data-theme="dark"] .bot-lua-version-row,
+html[data-theme="dark"] .bot-lua-api-note,
+html[data-theme="dark"] .bot-lua-history { color: #aaa; }
+html[data-theme="dark"] .bot-lua-test-heading > div { color: #eee; }
+html[data-theme="dark"] .bot-lua-test-input input { border-color: #444; color: #eee; background: #181818; }
+html[data-theme="dark"] .bot-lua-secondary { border-color: #555; color: #eee; background: #303030; }
+html[data-theme="dark"] .bot-lua-history { border-color: #383838; }
+html[data-theme="dark"] .bot-lua-history > div { border-color: #383838; }
+@media (max-width: 640px) {
+  .bot-lua-studio { padding: 12px; }
+  .bot-lua-editor { min-height: 220px; font-size: 11px; }
+  .bot-lua-test-heading { align-items: flex-start; flex-direction: column; }
+  .bot-lua-test-heading > span { text-align: left; }
+}

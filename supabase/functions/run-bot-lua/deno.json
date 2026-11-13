@@ -1,0 +1,6 @@
+{
+  "imports": {
+    "supabase": "npm:@supabase/supabase-js@2.57.0",
+    "fengari": "npm:fengari@0.1.5"
+  }
+}
