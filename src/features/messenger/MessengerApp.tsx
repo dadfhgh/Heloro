@@ -830,6 +830,13 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
               client={client}
               user={user}
               locale={locale}
+              contacts={inbox.map((item) => ({
+                id: item.other_user_id,
+                username: item.username,
+                display_name: item.display_name,
+                avatar_url: item.avatar_url,
+                badge_type: badgeMap[item.other_user_id] ?? null,
+              }))}
               initialRoomId={activeCommunityRoomId}
               initialCreateKind={communityCreateKind}
               onRoomsChanged={() => { void refreshCommunityRooms().catch(() => undefined); }}
