@@ -913,3 +913,173 @@ html[data-theme="dark"] .community-details-textarea {
 html[data-theme="dark"] .community-details-input:focus,
 html[data-theme="dark"] .community-details-textarea:focus { border-color: #999; }
 html[data-theme="dark"] .community-details-counter { color: #888; }
+
+
+/* Telegram-inspired community administrators and permission editor */
+.community-admin-screen {
+  position: absolute;
+  z-index: 45;
+  inset: 0;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  color: #222;
+  background: #f4f4f4;
+}
+.community-admin-scroll {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 16px 14px max(22px, env(safe-area-inset-bottom));
+}
+.community-admin-section {
+  margin-bottom: 14px;
+  overflow: hidden;
+  border: 1px solid #e4e4e4;
+  border-radius: 12px;
+  background: #fff;
+}
+.community-admin-section h2 {
+  margin: 0;
+  padding: 14px 14px 10px;
+  color: #777;
+  font-size: 12px;
+  font-weight: 650;
+}
+.community-admin-person,
+.community-admin-candidate {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 13px;
+  border: 0;
+  border-top: 1px solid #eee;
+  color: inherit;
+  background: #fff;
+  text-align: left;
+  font: inherit;
+}
+.community-admin-candidate { width: 100%; cursor: pointer; }
+.community-admin-person-avatar {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 50%;
+  color: #fff;
+  background: #777;
+  font-size: 15px;
+  font-weight: 650;
+}
+.community-admin-person-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.community-admin-person-copy,
+.community-admin-candidate > span:nth-child(2) {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: 3px;
+}
+.community-admin-person-copy strong,
+.community-admin-candidate strong {
+  overflow: hidden;
+  color: #262626;
+  font-size: 13px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.community-admin-person-copy small,
+.community-admin-candidate small {
+  overflow: hidden;
+  color: #888;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.community-admin-person-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 5px;
+}
+.community-admin-person-actions button {
+  min-height: 34px;
+  padding: 0 9px;
+  border: 1px solid #e2e2e2;
+  border-radius: 8px;
+  color: #333;
+  background: #fafafa;
+  font: inherit;
+  font-size: 11px;
+}
+.community-admin-person-actions .community-admin-remove {
+  color: #a52820;
+}
+.community-admin-candidate > svg { color: #999; }
+.community-admin-empty,
+.community-admin-hint {
+  margin: 0;
+  padding: 0 14px 14px;
+  color: #888;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.community-admin-editor { padding-bottom: 12px; }
+.community-admin-editor h2 { padding-bottom: 7px; color: #333; font-size: 14px; }
+.community-admin-editor .community-admin-hint { padding-top: 0; }
+.community-admin-permission {
+  display: flex;
+  min-height: 58px;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 14px;
+  border-top: 1px solid #eee;
+  cursor: pointer;
+}
+.community-admin-permission input {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  accent-color: #555;
+}
+.community-admin-permission > span { display: grid; gap: 3px; }
+.community-admin-permission strong { color: #292929; font-size: 13px; font-weight: 600; }
+.community-admin-permission small { color: #888; font-size: 11px; line-height: 1.4; }
+.community-admin-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 14px 2px;
+}
+html[data-theme="dark"] .community-admin-screen { color: #eee; background: #101010; }
+html[data-theme="dark"] .community-admin-section { border-color: #333; background: #1b1b1b; }
+html[data-theme="dark"] .community-admin-section h2 { color: #999; }
+html[data-theme="dark"] .community-admin-person,
+html[data-theme="dark"] .community-admin-candidate { border-color: #333; color: #eee; background: #1b1b1b; }
+html[data-theme="dark"] .community-admin-person-copy strong,
+html[data-theme="dark"] .community-admin-candidate strong,
+html[data-theme="dark"] .community-admin-editor h2,
+html[data-theme="dark"] .community-admin-permission strong { color: #eee; }
+html[data-theme="dark"] .community-admin-person-copy small,
+html[data-theme="dark"] .community-admin-candidate small,
+html[data-theme="dark"] .community-admin-empty,
+html[data-theme="dark"] .community-admin-hint,
+html[data-theme="dark"] .community-admin-permission small { color: #999; }
+html[data-theme="dark"] .community-admin-person-actions button { border-color: #414141; color: #eee; background: #222; }
+html[data-theme="dark"] .community-admin-person-actions .community-admin-remove { color: #ff9990; }
+html[data-theme="dark"] .community-admin-permission { border-color: #333; }
+html[data-theme="dark"] .community-admin-permission input { accent-color: #ddd; }
+@media (max-width: 560px) {
+  .community-admin-person { align-items: flex-start; flex-wrap: wrap; }
+  .community-admin-person-copy { padding-top: 2px; }
+  .community-admin-person-actions { width: 100%; justify-content: flex-end; }
+}
