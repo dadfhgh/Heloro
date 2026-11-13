@@ -1,0 +1,21 @@
+name: Lua Bot Studio checks
+
+on:
+  pull_request:
+    paths:
+      - "supabase/functions/run-bot-lua/**"
+      - "supabase/migrations/*bot_lua_studio.sql"
+      - ".github/workflows/lua-bot-studio.yml"
+
+jobs:
+  deno:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Type-check Edge Function
+        run: deno check --config supabase/functions/run-bot-lua/deno.json supabase/functions/run-bot-lua/index.ts
+      - name: Test Lua sandbox
+        run: deno test --config supabase/functions/run-bot-lua/deno.json supabase/functions/run-bot-lua/runtime.test.ts
