@@ -1747,10 +1747,3 @@ html[data-theme="dark"] .admin-panel-full .admin-user-copy small,html[data-theme
 html[data-theme="dark"] .admin-panel-full .admin-privacy-note{color:#aaa;background:#202020;border-color:#3a3a3a}
 html[data-theme="dark"] .admin-panel-full .admin-primary-action,html[data-theme="dark"] .admin-panel-full .admin-role-editor button,html[data-theme="dark"] .admin-panel-full .admin-support-reply button{color:#111;background:#eee;border-color:#eee}
 @media(max-width:620px){.admin-panel-full .admin-header-status{display:none}.admin-panel-full .admin-stats-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.admin-panel-full .admin-support-grid{grid-template-columns:minmax(0,1fr)}.admin-panel-full .admin-record-list{display:flex;overflow-x:auto}.admin-panel-full .admin-thread-row{flex:0 0 auto}.admin-panel-full .admin-channel-actions{grid-template-columns:minmax(0,1fr)}}
-
-/* Epic Sans keeps the same native verification checkmark, recolored violet and white. */
-.verification-mark.verification-epic-sans {
-  color: #fff;
-  background: linear-gradient(135deg, #a855f7 0%, #7e22ce 58%, #5b21b6 100%);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .9), 0 0 5px rgba(147, 51, 234, .3);
-}
