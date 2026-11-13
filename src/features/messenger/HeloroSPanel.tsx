@@ -254,28 +254,32 @@ export default function HeloroSPanel({
     } finally { setBusy(false); }
   }
 
-  async function loadSettings() {
+  async function loadSettings(isCurrent: () => boolean = () => true) {
     const { data, error: queryError } = await client.from("heloro_settings")
       .select("setting_key, value, updated_at, updated_by")
       .order("setting_key");
     if (queryError) throw queryError;
-    setSettings((data ?? []) as SettingEntry[]);
+    if (isCurrent()) setSettings((data ?? []) as SettingEntry[]);
   }
 
   useEffect(() => {
     let active = true;
     clearMessages();
+    const isCurrent = () => active;
     const run = async () => {
+      setLoadingTab(tab);
       try {
-        if (tab === "overview") await loadOverview();
-        if (tab === "reports") await loadReports();
-        if (tab === "support") await loadThreads();
-        if (tab === "audit") await loadAudit();
-        if (tab === "roles") await loadStaff();
-        if (tab === "settings") await loadSettings();
-        if (tab === "groups") await loadCommunities();
+        if (tab === "overview") await loadOverview(isCurrent);
+        if (tab === "reports") await loadReports(isCurrent);
+        if (tab === "support") await loadThreads(isCurrent);
+        if (tab === "audit") await loadAudit(isCurrent);
+        if (tab === "roles") await loadStaff(isCurrent);
+        if (tab === "settings") await loadSettings(isCurrent);
+        if (tab === "groups") await loadCommunities(isCurrent);
       } catch (cause) {
-        if (active) setError(errorText(cause, ru ? "Не удалось загрузить раздел." : "Could not load this section."));
+        if (active) setError(errorText(cause, ru ? "Не удалось загрузить раздел." : "Could not load this section.", ru));
+      } finally {
+        if (active) setLoadingTab(null);
       }
     };
     if (staff) void run();
@@ -283,14 +287,30 @@ export default function HeloroSPanel({
   }, [client, tab, staff, ru]);
 
   useEffect(() => {
-    if (!["users", "moderation", "verification", "roles"].includes(tab)) return;
+    if (!["users", "moderation", "verification", "roles"].includes(tab)) {
+      setUsersLoading(false);
+      return;
+    }
     let active = true;
+    const requestId = ++userSearchRequestRef.current;
+    setUsersLoading(true);
     const timer = window.setTimeout(() => {
-      loadUsers(search).catch((cause: unknown) => {
-        if (active) setError(errorText(cause, ru ? "Не удалось найти пользователей." : "Could not search users."));
-      });
+      loadUsers(search, () => active && userSearchRequestRef.current === requestId)
+        .catch((cause: unknown) => {
+          if (active && userSearchRequestRef.current === requestId) {
+            setError(errorText(cause, ru ? "Не удалось найти пользователей." : "Could not search users.", ru));
+          }
+        })
+        .finally(() => {
+          if (active && userSearchRequestRef.current === requestId) setUsersLoading(false);
+        });
     }, 180);
-    return () => { active = false; window.clearTimeout(timer); };
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+      if (userSearchRequestRef.current === requestId) userSearchRequestRef.current += 1;
+      setUsersLoading(false);
+    };
   }, [client, tab, search, ru]);
 
   useEffect(() => {
@@ -304,6 +324,7 @@ export default function HeloroSPanel({
       .catch((cause: unknown) => { if (active) setError(errorText(cause, ru ? "Не удалось загрузить переписку поддержки." : "Could not load support conversation.")); });
     const channel = client.channel("heloro-s-admin-support-"+selectedThread.id)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "support_messages", filter: "thread_id=eq."+selectedThread.id }, (payload) => {
+        if (!active) return;
         const item = payload.new as SupportMessage;
         setSupportMessages((current) => current.some((row) => row.id === item.id) ? current : [...current, item]);
       }).subscribe();
@@ -351,16 +372,16 @@ export default function HeloroSPanel({
     } finally { setBusy(false); }
   }
 
-  async function loadSelectedRestrictions() {
-    if (!selectedUser) return [];
+  async function loadSelectedRestrictions(targetUserId = selectedUser?.id): Promise<ActiveRestriction[]> {
+    if (!targetUserId) return [];
     const { data, error: queryError } = await client.from("account_restrictions")
-      .select("id, restriction_type, reason, created_at, expires_at, revoked_at")
-      .eq("user_id", selectedUser.id).is("revoked_at", null).order("created_at", { ascending: false });
+      .select("id, restriction_type, reason, created_at, expires_at, revoked_at, created_by")
+      .eq("user_id", targetUserId).is("revoked_at", null).order("created_at", { ascending: false });
     if (queryError) throw queryError;
-    return ((data ?? []) as { id: string; restriction_type: string; reason: string; created_at: string; expires_at: string | null; revoked_at: string | null }[]).filter((item) => !item.expires_at || new Date(item.expires_at).getTime() > Date.now());
+    return ((data ?? []) as ActiveRestriction[]).filter((item) => !item.expires_at || new Date(item.expires_at).getTime() > Date.now());
   }
 
-  const [activeRestrictions, setActiveRestrictions] = useState<{ id: string; restriction_type: string; reason: string; created_at: string; expires_at: string | null; revoked_at: string | null }[]>([]);
+  const [activeRestrictions, setActiveRestrictions] = useState<ActiveRestriction[]>([]);
   useEffect(() => {
     let active = true;
     if (tab !== "moderation" || !selectedUser) { setActiveRestrictions([]); return; }
