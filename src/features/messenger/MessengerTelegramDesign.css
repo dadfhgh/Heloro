@@ -701,6 +701,8 @@
   border-radius: 50%;
   background: #777;
 }
+.profile-view-avatar { aspect-ratio: 1 / 1; flex: 0 0 88px; overflow: hidden; border-radius: 50%; }
+.profile-view-avatar img { display: block; width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
 .profile-view-heading { color: #777; }
 .profile-view-heading button { color: #666; }
 .profile-view-content h2 { color: #222; font-size: 18px; }
