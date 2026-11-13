@@ -625,6 +625,16 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
             </button>
             <div className="brand-lockup"><div className="brand-symbol">H</div><span>HELORO</span></div>
             <button
+              className="icon-button create-group-button"
+              type="button"
+              title={locale === "ru" ? "Создать группу" : "Create group"}
+              aria-label={locale === "ru" ? "Создать группу" : "Create group"}
+              onClick={() => openCommunity(null, "group")}
+            >
+              <Users size={17} />
+              <span>{locale === "ru" ? "Группа" : "Group"}</span>
+            </button>
+            <button
               className="icon-button compose-button"
               title={t(locale, "inboxStartConversation")}
               aria-label={t(locale, "inboxStartConversation")}
@@ -972,6 +982,8 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
             onClose={() => setShowNavigation(false)}
             onOpenInbox={closeConversation}
             onOpenContacts={openSearch}
+            onCreateGroup={() => openCommunity(null, "group")}
+            onCreateChannel={() => openCommunity(null, "channel")}
             onOpenNews={() => openSystemView("news")}
             onOpenSupport={() => openSystemView("support")}
             onOpenSettings={() => openSettings("account")}
