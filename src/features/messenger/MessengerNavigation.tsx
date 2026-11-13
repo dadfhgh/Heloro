@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import {
-  Bell, Bookmark, Bot, Check, ChevronRight, CircleHelp, Cloud, Folder, Gift,
+  ArrowLeft, Bell, Bookmark, Bot, Check, ChevronRight, CircleHelp, Cloud, Folder, Gift,
   Headphones, History, Laptop, LockKeyhole, Megaphone, MessageCircle, Moon,
   Palette, Phone, Settings, ShieldCheck, Sun, Users, X,
 } from "lucide-react";
@@ -42,7 +42,7 @@ export function MessengerNavigation({
             <button className="icon-button" type="button" onClick={onClose} aria-label={ru ? "Закрыть меню" : "Close menu"}><X size={19} /></button>
           </div>
           <div className="navigation-user">
-            <div className="avatar navigation-avatar">{(profile.display_name || "H").trim().slice(0, 1).toUpperCase()}</div>
+            <div className="avatar navigation-avatar">{profile.avatar_url ? <img src={profile.avatar_url} alt="" loading="lazy" /> : (profile.display_name || "H").trim().slice(0, 1).toUpperCase()}</div>
             <div className="navigation-user-copy"><strong>{profile.display_name}</strong><small>@{profile.username}</small></div>
             {roles.includes("owner") && <ShieldCheck size={17} className="navigation-owner-mark" />}
           </div>
@@ -158,6 +158,25 @@ function ToggleRow({ title, description, checked, onChange, disabled = false }: 
   );
 }
 
+function SettingsHomeRow({
+  title, description, Icon, onClick, disabled = false, trailing,
+}: {
+  title: string;
+  description: string;
+  Icon: typeof Settings;
+  onClick: () => void;
+  disabled?: boolean;
+  trailing?: string;
+}) {
+  return (
+    <button className="settings-home-row" type="button" onClick={onClick} disabled={disabled}>
+      <span className="settings-home-icon"><Icon size={19} strokeWidth={1.8} /></span>
+      <span className="settings-home-copy"><strong>{title}</strong><small>{description}</small></span>
+      <span className="settings-home-trailing">{trailing ?? <ChevronRight size={17} />}</span>
+    </button>
+  );
+}
+
 export function MessengerSettings({
   client, userId, profile, locale, roles, theme, activeSection, onSectionChange,
   onThemeChange, onLocaleChange, onClose, onOpenMyProfile, onOpenSupport,
@@ -169,6 +188,7 @@ export function MessengerSettings({
     ? [...settingItems, { id: "staff" as const, label: { ru: "HELORO S", en: "HELORO S" }, Icon: ShieldCheck, available: true }]
     : settingItems;
   const title = items.find((item) => item.id === activeSection)?.label[locale] ?? (ru ? "Настройки" : "Settings");
+  const [settingsHome, setSettingsHome] = useState(activeSection === "account");
   const [preferences, setPreferences] = useState<UserPreferences>(defaultPreferences);
   const [preferencesLoading, setPreferencesLoading] = useState(true);
   const [savingPreference, setSavingPreference] = useState(false);
@@ -240,28 +260,104 @@ export function MessengerSettings({
   }
 
   const savingLabel = savingPreference ? (ru ? "Сохранение…" : "Saving…") : preferencesLoading ? (ru ? "Загрузка настроек…" : "Loading settings…") : (ru ? "Настройки синхронизированы с аккаунтом" : "Settings synced to your account");
+  useEffect(() => {
+    setSettingsHome(activeSection === "account");
+  }, [activeSection]);
+
+  const settingGroups: { title: string; ids: SettingsSection[] }[] = [
+    { title: ru ? "АККАУНТ" : "ACCOUNT", ids: ["notifications", "privacy", "devices", "calls"] },
+    { title: ru ? "НАСТРОЙКИ" : "SETTINGS", ids: ["appearance", "language", "chats", "storage"] },
+    { title: ru ? "ПРИЛОЖЕНИЕ" : "APP", ids: ["bots", "help", "plus", ...(staff ? ["staff" as const] : [])] },
+  ];
+
+  const settingDescriptions: Record<SettingsSection, string> = {
+    account: ru ? "Профиль и данные аккаунта" : "Profile and account details",
+    notifications: ru ? "Личные сообщения, группы и звуки" : "Direct messages, groups and sounds",
+    privacy: ru ? "Последняя активность, фото и приглашения" : "Last seen, profile photos and invites",
+    devices: ru ? "Активные сеансы и входы" : "Active sessions and sign-ins",
+    calls: ru ? "Аудио- и видеозвонки" : "Audio and video calls",
+    appearance: ru ? (theme === "dark" ? "Тёмная тема" : theme === "light" ? "Светлая тема" : "Как на устройстве") : (theme === "dark" ? "Dark theme" : theme === "light" ? "Light theme" : "Use device setting"),
+    language: ru ? (locale === "ru" ? "Русский" : "English") : (locale === "ru" ? "Russian" : "English"),
+    chats: ru ? "Предпросмотр и поведение чатов" : "Chat previews and behavior",
+    storage: ru ? "Автозагрузка медиа" : "Automatic media download",
+    bots: ru ? "Создание и управление ботами" : "Create and manage bots",
+    help: ru ? "Связаться с командой поддержки" : "Contact the support team",
+    plus: ru ? "Награды и возможности HELORO" : "HELORO rewards and features",
+    staff: ru ? "Модерация и администрирование" : "Moderation and administration",
+  };
 
   return (
     <div className="settings-overlay settings-page-overlay" onClick={onClose}>
       <section className="settings-page-card" role="dialog" aria-modal="true" aria-labelledby="settings-title" onClick={(event) => event.stopPropagation()}>
         <header className="settings-page-header">
-          <div><span className="settings-page-eyebrow">HELORO</span><h2 id="settings-title">{ru ? "Настройки" : "Settings"}</h2></div>
-          <button className="icon-button" type="button" onClick={onClose} aria-label={ru ? "Закрыть настройки" : "Close settings"}><X size={20} /></button>
+          <div className="settings-page-header-copy">
+            <span className="settings-page-eyebrow">HELORO</span>
+            <h2 id="settings-title">{settingsHome ? (ru ? "Настройки" : "Settings") : title}</h2>
+          </div>
+          <button
+            className="icon-button settings-header-back"
+            type="button"
+            onClick={() => {
+              if (settingsHome) onClose();
+              else onSectionChange("account");
+            }}
+            aria-label={settingsHome ? (ru ? "Закрыть настройки" : "Close settings") : (ru ? "Назад к настройкам" : "Back to settings")}
+          >
+            {settingsHome ? <X size={20} /> : <ArrowLeft size={20} />}
+          </button>
         </header>
         <div className="settings-page-body">
-          <nav className="settings-sidebar" aria-label={ru ? "Категории настроек" : "Settings categories"}>
-            {items.map(({ id, label, Icon }) => (
-              <button type="button" key={id} className={activeSection === id ? "active" : ""} onClick={() => onSectionChange(id)}>
-                <Icon size={18} /><span>{label[locale]}</span>{activeSection === id && <ChevronRight size={15} />}
-              </button>
-            ))}
-          </nav>
           <div className="settings-content">
-            <div className="settings-content-heading"><h3>{title}</h3><span>HELORO</span></div>
+            {settingsHome ? (
+              <div className="settings-home">
+                <button className="settings-home-profile" type="button" onClick={onOpenMyProfile}>
+                  <span className="avatar settings-home-avatar">
+                    {profile.avatar_url ? <img src={profile.avatar_url} alt="" loading="lazy" /> : (profile.display_name || "H").trim().slice(0, 1).toUpperCase()}
+                  </span>
+                  <span className="settings-home-profile-copy">
+                    <strong>{profile.display_name || (ru ? "Пользователь" : "User")}</strong>
+                    <small>@{profile.username}</small>
+                    {roles.includes("owner") && <em><ShieldCheck size={13} /> {ru ? "Владелец HELORO" : "HELORO Owner"}</em>}
+                  </span>
+                  <ChevronRight size={19} />
+                </button>
+                {settingGroups.map((group) => (
+                  <section className="settings-home-section" key={group.title}>
+                    <h3>{group.title}</h3>
+                    <div className="settings-home-group">
+                      {group.ids.map((id) => {
+                        const item = items.find((candidate) => candidate.id === id);
+                        if (!item) return null;
+                        const disabled = !item.available;
+                        return (
+                          <SettingsHomeRow
+                            key={id}
+                            title={item.label[locale]}
+                            description={settingDescriptions[id]}
+                            Icon={item.Icon}
+                            disabled={disabled}
+                            trailing={disabled ? (ru ? "Скоро" : "Soon") : undefined}
+                            onClick={() => {
+                              if (disabled) return;
+                              onSectionChange(id);
+                            }}
+                          />
+                        );
+                      })}
+                    </div>
+                  </section>
+                ))}
+                <button className="settings-home-signout" type="button" onClick={onSignOut}>
+                  {ru ? "Выйти из аккаунта" : "Sign out"}
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="settings-content-heading"><h3>{title}</h3></div>
             {activeSection === "account" && (
               <div className="settings-section-content">
                 <div className="settings-account-card">
-                  <div className="avatar settings-account-avatar">{(profile.display_name || "H").trim().slice(0, 1).toUpperCase()}</div>
+                  <div className="avatar settings-account-avatar">{profile.avatar_url ? <img src={profile.avatar_url} alt="" loading="lazy" /> : (profile.display_name || "H").trim().slice(0, 1).toUpperCase()}</div>
                   <div><strong>{profile.display_name}</strong><small>@{profile.username}</small></div>
                   {roles.includes("owner") && <span className="settings-account-owner"><ShieldCheck size={14} /> {ru ? "Владелец" : "Owner"}</span>}
                 </div>
@@ -366,6 +462,8 @@ export function MessengerSettings({
                 <p className="settings-description">{ru ? "Жалобы, обращения в поддержку и управление галочками." : "Reports, support conversations and verification management."}</p>
                 <button type="button" className="settings-action-button" onClick={onOpenAdmin}><ShieldCheck size={18} /> {ru ? "Открыть HELORO S" : "Open HELORO S"}</button>
               </div>
+            )}
+              </>
             )}
           </div>
         </div>
