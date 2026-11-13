@@ -1,6 +1,6 @@
 begin;
 
-select plan(30);
+select plan(33);
 
 select has_table('public', 'profiles', 'profiles table exists');
 select has_table('public', 'conversations', 'conversations table exists');
@@ -35,5 +35,8 @@ select has_function('public', 'remove_community_admin', array['uuid', 'uuid'], '
 select ok(exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'community_room_messages' and policyname = 'Authors and permitted admins delete community messages' and cmd = 'DELETE' and qual like '%has_community_permission%'), 'community message moderation is permission-gated');
 select ok(exists (select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname = 'Participants delete one-to-one conversation media' and cmd = 'DELETE'), 'one-to-one participants can clean up shared message media');
 
+select has_function('public', 'heloro_admin_list_communities', array[]::text[], 'HELORO S community list RPC exists');
+select has_function('public', 'heloro_admin_delete_community', array['uuid'], 'HELORO S community deletion RPC exists');
+select ok(has_function_privilege('authenticated', 'public.heloro_admin_delete_community(uuid)', 'execute') and not has_function_privilege('anon', 'public.heloro_admin_delete_community(uuid)', 'execute'), 'community deletion RPC is restricted to authenticated users');
 select * from finish();
 rollback;
