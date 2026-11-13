@@ -18,13 +18,13 @@ type Room = {
   updated_at: string;
 };
 type RoomMessage = { id: string; room_id: string; sender_id: string; body: string; created_at: string };
-type Props = { client: SupabaseClient; user: User; locale: Locale; initialRoomId?: string | null; initialCreateKind?: "group" | "channel" | null; onRoomsChanged?: () => void; onClose: () => void };
+type Props = { client: SupabaseClient; user: User; locale: Locale; contacts?: PublicProfile[]; initialRoomId?: string | null; initialCreateKind?: "group" | "channel" | null; onRoomsChanged?: () => void; onClose: () => void };
 
 function RoomAvatar({ room }: { room: Room }) {
   return <div className="community-avatar">{room.avatar_url ? <img src={room.avatar_url} alt="" /> : room.kind === "channel" ? <Megaphone size={19} /> : <Users size={19} />}</div>;
 }
 
-export default function CommunityHub({ client, user, locale, initialRoomId = null, initialCreateKind = null, onRoomsChanged, onClose }: Props) {
+export default function CommunityHub({ client, user, locale, contacts = [], initialRoomId = null, initialCreateKind = null, onRoomsChanged, onClose }: Props) {
   const ru = locale === "ru";
   const [room, setRoom] = useState<Room | null>(null);
   const [memberRole, setMemberRole] = useState<string | null>(null);
@@ -40,6 +40,11 @@ export default function CommunityHub({ client, user, locale, initialRoomId = nul
   const [memberSearch, setMemberSearch] = useState("");
   const [memberResults, setMemberResults] = useState<PublicProfile[]>([]);
   const [selectedMembers, setSelectedMembers] = useState<PublicProfile[]>([]);
+  const [createStep, setCreateStep] = useState<"members" | "details" | "visibility">(initialCreateKind === "group" ? "members" : "details");
+  const [isPublic, setIsPublic] = useState(false);
+  const [createAvatarFile, setCreateAvatarFile] = useState<File | null>(null);
+  const [createAvatarPreview, setCreateAvatarPreview] = useState<string | null>(null);
+  const createAvatarInput = useRef<HTMLInputElement>(null);
   const avatarInput = useRef<HTMLInputElement>(null);
   const messagesEnd = useRef<HTMLDivElement>(null);
 
@@ -58,6 +63,100 @@ export default function CommunityHub({ client, user, locale, initialRoomId = nul
       .eq("room_id", roomId).order("created_at", { ascending: true }).limit(100);
     if (loadError) throw loadError;
     setMessages((data ?? []) as RoomMessage[]);
+  }
+
+
+  useEffect(() => {
+    if (!createAvatarFile) {
+      setCreateAvatarPreview(null);
+      return;
+    }
+    const previewUrl = URL.createObjectURL(createAvatarFile);
+    setCreateAvatarPreview(previewUrl);
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [createAvatarFile]);
+
+  function chooseCreateAvatar(file?: File) {
+    if (!file) return;
+    const supportedTypes = ["image/png", "image/jpeg", "image/webp"];
+    if (!supportedTypes.includes(file.type) || file.size < 1 || file.size > 3 * 1024 * 1024) {
+      setError(ru ? "Выбери PNG, JPEG или WebP размером до 3 МБ." : "Choose a PNG, JPEG or WebP image up to 3 MB.");
+      if (createAvatarInput.current) createAvatarInput.current.value = "";
+      return;
+    }
+    setCreateAvatarFile(file);
+    setError("");
+  }
+
+  function toggleSelectedMember(item: PublicProfile) {
+    setSelectedMembers((current) => {
+      if (current.some((selected) => selected.id === item.id)) {
+        return current.filter((selected) => selected.id !== item.id);
+      }
+      return current.length >= 99 ? current : [...current, item];
+    });
+  }
+
+  function renderMemberPicker(title: string, helper: string) {
+    const normalizedSearch = memberSearch.trim().replace(/^@/, "");
+    const people = normalizedSearch.length >= 2 ? memberResults : contacts;
+    return (
+      <section className="community-member-picker">
+        <label>{title}</label>
+        <input
+          value={memberSearch}
+          onChange={(event) => setMemberSearch(event.target.value)}
+          maxLength={64}
+          placeholder={ru ? "Поиск по имени или @username" : "Search by name or @username"}
+        />
+        {selectedMembers.length > 0 && (
+          <div className="community-selected-members">
+            {selectedMembers.map((item) => (
+              <button type="button" key={item.id} onClick={() => toggleSelectedMember(item)}>
+                @{item.username}<X size={13} />
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="community-contact-list">
+          {people.length === 0 ? (
+            <p>{normalizedSearch.length >= 2
+              ? (ru ? "Никого не нашли. Проверь username." : "No users found. Check the username.")
+              : (ru ? "Здесь появятся недавние собеседники. Найди человека через поиск." : "Recent chats will appear here. Search for someone to add.")}</p>
+          ) : people.map((item) => {
+            const selected = selectedMembers.some((member) => member.id === item.id);
+            return (
+              <button
+                type="button"
+                className={"community-contact-item" + (selected ? " selected" : "")}
+                key={item.id}
+                onClick={() => toggleSelectedMember(item)}
+                aria-pressed={selected}
+              >
+                <span className="community-contact-avatar">
+                  {item.avatar_url ? <img src={item.avatar_url} alt="" /> : (item.display_name || item.username).trim().slice(0, 1).toUpperCase()}
+                </span>
+                <span className="community-contact-copy">
+                  <strong>{item.display_name || item.username}</strong>
+                  <small>@{item.username}</small>
+                </span>
+                <span className="community-contact-check">{selected ? <Check size={17} /> : null}</span>
+              </button>
+            );
+          })}
+        </div>
+        <small className="community-member-count">
+          {ru ? "Выбрано: " + selectedMembers.length : "Selected: " + selectedMembers.length} · {helper}
+        </small>
+      </section>
+    );
+  }
+
+  function advanceToVisibility(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (name.trim().length < 2) return;
+    setError("");
+    setCreateStep("visibility");
   }
 
   useEffect(() => {
@@ -137,29 +236,95 @@ export default function CommunityHub({ client, user, locale, initialRoomId = nul
 
   async function createRoom(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const normalizedUsername = username.trim().replace(/^@/, "").toLowerCase();
     if (!createKind || name.trim().length < 2) return;
-    if (!/^[a-z][a-z0-9_]{4,31}$/.test(normalizedUsername)) {
+
+    const normalizedUsername = username.trim().replace(/^@/, "").toLowerCase();
+    if (createKind === "channel" && isPublic && !/^[a-z][a-z0-9_]{4,31}$/.test(normalizedUsername)) {
       setError(ru
-        ? "Адрес должен начинаться с латинской буквы и содержать 5–32 символа: a–z, 0–9 или _."
-        : "The handle must start with a Latin letter and contain 5–32 characters: a–z, 0–9 or _.");
+        ? "Для публичного канала нужен @username: 5–32 символа, латинские буквы, цифры или _."
+        : "A public channel needs a username: 5–32 characters, using a–z, 0–9 and _.");
       return;
     }
-    setBusy(true); setError("");
+
+    const isRoomPublic = createKind === "channel" && isPublic;
+    const handle = isRoomPublic
+      ? normalizedUsername
+      : "private_" + createKind + "_" + crypto.randomUUID().replace(/-/g, "").slice(0, 12);
+
+    setBusy(true);
+    setError("");
     try {
-      const { data, error: createError } = await client.rpc("create_community_room", {
-        p_kind: createKind, p_name: name.trim(), p_username: normalizedUsername,
-        p_description: description.trim(), p_member_ids: createKind === "group" ? selectedMembers.map((item) => item.id) : [],
+      const { data, error: createError } = await client.rpc("create_community_room_v2", {
+        p_kind: createKind,
+        p_name: name.trim(),
+        p_username: handle,
+        p_description: description.trim(),
+        p_member_ids: selectedMembers.map((item) => item.id),
+        p_is_public: isRoomPublic,
       });
       if (createError) throw createError;
       if (typeof data !== "string") throw new Error("The community could not be created.");
+
+      let avatarUrl: string | null = null;
+      let avatarWarning = "";
+      if (createAvatarFile) {
+        const extension = createAvatarFile.type === "image/png" ? "png"
+          : createAvatarFile.type === "image/jpeg" ? "jpg" : "webp";
+        const path = data + "/" + crypto.randomUUID() + "." + extension;
+        const storage = client.storage.from("community-avatars");
+        const { error: uploadError } = await storage.upload(path, createAvatarFile, {
+          contentType: createAvatarFile.type,
+          cacheControl: "3600",
+          upsert: false,
+        });
+        if (uploadError) {
+          avatarWarning = ru
+            ? "Сообщество создано, но фото не загрузилось. Его можно добавить позже."
+            : "The community was created, but its photo could not be uploaded. You can add it later.";
+        } else {
+          const uploadedUrl = storage.getPublicUrl(path).data.publicUrl;
+          const { error: updateError } = await client.from("community_rooms")
+            .update({ avatar_url: uploadedUrl, updated_at: new Date().toISOString() })
+            .eq("id", data);
+          if (updateError) {
+            await storage.remove([path]);
+            avatarWarning = ru
+              ? "Сообщество создано, но фото не сохранилось. Его можно добавить позже."
+              : "The community was created, but its photo could not be saved. You can add it later.";
+          } else {
+            avatarUrl = uploadedUrl;
+          }
+        }
+      }
+
       const nextRoom: Room = {
-        id: data, kind: createKind, name: name.trim(), username: normalizedUsername,
-        description: description.trim(), avatar_url: null, created_by: user.id,
-        is_public: true, updated_at: new Date().toISOString(),
+        id: data,
+        kind: createKind,
+        name: name.trim(),
+        username: handle,
+        description: description.trim(),
+        avatar_url: avatarUrl,
+        created_by: user.id,
+        is_public: isRoomPublic,
+        updated_at: new Date().toISOString(),
       };
-      setCreateKind(null); setName(""); setUsername(""); setDescription(""); setMemberSearch(""); setMemberResults([]); setSelectedMembers([]);
-      setRoom(nextRoom); setMemberRole("owner"); setMessages([]); onRoomsChanged?.();
+
+      setCreateKind(null);
+      setCreateStep("details");
+      setIsPublic(false);
+      setName("");
+      setUsername("");
+      setDescription("");
+      setMemberSearch("");
+      setMemberResults([]);
+      setSelectedMembers([]);
+      setCreateAvatarFile(null);
+      if (createAvatarInput.current) createAvatarInput.current.value = "";
+      setRoom(nextRoom);
+      setMemberRole("owner");
+      setMessages([]);
+      setError(avatarWarning);
+      onRoomsChanged?.();
     } catch (cause) {
       const failure = cause as { code?: string; message?: string };
       if (failure.code === "23505" || /already taken|duplicate key/i.test(failure.message || "")) {
@@ -167,9 +332,10 @@ export default function CommunityHub({ client, user, locale, initialRoomId = nul
       } else {
         setError(failure.message || (ru ? "Не удалось создать." : "Could not create."));
       }
-    } finally { setBusy(false); }
+    } finally {
+      setBusy(false);
+    }
   }
-
   async function sendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!room || !memberRole || !draft.trim()) return;
