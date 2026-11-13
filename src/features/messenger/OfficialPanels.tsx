@@ -1,13 +1,11 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import type { User } from "@supabase/supabase-js";
 import {
   BadgeCheck,
-  Check,
   ChevronRight,
   MessageCircle,
   Megaphone,
   Send,
-  ShieldCheck,
   Trash2,
 } from "lucide-react";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -33,7 +31,6 @@ import {
   type SupportThread,
 } from "../../lib/official";
 import { formatMessageTime, initials } from "../../lib/domain";
-import type { PublicProfile } from "../../lib/types";
 import type { Locale } from "../../lib/i18n";
 import HeloroSPanel from "./HeloroSPanel";
 
