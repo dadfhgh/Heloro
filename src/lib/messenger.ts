@@ -41,7 +41,9 @@ export async function getPublicProfile(userId: string): Promise<PublicProfile | 
   if (!data) return null;
   const { data: badge, error: badgeError } = await client().from("verification_badges")
     .select("badge_type").eq("user_id", userId).maybeSingle();
-  if (badgeError) throw badgeError;
+  if (badgeError) {
+    console.warn("HELORO optional profile badge lookup failed:", badgeError.message);
+  }
   return { ...data, username: data.username ?? "", badge_type: (badge?.badge_type as PublicProfile["badge_type"]) ?? null };
 }
 
