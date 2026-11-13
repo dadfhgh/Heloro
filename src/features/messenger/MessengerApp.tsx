@@ -73,10 +73,19 @@ function Avatar({ label, className = "", src }: { label: string; className?: str
 
 function VerificationMark({ type, title }: { type?: BadgeType | null; title: string }) {
   if (!type) return null;
-  const label = type === "blue" ? "blue" : type === "gold" ? "gold" : "creator";
+  const label = type === "blue" ? "blue" : type === "gold" ? "gold" : type === "creator" ? "creator" : "epic-sans";
+  const accessibleTitle = type === "epic_sans" ? "Epic Sans" : title;
   return (
-    <span className={`verification-mark verification-${label}`} title={title} aria-label={title}>
-      <BadgeCheck size={14} strokeWidth={2.8} />
+    <span className={`verification-mark verification-${label}`} title={accessibleTitle} aria-label={accessibleTitle}>
+      {type === "epic_sans" ? (
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path className="epic-sans-star" d="M12 4.7 15.1 8 20.2 8.8 16.7 12.5 17.7 17.7 12 15.3 6.3 17.7 7.3 12.5 3.8 8.8 8.9 8Z" />
+          <path className="epic-sans-crown" d="M7.2 8.1 6.4 3.8 9.5 5.9 12 2.3 14.5 5.9 17.6 3.8 16.8 8.1Z" />
+          <path className="epic-sans-spark" d="M12 9.1 13.15 11 15.2 12 13.15 13 12 14.9 10.85 13 8.8 12 10.85 11Z" />
+        </svg>
+      ) : (
+        <BadgeCheck size={14} strokeWidth={2.8} />
+      )}
     </span>
   );
 }
@@ -332,7 +341,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
         }
         const next: Record<string, BadgeType> = {};
         for (const row of data ?? []) {
-          if (row.badge_type === "blue" || row.badge_type === "gold" || row.badge_type === "creator") {
+          if (row.badge_type === "blue" || row.badge_type === "gold" || row.badge_type === "creator" || row.badge_type === "epic_sans") {
             next[row.user_id] = row.badge_type;
           }
         }
