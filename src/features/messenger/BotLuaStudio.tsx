@@ -263,8 +263,8 @@ export default function BotLuaStudio({ client, botId, locale }: Props) {
       <div className="bot-lua-api-note">
         <ShieldCheck size={16} />
         <p>{ru
-          ? "Скрипты запускаются на сервере с лимитом инструкций. Lua не получает доступ к файлам, сети, ключам или внутренним данным HELORO."
-          : "Scripts run server-side with an instruction budget. Lua has no access to files, network, keys or HELORO internal data."}</p>
+          ? "Скрипты запускаются на сервере с лимитом инструкций без доступа к файлам, сети и ключам. Отдельный лимит памяти ещё не реализован — пока это тестовый этап, не публичный production-запуск."
+          : "Scripts run server-side with an instruction budget and no access to files, network or keys. A separate memory quota is not implemented yet; this is a test-stage feature, not a public production runtime."}</p>
       </div>
 
       {versions.length > 0 && (
