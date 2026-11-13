@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   canDeleteCommunityMessage,
+  canManageCommunityAdmin,
   EMPTY_COMMUNITY_ADMIN_PERMISSIONS,
   hasCommunityPermission,
 } from "./communityPermissions";
@@ -21,6 +22,15 @@ describe("community admin permissions", () => {
     const permissions = { delete_messages: true, manage_admins: true };
     expect(hasCommunityPermission("member", permissions, "delete_messages")).toBe(false);
     expect(hasCommunityPermission(null, permissions, "manage_admins")).toBe(false);
+  });
+
+  it("lets delegated admin managers edit only administrators whose rights are a subset", () => {
+    const manager = { change_info: true, delete_messages: true, manage_admins: true };
+    expect(canManageCommunityAdmin("admin", manager, "admin", { delete_messages: true })).toBe(true);
+    expect(canManageCommunityAdmin("admin", manager, "admin", { post_messages: true })).toBe(false);
+    expect(canManageCommunityAdmin("admin", manager, "admin", { manage_admins: true })).toBe(false);
+    expect(canManageCommunityAdmin("admin", { delete_messages: true }, "admin", {})).toBe(false);
+    expect(canManageCommunityAdmin("owner", {}, "admin", { manage_admins: true })).toBe(true);
   });
 
   it("lets authors delete their own community messages without admin rights", () => {
