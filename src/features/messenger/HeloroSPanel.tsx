@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import type { User } from "@supabase/supabase-js";
 import {
-  Activity, BadgeCheck, Ban, Check, CheckCircle2, CircleAlert, Clock3,
+  Activity, BadgeCheck, Ban, Check, CheckCircle2, CircleAlert,
   FileText, Headphones, LockKeyhole, Megaphone, MessageCircle, RefreshCw,
   Search, Settings, ShieldCheck, UserRound, Users, X,
 } from "lucide-react";
@@ -83,8 +83,7 @@ export default function HeloroSPanel({
   const ru = locale === "ru";
   const isOwner = roles.includes("owner");
   const isAdmin = roles.includes("admin");
-  const isModerator = roles.includes("moderator");
-  const staff = isOwner || isAdmin || isModerator;
+  const staff = isOwner || isAdmin || roles.includes("moderator");
   const canManageBadges = isOwner || isAdmin;
   const [tab, setTab] = useState<TabId>("overview");
   const [busy, setBusy] = useState(false);
@@ -224,6 +223,7 @@ export default function HeloroSPanel({
 
   async function applyRestriction() {
     if (!selectedUser || !restrictionReason.trim()) return;
+    if (!window.confirm(ru ? "Подтвердить это действие модерации?" : "Confirm this moderation action?")) return;
     if (restrictionType === "temporary_ban" && !restrictionUntil) {
       setError(ru ? "Укажите дату окончания временного ограничения." : "Set an expiry for the temporary restriction.");
       return;
@@ -247,6 +247,7 @@ export default function HeloroSPanel({
   }
 
   async function revokeRestriction(restrictionId: string) {
+    if (!window.confirm(ru ? "Снять это ограничение?" : "Revoke this restriction?")) return;
     setBusy(true); clearMessages();
     try {
       const { error: rpcError } = await client.rpc("heloro_admin_revoke_restriction", {
@@ -311,7 +312,7 @@ export default function HeloroSPanel({
     } finally { setBusy(false); }
   }
 
-  async function sendReply(event: React.FormEvent<HTMLFormElement>) {
+  async function sendReply(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedThread || !reply.trim()) return;
     setBusy(true); clearMessages();
@@ -326,6 +327,7 @@ export default function HeloroSPanel({
   }
 
   async function changeRole(target: AdminUser, nextRole: string | null) {
+    if (!window.confirm(ru ? "Подтвердить изменение роли?" : "Confirm role change?")) return;
     setBusy(true); clearMessages();
     try {
       const { error: rpcError } = await client.rpc("heloro_admin_set_role", {
@@ -341,6 +343,7 @@ export default function HeloroSPanel({
   }
 
   async function saveSetting(settingKey: string, value: boolean) {
+    if (!window.confirm(ru ? "Сохранить системную настройку?" : "Save this system setting?")) return;
     setBusy(true); clearMessages();
     try {
       const { error: rpcError } = await client.rpc("heloro_admin_set_setting", {
@@ -356,6 +359,7 @@ export default function HeloroSPanel({
   }
 
   async function saveBadge(target: AdminUser) {
+    if (!window.confirm(ru ? "Выдать отметку этому аккаунту?" : "Grant a verification badge to this account?")) return;
     setBusy(true); clearMessages();
     try {
       await setVerificationBadge(client, target.id, user.id, badgeType);
@@ -435,13 +439,13 @@ export default function HeloroSPanel({
                     <label>{ru ? "Тип действия" : "Action type"}<select value={restrictionType} onChange={(event) => setRestrictionType(event.target.value)}>
                       <option value="warning">{ru ? "Предупреждение" : "Warning"}</option>
                       <option value="temporary_ban">{ru ? "Временное ограничение" : "Temporary restriction"}</option>
-                      <option value="freeze">{ru ? "Заморозить аккаунт" : "Freeze account"}</option>
-                      <option value="ban">{ru ? "Заблокировать аккаунт" : "Ban account"}</option>
+                      <option value="freeze" disabled={!isOwner && !isAdmin}>{ru ? "Заморозить аккаунт" : "Freeze account"}</option>
+                      <option value="ban" disabled={!isOwner && !isAdmin}>{ru ? "Заблокировать аккаунт" : "Ban account"}</option>
                     </select></label>
                     {restrictionType === "temporary_ban" && <label>{ru ? "Действует до" : "Expires at"}<input type="datetime-local" value={restrictionUntil} onChange={(event) => setRestrictionUntil(event.target.value)} /></label>}
                     <label>{ru ? "Причина (обязательно)" : "Reason (required)"}<textarea rows={2} value={restrictionReason} onChange={(event) => setRestrictionReason(event.target.value)} maxLength={1000} /></label>
                     <button className="admin-primary-action" disabled={busy || !restrictionReason.trim() || selectedUser.id === user.id} onClick={() => void applyRestriction()}><Ban size={15} />{ru ? "Применить действие" : "Apply action"}</button>
-                    <div className="admin-active-restrictions"><strong>{ru ? "Активные ограничения" : "Active restrictions"}</strong>
+                    <div className="admin-active-restrictions"><strong>{ru ? "Активные действия" : "Active actions"}</strong>
                       {activeRestrictions.length === 0 ? <small>{ru ? "Активных ограничений нет." : "No active restrictions."}</small> : activeRestrictions.map((item) => <div key={item.id}><span>{item.restriction_type}: {item.reason}</span><button disabled={busy} onClick={() => void revokeRestriction(item.id)}>{ru ? "Снять" : "Revoke"}</button></div>)}
                     </div>
                   </div>
@@ -499,7 +503,7 @@ export default function HeloroSPanel({
               const checked = entry?.value === true;
               return <label className="admin-setting-row" key={item.key}><span><strong>{ru ? item.ru : item.en}</strong><small>{item.key}</small></span><input type="checkbox" checked={checked} disabled={!entry || busy} onChange={(event) => void saveSetting(item.key, event.target.checked)} /></label>;
             })}
-            <p className="admin-privacy-note">{ru ? "Изменение переключателя записывается на сервере и в журнале. Фактическое влияние системного флага зависит от подключённого backend-контроля." : "Each setting change is recorded server-side and audited. The runtime effect depends on the corresponding backend guard."}</p>
+            <p className="admin-privacy-note">{ru ? "Изменение переключателя записывается на сервере и в журнале. Применение отдельных переключателей к регистрации и публичным разделам требует подключения соответствующих runtime-проверок." : "Each setting change is recorded server-side and audited. Applying individual switches to sign-up and public areas requires their runtime guards to be wired."}</p>
           </section>
         )}
 
