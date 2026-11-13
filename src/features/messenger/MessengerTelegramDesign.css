@@ -1409,3 +1409,62 @@ html[data-theme="dark"] .new-message-empty strong { color: #ccc; }
   .new-message-person { min-height: 72px; padding: 8px 13px; }
   .new-message-person .avatar { width: 49px; height: 49px; flex-basis: 49px; }
 }
+
+
+/* Persistent mobile navigation inspired by Telegram Android 12.4 */
+.mobile-menu-icon { display: none; }
+.mobile-bottom-nav { display: none; }
+@media (max-width: 760px) {
+  .desktop-menu-icon { display: none; }
+  .mobile-menu-icon { display: block; }
+  .inbox-profile { display: none; }
+  .mobile-bottom-nav {
+    position: absolute;
+    z-index: 130;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    min-height: 62px;
+    padding: 5px 5px max(5px, env(safe-area-inset-bottom));
+    border-top: 1px solid #e7e7e7;
+    background: rgba(255,255,255,.97);
+    box-sizing: border-box;
+  }
+  .mobile-bottom-nav button {
+    display: flex;
+    min-width: 0;
+    min-height: 50px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 4px 2px;
+    border: 0;
+    border-radius: 11px;
+    color: #777;
+    background: transparent;
+    font: inherit;
+    font-size: 10px;
+    font-weight: 600;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .mobile-bottom-nav button.active {
+    color: #171717;
+    background: #efefef;
+  }
+  .mobile-bottom-nav button svg { flex: 0 0 auto; }
+  html[data-theme="dark"] .mobile-bottom-nav {
+    border-color: #303030;
+    background: rgba(24,24,24,.97);
+  }
+  html[data-theme="dark"] .mobile-bottom-nav button { color: #aaa; }
+  html[data-theme="dark"] .mobile-bottom-nav button.active {
+    color: #fff;
+    background: #303030;
+  }
+  .conversation-list { padding-bottom: 72px; }
+  .inbox-create-wrap { bottom: calc(env(safe-area-inset-bottom) + 76px); }
+  .contacts-screen .new-message-people { padding-bottom: 70px; }
+}
