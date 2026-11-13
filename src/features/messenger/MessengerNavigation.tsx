@@ -34,6 +34,8 @@ type NavigationProps = {
   onClose: () => void;
   onOpenInbox: () => void;
   onOpenContacts: () => void;
+  onCreateGroup: () => void;
+  onCreateChannel: () => void;
   onOpenNews: () => void;
   onOpenSupport: () => void;
   onOpenSettings: () => void;
@@ -47,6 +49,8 @@ export function MessengerNavigation({
   onClose,
   onOpenInbox,
   onOpenContacts,
+  onCreateGroup,
+  onCreateChannel,
   onOpenNews,
   onOpenSupport,
   onOpenSettings,
@@ -88,6 +92,8 @@ export function MessengerNavigation({
           <div className="navigation-group-label">{ru ? "МЕССЕНДЖЕР" : "MESSENGER"}</div>
           <button type="button" className="navigation-item" onClick={() => run(onOpenInbox)}><MessageCircle size={19} /><span>{ru ? "Сообщения" : "Messages"}</span></button>
           <button type="button" className="navigation-item" onClick={() => run(onOpenContacts)}><Users size={19} /><span>{ru ? "Контакты" : "Contacts"}</span></button>
+          <button type="button" className="navigation-item" onClick={() => run(onCreateGroup)}><Users size={19} /><span>{ru ? "Новая группа" : "New group"}</span></button>
+          <button type="button" className="navigation-item" onClick={() => run(onCreateChannel)}><Megaphone size={19} /><span>{ru ? "Новый канал" : "New channel"}</span></button>
           <button type="button" className="navigation-item" onClick={() => run(onOpenNews)}><Megaphone size={19} /><span>Heloro New</span></button>
           <button type="button" className="navigation-item" onClick={() => run(onOpenSupport)}><Headphones size={19} /><span>Support Heloro</span></button>
 
