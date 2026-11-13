@@ -85,6 +85,11 @@ function shortId(value: string | null | undefined) {
   return value ? value.slice(0, 8) : "—";
 }
 
+function dateTimeLocalValue(timestamp: number) {
+  const local = new Date(timestamp - new Date(timestamp).getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 16);
+}
+
 export default function HeloroSPanel({
   client, user, locale, roles, onOpenNews, onOpenDiscussion,
 }: Props) {
@@ -574,14 +579,15 @@ export default function HeloroSPanel({
         {(tab === "users" || tab === "moderation" || tab === "roles" || tab === "verification") && (
           <section className="admin-section">
             <div className="admin-section-heading"><div><h2>{tab === "users" ? (ru ? "Пользователи" : "Users") : tab === "moderation" ? (ru ? "Модерация аккаунтов" : "Account moderation") : tab === "roles" ? (ru ? "Роли и доступ" : "Roles and access") : (ru ? "Верификация" : "Verification")}</h2><p>{ru ? "Поиск по имени или @username" : "Search by name or @username"}</p></div></div>
-            <div className="admin-search"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={ru ? "Имя пользователя или @username" : "Display name or @username"} /><button onClick={() => setSearch("")} aria-label={ru ? "Очистить" : "Clear"}><X size={14} /></button></div>
-            <div className="admin-user-results">
+            <div className="admin-search"><Search size={16} /><input value={search} onChange={(event) => { setSelectedUser(null); setActiveRestrictions([]); setSearch(event.target.value); }} placeholder={ru ? "Имя пользователя или @username" : "Display name or @username"} /><button onClick={() => { setSelectedUser(null); setActiveRestrictions([]); setSearch(""); }} aria-label={ru ? "Очистить" : "Clear"}><X size={14} /></button></div>
+            <div className="admin-user-results" aria-live="polite">
+              {usersLoading && <p className="admin-muted" role="status">{ru ? "Поиск пользователей…" : "Searching users…"}</p>}
               {users.map((item) => <button key={item.id} className={"admin-user-row"+(selectedUser?.id === item.id ? " active" : "")} onClick={() => setSelectedUser(item)}>
                 <span className="admin-user-avatar">{(item.display_name || item.username || "?").slice(0,1).toUpperCase()}</span>
                 <span className="admin-user-copy"><strong>{item.display_name || item.username || "—"}</strong><small>@{item.username || "—"} · {ru ? "регистрация" : "joined"} {new Date(item.created_at).toLocaleDateString()}</small></span>
                 <span className="admin-user-select"><Check size={15} /></span>
               </button>)}
-              {users.length === 0 && <p className="admin-muted">{ru ? "Введите минимум 2 символа для поиска." : "Enter at least 2 characters to search."}</p>}
+              {!usersLoading && users.length === 0 && <p className="admin-muted">{search.trim().length === 0 ? (ru ? "Пользователей пока нет." : "No users found.") : normalizeAdminSearch(search).length < 2 ? (ru ? "Введите минимум 2 символа." : "Enter at least 2 characters.") : (ru ? "Ничего не найдено." : "No matching users.")}</p>}
             </div>
             {selectedUser && (
               <div className="admin-selected-user">
