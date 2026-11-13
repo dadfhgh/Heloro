@@ -224,11 +224,34 @@ export async function submitUserReport(
   reason: UserReport["reason"],
   details: string,
 ) {
-  const { error } = await client.from("user_reports").insert({
-    reporter_id: reporterId,
-    reported_user_id: reportedUserId,
-    reason,
-    details: details.trim().slice(0, 1500),
+  const { data: authData, error: authError } = await client.auth.getUser();
+  if (authError) throw authError;
+  if (!authData.user || authData.user.id !== reporterId) throw new Error("Report author does not match the signed-in account.");
+  const { error } = await client.rpc("heloro_submit_report", {
+    p_target_type: "user",
+    p_target_id: null,
+    p_reported_user_id: reportedUserId,
+    p_reason: reason,
+    p_details: details.trim().slice(0, 1500),
+  });
+  if (error) throw error;
+}
+
+export type ContentReportTarget = "message" | "group" | "channel";
+
+export async function submitContentReport(
+  client: SupabaseClient,
+  targetType: ContentReportTarget,
+  targetId: string,
+  reason: UserReport["reason"],
+  details: string,
+) {
+  const { error } = await client.rpc("heloro_submit_report", {
+    p_target_type: targetType,
+    p_target_id: targetId,
+    p_reported_user_id: null,
+    p_reason: reason,
+    p_details: details.trim().slice(0, 1500),
   });
   if (error) throw error;
 }
@@ -237,11 +260,13 @@ export async function updateReportStatus(
   client: SupabaseClient,
   reportId: string,
   status: UserReport["status"],
+  note = "",
 ) {
-  const { error } = await client
-    .from("user_reports")
-    .update({ status })
-    .eq("id", reportId);
+  const { error } = await client.rpc("heloro_admin_update_report", {
+    p_report_id: reportId,
+    p_status: status,
+    p_note: note.trim().slice(0, 1000),
+  });
   if (error) throw error;
 }
 

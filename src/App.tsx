@@ -71,6 +71,31 @@ function AuthenticatedApp({
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [roles, setRoles] = useState<string[]>([]);
   const [profileError, setProfileError] = useState("");
+  const [restrictionLoading, setRestrictionLoading] = useState(true);
+  const [restriction, setRestriction] = useState<{ restriction_type: string; reason: string; expires_at: string | null } | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    setRestrictionLoading(true);
+    void Promise.resolve(client.rpc("heloro_current_account_restriction"))
+      .then(({ data, error }) => {
+        if (!active) return;
+        if (error) {
+          console.warn("HELORO restriction lookup unavailable:", error.message);
+          setRestriction(null);
+        } else {
+          setRestriction((data as { restriction_type: string; reason: string; expires_at: string | null } | null) ?? null);
+        }
+      })
+      .catch((cause: unknown) => {
+        if (active) {
+          console.warn("HELORO restriction lookup failed:", cause);
+          setRestriction(null);
+        }
+      })
+      .finally(() => { if (active) setRestrictionLoading(false); });
+    return () => { active = false; };
+  }, [client, session.user.id]);
 
   useEffect(() => {
     let active = true;
@@ -96,7 +121,26 @@ function AuthenticatedApp({
     return () => { active = false; };
   }, [session.user.id, locale, client]);
 
-  if (loadingProfile) return <LoadingScreen locale={locale} />;
+  if (restrictionLoading || loadingProfile) return <LoadingScreen locale={locale} />;
+  if (restriction) {
+    const ru = locale === "ru";
+    const label = restriction.restriction_type === "freeze"
+      ? (ru ? "Аккаунт заморожен" : "Account frozen")
+      : restriction.restriction_type === "ban"
+        ? (ru ? "Аккаунт заблокирован" : "Account banned")
+        : (ru ? "Временное ограничение" : "Temporary restriction");
+    return (
+      <main className="center-stage">
+        <section className="setup-card glass-panel compact-card">
+          <div className="system-admin-icon"><ShieldCheck size={21} /></div>
+          <h2>{label}</h2>
+          <p className="muted">{restriction.reason}</p>
+          {restriction.expires_at && <p className="muted">{ru ? "Действует до" : "Expires"}: {new Date(restriction.expires_at).toLocaleString()}</p>}
+          <button className="primary-button" onClick={() => void client.auth.signOut()}>{ru ? "Выйти из аккаунта" : "Sign out"}</button>
+        </section>
+      </main>
+    );
+  }
   if (profileError) {
     return (
       <main className="center-stage">

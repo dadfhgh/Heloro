@@ -39,7 +39,7 @@ import type { InboxConversation, Message, Profile, PublicProfile, BadgeType } fr
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { t, type Locale } from "../../lib/i18n";
 import OfficialPanels from "./OfficialPanels";
-import { setVerificationBadge, submitUserReport } from "../../lib/official";
+import { setVerificationBadge, submitUserReport, submitContentReport } from "../../lib/official";
 import type { SettingsSection } from "./MessengerNavigation";
 import type { ThemePreference } from "../../lib/preferences";
 
@@ -122,6 +122,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const [settingsSection, setSettingsSection] = useState<SettingsSection>("account");
   const [showReport, setShowReport] = useState(false);
   const [reportReason, setReportReason] = useState<(typeof reportReasons)[number]>("other");
+  const [reportMessageTargetId, setReportMessageTargetId] = useState<string | null>(null);
   const [reportDetails, setReportDetails] = useState("");
   const [reportBusy, setReportBusy] = useState(false);
   const [chatFilter, setChatFilter] = useState<"all" | "personal">("all");
@@ -392,8 +393,13 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
     setReportBusy(true);
     setError("");
     try {
-      await submitUserReport(client, user.id, activeConversation.other_user_id, reportReason, reportDetails);
+      if (reportMessageTargetId) {
+        await submitContentReport(client, "message", reportMessageTargetId, reportReason, reportDetails);
+      } else {
+        await submitUserReport(client, user.id, activeConversation.other_user_id, reportReason, reportDetails);
+      }
       setShowReport(false);
+      setReportMessageTargetId(null);
       setReportDetails("");
       setReportReason("other");
       setError(locale === "ru" ? "Жалоба отправлена модераторам." : "Your report was sent to the moderation team.");
@@ -595,6 +601,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                 locale={locale}
                 roles={roles}
                 onOpenDiscussion={() => openSystemView("discussion")}
+                onOpenNews={() => openSystemView("news")}
               />
             </div>
           ) : activeConversation ? (
@@ -620,7 +627,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                   <button className="icon-button" type="button" disabled title={locale === "ru" ? "Видеозвонки пока не подключены" : "Video calls are not enabled yet"} aria-label={locale === "ru" ? "Видеозвонки недоступны" : "Video calls unavailable"}>
                     <Video size={19} />
                   </button>
-                  <button className="icon-button" aria-label={locale === "ru" ? "Пожаловаться" : "Report"} title={locale === "ru" ? "Пожаловаться" : "Report"} onClick={() => setShowReport(true)}>
+                  <button className="icon-button" aria-label={locale === "ru" ? "Пожаловаться" : "Report"} title={locale === "ru" ? "Пожаловаться на пользователя" : "Report user"} onClick={() => { setReportMessageTargetId(null); setShowReport(true); }}>
                     <MoreHorizontal size={21} />
                   </button>
                 </div>
@@ -650,7 +657,9 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                         ) : message.body ? <p>{message.body}</p> : null}
                         <div className="message-meta">
                           <span>{formatMessageTime(message.created_at)} {mine && <CheckCheck size={13} />}</span>
-                          {mine && <button type="button" className="message-delete-button" onClick={() => void removeDirectMessage(message)} aria-label={t(locale, "messageDelete")} title={t(locale, "messageDelete")}><Trash2 size={13} /></button>}
+                          {mine
+                            ? <button type="button" className="message-delete-button" onClick={() => void removeDirectMessage(message)} aria-label={t(locale, "messageDelete")} title={t(locale, "messageDelete")}><Trash2 size={13} /></button>
+                            : <button type="button" className="message-delete-button" onClick={() => { setReportMessageTargetId(message.id); setReportReason("other"); setReportDetails(""); setShowReport(true); }} aria-label={locale === "ru" ? "Пожаловаться на сообщение" : "Report message"} title={locale === "ru" ? "Пожаловаться на сообщение" : "Report message"}><Flag size={13} /></button>}
                         </div>
                       </div>
                     </div>
@@ -751,10 +760,10 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
         <div className="settings-overlay" onClick={() => setShowReport(false)}>
           <section className="settings-card glass-panel report-card" role="dialog" aria-modal="true" aria-labelledby="report-title" onClick={(event) => event.stopPropagation()}>
             <div className="settings-heading">
-              <h2 id="report-title">{locale === "ru" ? "Пожаловаться на пользователя" : "Report user"}</h2>
+              <h2 id="report-title">{reportMessageTargetId ? (locale === "ru" ? "Пожаловаться на сообщение" : "Report message") : (locale === "ru" ? "Пожаловаться на пользователя" : "Report user")}</h2>
               <button className="icon-button" onClick={() => setShowReport(false)} aria-label={t(locale, "settingsClose")}><X size={18} /></button>
             </div>
-            <p className="muted small-copy">{activeConversation.display_name || activeConversation.username} · @{activeConversation.username}</p>
+            <p className="muted small-copy">{reportMessageTargetId ? (locale === "ru" ? "Содержимое сообщения не будет показываться модераторам." : "The message content will not be shown to moderators.") : `${activeConversation.display_name || activeConversation.username} · @${activeConversation.username}`}</p>
             <form className="report-form" onSubmit={submitReport}>
               <label>{locale === "ru" ? "Причина" : "Reason"}
                 <select value={reportReason} onChange={(event) => setReportReason(event.target.value as (typeof reportReasons)[number])}>
