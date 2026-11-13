@@ -35,6 +35,7 @@ type AdminReport = {
 type AdminThread = {
   id: string; user_id: string; status?: string; assigned_to?: string | null;
   created_at: string; updated_at: string;
+  username?: string | null; display_name?: string | null;
 };
 type ReportDecision = {
   id: string; report_id: string; actor_id: string;
@@ -205,7 +206,21 @@ export default function HeloroSPanel({
       .select("id, user_id, status, assigned_to, created_at, updated_at")
       .order("updated_at", { ascending: false }).limit(100);
     if (queryError) throw queryError;
-    const items = (data ?? []) as AdminThread[];
+    const rows = (data ?? []) as AdminThread[];
+    if (rows.length === 0) {
+      if (isCurrent()) setThreads([]);
+      return [];
+    }
+    const { data: profileRows, error: profileError } = await client.from("profiles")
+      .select("id, username, display_name")
+      .in("id", rows.map((item) => item.user_id));
+    if (profileError) console.warn("HELORO support profile lookup failed:", profileError.message);
+    const profileById = new Map((profileRows ?? []).map((item) => [item.id, item]));
+    const items = rows.map((item) => ({
+      ...item,
+      username: profileById.get(item.user_id)?.username ?? null,
+      display_name: profileById.get(item.user_id)?.display_name ?? null,
+    }));
     if (isCurrent()) setThreads(items);
     return items;
   }
@@ -558,6 +573,7 @@ export default function HeloroSPanel({
         </nav>
         {error && <div className="admin-alert admin-alert-error" role="alert"><CircleAlert size={15} />{error}<button onClick={() => setError("")} aria-label={ru ? "Закрыть" : "Dismiss"}><X size={14} /></button></div>}
         {notice && <div className="admin-alert admin-alert-success" role="status"><CheckCircle2 size={15} />{notice}<button onClick={() => setNotice("")} aria-label={ru ? "Закрыть" : "Dismiss"}><X size={14} /></button></div>}
+        {loadingTab === tab && <div className="admin-section-loading" role="status"><RefreshCw size={14} />{ru ? "Загрузка раздела…" : "Loading section…"}</div>}
 
         {tab === "overview" && (
           <section className="admin-section">
@@ -638,14 +654,14 @@ export default function HeloroSPanel({
         {tab === "support" && (
           <section className="admin-section"><div className="admin-section-heading"><div><h2>{ru ? "Поддержка" : "Support"}</h2><p>{ru ? "Входящие обращения Support Heloro" : "Support Heloro inbox"}</p></div><button className="admin-icon-action" onClick={() => void loadThreads()}><RefreshCw size={15} /></button></div>
             <div className="admin-support-grid"><div className="admin-record-list">
-              {threads.map((thread) => <button key={thread.id} className={"admin-thread-row"+(selectedThread?.id === thread.id ? " active" : "")} onClick={() => setSelectedThread(thread)}><UserRound size={15} /><span>{shortId(thread.user_id)}</span><small>{thread.status || "open"}</small></button>)}
-              {threads.length === 0 && <p className="admin-muted">{ru ? "Обращений пока нет." : "No support requests yet."}</p>}
+              {threads.map((thread) => <button key={thread.id} className={"admin-thread-row"+(selectedThread?.id === thread.id ? " active" : "")} disabled={busy} onClick={() => { selectedThreadIdRef.current = thread.id; setSelectedThread(thread); setSupportMessages([]); setReply(""); }}><UserRound size={15} /><span>{thread.display_name || thread.username || shortId(thread.user_id)}{thread.username ? <small>@{thread.username}</small> : null}</span><small>{thread.status || "open"}</small></button>)}
+              {threads.length === 0 && loadingTab !== "support" && <p className="admin-muted">{ru ? "Обращений пока нет." : "No support requests yet."}</p>}
             </div>
             <div className="admin-support-detail">
               {selectedThread ? <>
-                <div className="admin-support-controls"><strong>{ru ? "Обращение" : "Support thread"} · {shortId(selectedThread.user_id)}</strong><select value={selectedThread.status || "open"} onChange={(event) => void updateSupport(selectedThread, event.target.value, selectedThread.assigned_to || null)}><option value="open">open</option><option value="in_progress">in_progress</option><option value="resolved">resolved</option><option value="closed">closed</option></select><button disabled={busy} onClick={() => void updateSupport(selectedThread, selectedThread.status || "open", user.id)}>{ru ? "Назначить мне" : "Assign to me"}</button></div>
-                <div className="admin-support-messages">{supportMessages.map((item) => <article className={"admin-support-message"+(item.sender_id === user.id ? " mine" : "")} key={item.id}><strong>{item.sender_id === user.id ? (ru ? "Вы" : "You") : (ru ? "Пользователь" : "User")}</strong><p>{item.body}</p><time>{formatMessageTime(item.created_at)}</time></article>)}</div>
-                <form className="admin-support-reply" onSubmit={sendReply}><input value={reply} onChange={(event) => setReply(event.target.value)} placeholder={ru ? "Ответить пользователю…" : "Reply to user…"} maxLength={4000} /><button type="submit" disabled={busy || !reply.trim()}><MessageCircle size={15} />{ru ? "Ответить" : "Reply"}</button></form>
+                <div className="admin-support-controls"><strong>{ru ? "Обращение" : "Support thread"} · {selectedThread.display_name || selectedThread.username || shortId(selectedThread.user_id)}</strong><select disabled={busy} value={selectedThread.status || "open"} onChange={(event) => void updateSupport(selectedThread, event.target.value, selectedThread.assigned_to || null)}><option value="open">open</option><option value="in_progress">in_progress</option><option value="resolved">resolved</option><option value="closed">closed</option></select><button disabled={busy} onClick={() => void updateSupport(selectedThread, selectedThread.status || "open", user.id)}>{ru ? "Назначить мне" : "Assign to me"}</button></div>
+                <div className="admin-support-messages" aria-live="polite">{supportMessages.map((item) => <article className={"admin-support-message"+(item.sender_id === user.id ? " mine" : "")} key={item.id}><strong>{item.sender_id === user.id ? (ru ? "Вы" : "You") : (ru ? "Пользователь" : "User")}</strong><p>{item.body}</p><time>{formatMessageTime(item.created_at)}</time></article>)}</div>
+                <form className="admin-support-reply" onSubmit={sendReply}><input disabled={busy} value={reply} onChange={(event) => setReply(event.target.value)} placeholder={ru ? "Ответить пользователю…" : "Reply to user…"} maxLength={4000} /><button type="submit" disabled={busy || !reply.trim()}><MessageCircle size={15} />{ru ? "Ответить" : "Reply"}</button></form>
               </> : <p className="admin-muted">{ru ? "Выберите обращение." : "Select a support request."}</p>}
             </div></div>
           </section>
