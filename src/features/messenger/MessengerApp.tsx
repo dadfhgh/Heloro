@@ -45,7 +45,8 @@ import type { SettingsSection } from "./MessengerNavigation";
 import type { ThemePreference } from "../../lib/preferences";
 
 type SystemView = "news" | "discussion" | "support" | "admin";
-type CommunityRoomPreview = { id: string; kind: "group" | "channel"; name: string; description: string; avatar_url: string | null; is_public: boolean; updated_at: string };
+type CommunityRoomPreview = { id: string; kind: "group" | "channel"; name: string; username: string; description: string; avatar_url: string | null; is_public: boolean; updated_at: string };
+type VisibleChatItem = { kind: "direct"; sortAt: string; conversation: InboxConversation } | { kind: "community"; sortAt: string; room: CommunityRoomPreview };
 
 type Props = {
   client: SupabaseClient;
@@ -116,9 +117,8 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const [showSettings, setShowSettings] = useState(false);
   const [showNavigation, setShowNavigation] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
-  const [showCommunityHub, setShowCommunityHub] = useState(false);
-  const [communityInitialRoomId, setCommunityInitialRoomId] = useState<string | null>(null);
-  const [communityInitialCreateKind, setCommunityInitialCreateKind] = useState<"group" | "channel" | null>(null);
+  const [activeCommunityRoomId, setActiveCommunityRoomId] = useState<string | null>(null);
+  const [communityCreateKind, setCommunityCreateKind] = useState<"group" | "channel" | null>(null);
   const [communityRooms, setCommunityRooms] = useState<CommunityRoomPreview[]>([]);
   const [showCreateMenu, setShowCreateMenu] = useState(false);
   const [viewedProfile, setViewedProfile] = useState<PublicProfile | null>(null);
@@ -158,8 +158,8 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
 
   const visibleCommunityRooms = useMemo(() => {
     if (chatFilter === "personal") return [];
-    const query = search.trim().toLocaleLowerCase();
-    return communityRooms.filter((item) => !query || item.name.toLocaleLowerCase().includes(query) || item.description.toLocaleLowerCase().includes(query));
+    const query = search.trim().toLocaleLowerCase().replace(/^@/, "");
+    return communityRooms.filter((item) => !query || item.name.toLocaleLowerCase().includes(query) || item.username.toLocaleLowerCase().includes(query) || item.description.toLocaleLowerCase().includes(query));
   }, [communityRooms, search, chatFilter]);
 
   async function refreshInbox(selectId?: string) {
@@ -175,10 +175,41 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
 
   async function refreshCommunityRooms() {
     const { data, error: roomError } = await client.from("community_rooms")
-      .select("id, kind, name, description, avatar_url, is_public, updated_at")
+      .select("id, kind, name, username, description, avatar_url, is_public, updated_at")
       .order("updated_at", { ascending: false }).limit(40);
     if (roomError) throw roomError;
     setCommunityRooms((data ?? []) as CommunityRoomPreview[]);
+  }
+
+  const visibleChatItems = useMemo<VisibleChatItem[]>(() => [
+    ...visibleInbox.map((conversation) => ({
+      kind: "direct" as const,
+      sortAt: conversation.last_message_at || "1970-01-01T00:00:00.000Z",
+      conversation,
+    })),
+    ...visibleCommunityRooms.map((room) => ({
+      kind: "community" as const,
+      sortAt: room.updated_at,
+      room,
+    })),
+  ].sort((left, right) => Date.parse(right.sortAt) - Date.parse(left.sortAt)), [visibleInbox, visibleCommunityRooms]);
+
+  function openCommunity(roomId: string | null, createKind: "group" | "channel" | null = null) {
+    setHomeTab("chats");
+    setActiveId(null);
+    setSystemView(null);
+    setActiveCommunityRoomId(roomId);
+    setCommunityCreateKind(createKind);
+    setShowSearch(false);
+    setSearch("");
+    setResults([]);
+    setShowCreateMenu(false);
+  }
+
+  function closeCommunity() {
+    setActiveCommunityRoomId(null);
+    setCommunityCreateKind(null);
+    void refreshCommunityRooms().catch(() => undefined);
   }
 
   useEffect(() => {
@@ -443,6 +474,8 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   }
 
   function openSearch() {
+    setActiveCommunityRoomId(null);
+    setCommunityCreateKind(null);
     setHomeTab("contacts");
     setSystemView(null);
     setActiveId(null);
@@ -452,6 +485,8 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   }
 
   function switchHomeTab(tab: "chats" | "contacts" | "settings" | "profile") {
+    setActiveCommunityRoomId(null);
+    setCommunityCreateKind(null);
     setHomeTab(tab);
     setActiveId(null);
     setSystemView(null);
@@ -480,6 +515,8 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   }
 
   function openSystemView(view: SystemView) {
+    setActiveCommunityRoomId(null);
+    setCommunityCreateKind(null);
     setHomeTab("chats");
     setActiveId(null);
     setSystemView(view);
@@ -490,6 +527,8 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   }
 
   function closeConversation() {
+    setActiveCommunityRoomId(null);
+    setCommunityCreateKind(null);
     setHomeTab("chats");
     setActiveId(null);
     setSystemView(null);
@@ -503,14 +542,11 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   }
 
   return (
-    <main className={`messenger-stage home-${homeTab} ${activeConversation || systemView ? "chat-selected" : ""}`}>
+    <main className={`messenger-stage home-${homeTab} ${activeConversation || systemView || activeCommunityRoomId || communityCreateKind ? "chat-selected" : ""}`}>
       <div className="messenger-shell">
         <aside className="inbox-panel">
           <header className="inbox-topbar telegram-main-topbar">
             <div className="brand-lockup"><div className="brand-symbol">H</div><span>HELORO</span></div>
-            <button className="icon-button communities-button" type="button" title={locale === "ru" ? "Группы и каналы" : "Groups and channels"} aria-label={locale === "ru" ? "Группы и каналы" : "Groups and channels"} onClick={() => { setCommunityInitialRoomId(null); setCommunityInitialCreateKind(null); setShowCommunityHub(true); }}>
-              <Users size={20} />
-            </button>
             <button
               className="icon-button overflow-button"
               title={locale === "ru" ? "Дополнительно" : "More"}
@@ -530,7 +566,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                 ref={searchInputRef}
                 value={search}
                 onChange={(event) => { setSearch(event.target.value); setShowSearch(true); }}
-                onFocus={() => { setSystemView(null); setActiveId(null); setShowSearch(true); }}
+                onFocus={() => { setSystemView(null); setActiveId(null); setActiveCommunityRoomId(null); setCommunityCreateKind(null); setShowSearch(true); }}
                 placeholder={locale === "ru" ? "Поиск" : "Search"}
                 aria-label={locale === "ru" ? "Поиск пользователей и чатов" : "Search people and chats"}
               />
@@ -582,15 +618,15 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
               </div>
             ) : showSearch && search.trim().length > 1 ? (
               <>
-                {visibleCommunityRooms.length > 0 && <>
-                  <div className="section-label">{locale === "ru" ? "Группы и каналы" : "Groups and channels"}</div>
-                  {visibleCommunityRooms.map((room) => (
-                    <button className="conversation-item community-inbox-item" type="button" key={room.id} onClick={() => { setCommunityInitialRoomId(room.id); setCommunityInitialCreateKind(null); setShowCommunityHub(true); }}>
-                      <div className="community-inbox-avatar">{room.avatar_url ? <img src={room.avatar_url} alt="" /> : room.kind === "channel" ? <Megaphone size={19} /> : <Users size={19} />}</div>
-                      <span className="conversation-copy"><span className="conversation-title-line"><strong>{room.name}</strong><time>{room.kind === "channel" ? (locale === "ru" ? "Канал" : "Channel") : (locale === "ru" ? "Группа" : "Group")}</time></span><span className="conversation-preview-line"><small>{room.description || (locale === "ru" ? "Открыть сообщество" : "Open community")}</small></span></span>
-                    </button>
-                  ))}
-                </>}
+                {visibleCommunityRooms.map((room) => (
+                  <button className="conversation-item community-inbox-item" type="button" key={room.id} onClick={() => openCommunity(room.id)}>
+                    <div className="community-inbox-avatar">{room.avatar_url ? <img src={room.avatar_url} alt="" /> : room.kind === "channel" ? <Megaphone size={19} /> : <Users size={19} />}</div>
+                    <span className="conversation-copy">
+                      <span className="conversation-title-line"><strong>{room.name}</strong><time>{room.kind === "channel" ? (locale === "ru" ? "Канал" : "Channel") : (locale === "ru" ? "Группа" : "Group")}</time></span>
+                      <span className="conversation-preview-line"><small>@{room.username}{room.description ? ` · ${room.description}` : ""}</small></span>
+                    </span>
+                  </button>
+                ))}
                 <div className="section-label">{locale === "ru" ? "Люди" : "People"}</div>
                 {searching ? (
                   <p className="muted small-copy">{t(locale, "inboxSearching")}</p>
@@ -636,48 +672,28 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                     )}
                   </div>
                 )}
-                {visibleCommunityRooms.length > 0 && !showSearch && (
-                  <div className="community-inbox-section">
-                    <div className="section-label">{locale === "ru" ? "Группы и каналы" : "Groups and channels"}</div>
-                    {visibleCommunityRooms.map((room) => (
-                      <button className="conversation-item community-inbox-item" type="button" key={room.id} onClick={() => { setCommunityInitialRoomId(room.id); setCommunityInitialCreateKind(null); setShowCommunityHub(true); }}>
-                        <div className="community-inbox-avatar">{room.avatar_url ? <img src={room.avatar_url} alt="" /> : room.kind === "channel" ? <Megaphone size={19} /> : <Users size={19} />}</div>
-                        <span className="conversation-copy">
-                          <span className="conversation-title-line"><strong>{room.name}</strong><time>{room.kind === "channel" ? (locale === "ru" ? "Канал" : "Channel") : (locale === "ru" ? "Группа" : "Group")}</time></span>
-                          <span className="conversation-preview-line"><small>{room.description || (locale === "ru" ? "Открыть сообщество" : "Open community")}</small></span>
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {showSearch && visibleCommunityRooms.length > 0 && (
-                  <div className="community-inbox-section">
-                    <div className="section-label">{locale === "ru" ? "Группы и каналы" : "Groups and channels"}</div>
-                    {visibleCommunityRooms.map((room) => (
-                      <button className="conversation-item community-inbox-item" type="button" key={room.id} onClick={() => { setCommunityInitialRoomId(room.id); setShowCommunityHub(true); }}>
-                        <div className="community-inbox-avatar">{room.avatar_url ? <img src={room.avatar_url} alt="" /> : room.kind === "channel" ? <Megaphone size={19} /> : <Users size={19} />}</div>
-                        <span className="conversation-copy"><span className="conversation-title-line"><strong>{room.name}</strong><time>{room.kind === "channel" ? (locale === "ru" ? "Канал" : "Channel") : (locale === "ru" ? "Группа" : "Group")}</time></span><span className="conversation-preview-line"><small>{room.description || (locale === "ru" ? "Открыть сообщество" : "Open community")}</small></span></span>
-                      </button>
-                    ))}
-                  </div>
-                )}
                 {loadingInbox ? (
                   <div className="list-placeholder"><span /><span /><span /><span /></div>
-                ) : visibleInbox.length === 0 && visibleCommunityRooms.length === 0 ? (
+                ) : visibleChatItems.length === 0 ? (
                   <div className="inbox-empty">
                     <div className="inbox-empty-icon"><MessageCircle size={21} /></div>
                     <strong>{t(locale, "inboxEmptyTitle")}</strong>
                     <p>{t(locale, "inboxEmptyDescription")}</p>
                     <button onClick={openSearch}>{t(locale, "inboxFindSomeone")}</button>
                   </div>
-                ) : visibleInbox.map((item) => {
+                ) : visibleChatItems.map((entry) => entry.kind === "community" ? (
+                  <button className={`conversation-item community-inbox-item ${activeCommunityRoomId === entry.room.id ? "selected" : ""}`} type="button" key={`community-${entry.room.id}`} onClick={() => openCommunity(entry.room.id)}>
+                    <div className="community-inbox-avatar">{entry.room.avatar_url ? <img src={entry.room.avatar_url} alt="" /> : entry.room.kind === "channel" ? <Megaphone size={19} /> : <Users size={19} />}</div>
+                    <span className="conversation-copy">
+                      <span className="conversation-title-line"><strong>{entry.room.name}</strong><time>{entry.room.kind === "channel" ? (locale === "ru" ? "Канал" : "Channel") : (locale === "ru" ? "Группа" : "Group")}</time></span>
+                      <span className="conversation-preview-line"><small>@{entry.room.username}{entry.room.description ? ` · ${entry.room.description}` : ""}</small></span>
+                    </span>
+                  </button>
+                ) : (() => {
+                  const item = entry.conversation;
                   const label = item.display_name || item.username;
                   return (
-                    <button
-                      className={`conversation-item ${activeId === item.conversation_id ? "selected" : ""}`}
-                      key={item.conversation_id}
-                      onClick={() => { setActiveId(item.conversation_id); setSystemView(null); setShowSearch(false); }}
-                    >
+                    <button className={`conversation-item ${activeId === item.conversation_id ? "selected" : ""}`} key={item.conversation_id} onClick={() => { setActiveCommunityRoomId(null); setCommunityCreateKind(null); setActiveId(item.conversation_id); setSystemView(null); setShowSearch(false); }}>
                       <Avatar label={label} src={item.avatar_url} />
                       <span className="conversation-copy">
                         <span className="conversation-title-line">
@@ -691,18 +707,18 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                       </span>
                     </button>
                   );
-                })}
+                })())}
               </>
             )}
           </section>
 
-          {homeTab === "chats" && !activeConversation && !systemView && (
+          {homeTab === "chats" && !activeConversation && !systemView && !activeCommunityRoomId && !communityCreateKind && (
             <>
               {showCreateMenu && <div className="chat-create-menu-backdrop" onClick={() => setShowCreateMenu(false)}>
                 <div className="chat-create-menu" role="menu" onClick={(event) => event.stopPropagation()}>
                   <button type="button" role="menuitem" onClick={() => { setShowCreateMenu(false); openSearch(); }}><PencilLine size={18} /><span>{locale === "ru" ? "Новое сообщение" : "New message"}</span></button>
-                  <button type="button" role="menuitem" onClick={() => { setShowCreateMenu(false); setCommunityInitialRoomId(null); setCommunityInitialCreateKind("group"); setShowCommunityHub(true); }}><Users size={18} /><span>{locale === "ru" ? "Новая группа" : "New group"}</span></button>
-                  <button type="button" role="menuitem" onClick={() => { setShowCreateMenu(false); setCommunityInitialRoomId(null); setCommunityInitialCreateKind("channel"); setShowCommunityHub(true); }}><Megaphone size={18} /><span>{locale === "ru" ? "Новый канал" : "New channel"}</span></button>
+                  <button type="button" role="menuitem" onClick={() => { setShowCreateMenu(false); openCommunity(null, "group"); }}><Users size={18} /><span>{locale === "ru" ? "Новая группа" : "New group"}</span></button>
+                  <button type="button" role="menuitem" onClick={() => { setShowCreateMenu(false); openCommunity(null, "channel"); }}><Megaphone size={18} /><span>{locale === "ru" ? "Новый канал" : "New channel"}</span></button>
                 </div>
               </div>}
               <button className="new-chat-fab" type="button" onClick={() => setShowCreateMenu((current) => !current)} aria-expanded={showCreateMenu} aria-haspopup="menu" aria-label={t(locale, "inboxStartConversation")} title={t(locale, "inboxStartConversation")}>
@@ -733,6 +749,8 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                 onOpenDiscussion={() => openSystemView("discussion")}
               />
             </div>
+          ) : (activeCommunityRoomId || communityCreateKind) ? (
+            <CommunityHub key={`${activeCommunityRoomId ?? "new"}-${communityCreateKind ?? ""}`} client={client} user={user} locale={locale} initialRoomId={activeCommunityRoomId} initialCreateKind={communityCreateKind} onRoomsChanged={() => { void refreshCommunityRooms().catch(() => undefined); }} onClose={closeCommunity} />
           ) : activeConversation ? (
             <>
               <header className="chat-header">
@@ -817,7 +835,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
         </section>
       </div>
 
-      {!activeConversation && !systemView && (
+      {!activeConversation && !systemView && !activeCommunityRoomId && !communityCreateKind && (
         <nav className="bottom-navigation" aria-label={locale === "ru" ? "Основная навигация" : "Main navigation"}>
           <button type="button" className={homeTab === "chats" ? "active" : ""} aria-current={homeTab === "chats" ? "page" : undefined} onClick={() => switchHomeTab("chats")}>
             <MessageCircle size={21} /><span>{locale === "ru" ? "Чаты" : "Chats"}</span>
@@ -871,9 +889,6 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
           />
         </Suspense>
       )}
-
-      {showCommunityHub && <CommunityHub client={client} user={user} locale={locale} initialRoomId={communityInitialRoomId} initialCreateKind={communityInitialCreateKind} onRoomsChanged={() => { void refreshCommunityRooms().catch(() => undefined); }} onClose={() => { setShowCommunityHub(false); setCommunityInitialRoomId(null); setCommunityInitialCreateKind(null); void refreshCommunityRooms().catch(() => undefined); }} />}
-
 
       {showProfile && (
         <div className="profile-view-overlay" onClick={() => setShowProfile(false)}>
