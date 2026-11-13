@@ -533,6 +533,19 @@ export default function HeloroSPanel({
     } finally { setBusy(false); }
   }
 
+  async function refreshAdminData(loader: () => Promise<unknown>, fallback: string) {
+    const section = tab;
+    setLoadingTab(section);
+    setError("");
+    try {
+      await loader();
+    } catch (cause) {
+      setError(errorText(cause, fallback, ru));
+    } finally {
+      setLoadingTab((current) => current === section ? null : current);
+    }
+  }
+
   async function saveBadge(target: AdminUser) {
     const confirmation = badgeType === "epic_sans"
       ? (ru
@@ -588,7 +601,7 @@ export default function HeloroSPanel({
 
         {tab === "overview" && (
           <section className="admin-section">
-            <div className="admin-section-heading"><div><h2>{ru ? "Обзор" : "Overview"}</h2><p>{ru ? "Сводка по активности сервиса" : "Service activity summary"}</p></div><button className="admin-icon-action" onClick={() => void loadOverview()}><RefreshCw size={15} />{ru ? "Обновить" : "Refresh"}</button></div>
+            <div className="admin-section-heading"><div><h2>{ru ? "Обзор" : "Overview"}</h2><p>{ru ? "Сводка по активности сервиса" : "Service activity summary"}</p></div><button className="admin-icon-action" onClick={() => void refreshAdminData(() => loadOverview(), ru ? "Не удалось загрузить обзор." : "Could not load overview.")}><RefreshCw size={15} />{ru ? "Обновить" : "Refresh"}</button></div>
             {overview ? <div className="admin-stats-grid">
               {[
                 [ru ? "Пользователи" : "Users", overview.users_total],
@@ -648,7 +661,7 @@ export default function HeloroSPanel({
         )}
 
         {tab === "reports" && (
-          <section className="admin-section"><div className="admin-section-heading"><div><h2>{ru ? "Жалобы" : "Reports"}</h2><p>{ru ? "Жалобы на пользователей и ссылки на объекты" : "Reports about users and references to reported objects"}</p></div><button className="admin-icon-action" onClick={() => void loadReports()}><RefreshCw size={15} /></button></div>
+          <section className="admin-section"><div className="admin-section-heading"><div><h2>{ru ? "Жалобы" : "Reports"}</h2><p>{ru ? "Жалобы на пользователей и ссылки на объекты" : "Reports about users and references to reported objects"}</p></div><button className="admin-icon-action" onClick={() => void refreshAdminData(() => loadReports(), ru ? "Не удалось загрузить жалобы." : "Could not load reports.")}><RefreshCw size={15} /></button></div>
             {reports.map((report) => <article className="admin-record-card" key={report.id}>
               <div className="admin-record-heading"><strong>{ru ? "Жалоба" : "Report"} · {report.reason}</strong><span>{report.status}</span></div>
               <small>{ru ? "Тип объекта" : "Target"}: {report.target_type || "user"} · ID: {shortId(report.target_id || report.reported_user_id)} · {new Date(report.created_at).toLocaleString()}</small>
@@ -663,7 +676,7 @@ export default function HeloroSPanel({
         )}
 
         {tab === "support" && (
-          <section className="admin-section"><div className="admin-section-heading"><div><h2>{ru ? "Поддержка" : "Support"}</h2><p>{ru ? "Входящие обращения Support Heloro" : "Support Heloro inbox"}</p></div><button className="admin-icon-action" onClick={() => void loadThreads()}><RefreshCw size={15} /></button></div>
+          <section className="admin-section"><div className="admin-section-heading"><div><h2>{ru ? "Поддержка" : "Support"}</h2><p>{ru ? "Входящие обращения Support Heloro" : "Support Heloro inbox"}</p></div><button className="admin-icon-action" onClick={() => void refreshAdminData(() => loadThreads(), ru ? "Не удалось загрузить обращения." : "Could not load support requests.")}><RefreshCw size={15} /></button></div>
             <div className="admin-support-grid"><div className="admin-record-list">
               {threads.map((thread) => <button key={thread.id} className={"admin-thread-row"+(selectedThread?.id === thread.id ? " active" : "")} disabled={busy} onClick={() => { selectedThreadIdRef.current = thread.id; setSelectedThread(thread); setSupportMessages([]); setReply(""); }}><UserRound size={15} /><span>{thread.display_name || thread.username || shortId(thread.user_id)}{thread.username ? <small>@{thread.username}</small> : null}</span><small>{thread.status || "open"}</small></button>)}
               {threads.length === 0 && loadingTab !== "support" && <p className="admin-muted">{ru ? "Обращений пока нет." : "No support requests yet."}</p>}
@@ -679,7 +692,7 @@ export default function HeloroSPanel({
         )}
 
         {tab === "audit" && (
-          <section className="admin-section"><div className="admin-section-heading"><div><h2>{ru ? "Журнал действий" : "Audit log"}</h2><p>{ru ? "История привилегированных действий" : "History of privileged actions"}</p></div><button className="admin-icon-action" onClick={() => void loadAudit()}><RefreshCw size={15} /></button></div>
+          <section className="admin-section"><div className="admin-section-heading"><div><h2>{ru ? "Журнал действий" : "Audit log"}</h2><p>{ru ? "История привилегированных действий" : "History of privileged actions"}</p></div><button className="admin-icon-action" onClick={() => void refreshAdminData(() => loadAudit(), ru ? "Не удалось загрузить журнал." : "Could not load audit log.")}><RefreshCw size={15} /></button></div>
             {audit.map((entry) => <article className="admin-record-card" key={entry.id}><div className="admin-record-heading"><strong>{entry.action}</strong><time>{new Date(entry.created_at).toLocaleString()}</time></div><small>{ru ? "Исполнитель" : "Actor"}: {shortId(entry.actor_id)} · {ru ? "Объект" : "Target"}: {entry.target_type || "user"} / {shortId(entry.target_id || entry.target_user_id)}</small><p>{entry.reason || "—"}</p></article>)}
             {audit.length === 0 && <p className="admin-muted">{ru ? "Записей пока нет." : "No audit events yet."}</p>}
             <p className="admin-privacy-note">{ru ? "Записи доступны только сотрудникам и не редактируются из клиентского приложения." : "Entries are staff-only and cannot be edited from the client app."}</p>
@@ -687,7 +700,7 @@ export default function HeloroSPanel({
         )}
 
         {tab === "settings" && isOwner && (
-          <section className="admin-section"><div className="admin-section-heading"><div><h2>{ru ? "Настройки HELORO" : "HELORO settings"}</h2><p>{ru ? "Системные параметры — только владелец" : "System controls — owner only"}</p></div><button className="admin-icon-action" onClick={() => void loadSettings()}><RefreshCw size={15} /></button></div>
+          <section className="admin-section"><div className="admin-section-heading"><div><h2>{ru ? "Настройки HELORO" : "HELORO settings"}</h2><p>{ru ? "Системные параметры — только владелец" : "System controls — owner only"}</p></div><button className="admin-icon-action" onClick={() => void refreshAdminData(() => loadSettings(), ru ? "Не удалось загрузить настройки." : "Could not load settings.")}><RefreshCw size={15} /></button></div>
             {settingDefinitions.map((item) => {
               const entry = settings.find((value) => value.setting_key === item.key);
               const checked = entry?.value === true;
@@ -711,7 +724,7 @@ export default function HeloroSPanel({
 
         {tab === "groups" && (isOwner || isAdmin) && (
           <section className="admin-section">
-            <div className="admin-section-heading"><div><h2>{ru ? "Группы и сообщества" : "Groups and communities"}</h2><p>{ru ? "Удаление тестовых и других сообществ для всех участников. Официальная поддержка и системный канал здесь не отображаются." : "Delete test and other communities for everyone. Official Support and the system channel are not listed here."}</p></div><button className="admin-icon-action" disabled={busy} onClick={() => void loadCommunities()}><RefreshCw size={15} /></button></div>
+            <div className="admin-section-heading"><div><h2>{ru ? "Группы и сообщества" : "Groups and communities"}</h2><p>{ru ? "Удаление тестовых и других сообществ для всех участников. Официальная поддержка и системный канал здесь не отображаются." : "Delete test and other communities for everyone. Official Support and the system channel are not listed here."}</p></div><button className="admin-icon-action" disabled={busy} onClick={() => void refreshAdminData(() => loadCommunities(), ru ? "Не удалось загрузить сообщества." : "Could not load communities.")}><RefreshCw size={15} /></button></div>
             <div className="admin-search"><Search size={16} /><input value={communitySearch} onChange={(event) => setCommunitySearch(event.target.value)} placeholder={ru ? "Поиск по названию или @username" : "Search by name or @username"} /><button onClick={() => setCommunitySearch("")} aria-label={ru ? "Очистить" : "Clear"}><X size={14} /></button></div>
             <div className="admin-user-results">
               {communities.filter((item) => (item.name + " " + (item.username ?? "")).toLowerCase().includes(communitySearch.trim().replace(/^@/, "").toLowerCase())).map((item) => (
@@ -734,7 +747,7 @@ export default function HeloroSPanel({
         )}
 
         {tab === "roles" && isOwner && (
-          <section className="admin-section"><div className="admin-section-heading"><div><h2>{ru ? "Роли и разрешения" : "Roles and permissions"}</h2><p>{ru ? "Только Owner назначает Admin и Moderator" : "Only Owner can appoint Admin and Moderator"}</p></div><button className="admin-icon-action" onClick={() => void loadStaff()}><RefreshCw size={15} /></button></div>
+          <section className="admin-section"><div className="admin-section-heading"><div><h2>{ru ? "Роли и разрешения" : "Roles and permissions"}</h2><p>{ru ? "Только Owner назначает Admin и Moderator" : "Only Owner can appoint Admin and Moderator"}</p></div><button className="admin-icon-action" onClick={() => void refreshAdminData(() => loadStaff(), ru ? "Не удалось загрузить список сотрудников." : "Could not load staff.")}><RefreshCw size={15} /></button></div>
             <div className="admin-role-list">{staffEntries.map((entry) => <article key={entry.user_id}><span className="admin-user-avatar"><ShieldCheck size={15} /></span><span><strong>{entry.display_name || entry.username || shortId(entry.user_id)}</strong><small>{entry.username ? "@" + entry.username + " · " : ""}{entry.role} · {shortId(entry.user_id)} · {new Date(entry.granted_at).toLocaleString()}</small></span></article>)}</div>
             <p className="admin-privacy-note">{ru ? "Owner не может изменить собственную роль через эту панель. Назначение Owner не выполняется через обычный интерфейс ролей." : "Owner cannot change their own role here. Owner assignment is intentionally excluded from the regular role editor."}</p>
           </section>
