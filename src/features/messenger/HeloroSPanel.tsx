@@ -364,6 +364,19 @@ export default function HeloroSPanel({
     return () => { active = false; void client.removeChannel(channel); };
   }, [client, selectedThread, tab, ru]);
 
+  async function loadSelectedRestrictions(targetUserId = selectedUser?.id): Promise<ActiveRestriction[]> {
+    if (!targetUserId) return [];
+    const { data, error: queryError } = await client.from("account_restrictions")
+      .select("id, restriction_type, reason, created_at, expires_at, revoked_at, created_by")
+      .eq("user_id", targetUserId)
+      .is("revoked_at", null)
+      .order("created_at", { ascending: false });
+    if (queryError) throw queryError;
+    return ((data ?? []) as ActiveRestriction[]).filter((item) =>
+      !item.expires_at || new Date(item.expires_at).getTime() > Date.now()
+    );
+  }
+
   async function applyRestriction() {
     if (!selectedUser || !restrictionReason.trim()) return;
     const targetUserId = selectedUser.id;
