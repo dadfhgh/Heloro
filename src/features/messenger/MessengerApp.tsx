@@ -139,6 +139,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const gifInputRef = useRef<HTMLInputElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const initialChatSelectionRef = useRef(false);
   const isStaff = roles.some((role) => role === "owner" || role === "admin" || role === "moderator");
   const canManageBadges = roles.includes("owner") || roles.includes("admin");
 
@@ -231,7 +232,14 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
     let active = true;
     setLoadingInbox(true);
     getInbox()
-      .then((items) => { if (active) setInbox(items); })
+      .then((items) => {
+        if (!active) return;
+        setInbox(items);
+        if (!initialChatSelectionRef.current && items.length > 0) {
+          initialChatSelectionRef.current = true;
+          setActiveId((current) => current ?? items[0].conversation_id);
+        }
+      })
       .catch((cause: unknown) => {
         if (active) setError(cause instanceof Error ? cause.message : t(locale, "inboxLoadFailed"));
       })
