@@ -1,82 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 300" role="img" aria-labelledby="title">
-<title id="title">Epic Sans pixel-art star badge</title>
-<defs>
-  <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
-    <feGaussianBlur stdDeviation="5" result="blur"/>
-    <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-  </filter>
-  <clipPath id="starClip">
-    <path d="M160 13 205 83 291 99 231 165 248 276 160 225 72 276 89 165 29 99 115 83Z"/>
-  </clipPath>
-</defs>
-
-<!-- Five-point star silhouette; all artwork stays inside this shape -->
-<path d="M160 13 205 83 291 99 231 165 248 276 160 225 72 276 89 165 29 99 115 83Z"
-      fill="#170b29" stroke="#e8caff" stroke-width="13" stroke-linejoin="round" filter="url(#glow)"/>
-<path d="M160 25 201 91 278 105 224 164 240 260 160 214 80 260 96 164 42 105 119 91Z"
-      fill="#260c43" stroke="#9e4df2" stroke-width="4" stroke-linejoin="round"/>
-
-<g clip-path="url(#starClip)" shape-rendering="crispEdges">
-  <!-- Inner purple star field -->
-  <path d="M0 0H320V300H0Z" fill="#1b0b31"/>
-  <path d="M40 105 118 91 160 25 202 91 280 105 225 164 240 260 160 214 80 260 95 164Z" fill="#35105d"/>
-  <path d="M47 108 117 96 160 34 201 96 272 108 221 163 235 249 160 207 85 249 99 163Z" fill="#240d40"/>
-
-  <!-- Hood silhouette behind the skull -->
-  <path d="M78 250 82 192 98 148 119 126 142 116 178 116 201 126 222 148 238 192 242 250 222 264 98 264Z"
-        fill="#10091d" stroke="#090611" stroke-width="5"/>
-  <path d="M94 203 104 164 123 143 143 132 177 132 197 143 216 164 226 203 210 242 188 257 132 257 110 242Z"
-        fill="#f3efff"/>
-
-  <!-- Crown: compact, centered -->
-  <path d="M123 116 132 81 148 94 160 61 174 94 190 81 198 116 184 126 137 126Z"
-        fill="#13091f" stroke="#080510" stroke-width="5" stroke-linejoin="miter"/>
-  <path d="M132 109 140 91 151 103 160 77 171 103 182 91 190 109 181 117 141 117Z"
-        fill="#eee4ff"/>
-  <path d="M143 113 160 82 176 113Z" fill="#b56af4"/>
-  <path d="M157 87 160 80 164 88 164 112 157 112Z" fill="#6b28a9"/>
-
-  <!-- Skull face -->
-  <path d="M111 142 126 126 143 119 177 119 194 126 209 142 214 177 207 211 190 232 130 232 113 211 106 177Z"
-        fill="#f5f0ff" stroke="#10091b" stroke-width="7" stroke-linejoin="miter"/>
-  <path d="M108 162 119 146 132 137 132 127 143 123 177 123 188 127 188 137 201 146 212 162"
-        fill="none" stroke="#d8c5f5" stroke-width="5"/>
-
-  <!-- Left dark eye socket -->
-  <path d="M118 158H151V166H158V197H150V207H119V197H112V166H118Z" fill="#0b0713"/>
-  <path d="M121 166H148V173H153V192H146V200H122V192H116V173H121Z" fill="#160d24"/>
-  <path d="M127 173H142V181H149V192H142V199H127V192H120V181H127Z" fill="#eee8ff"/>
-
-  <!-- Right eye socket with violet magic glow -->
-  <path d="M170 158H202V166H209V197H201V207H170V199H163V166H170Z" fill="#0b0713"/>
-  <path d="M176 169H196V176H203V193H196V200H176V193H169V176H176Z" fill="#a43cf0"/>
-  <path d="M180 173H193V179H199V190H193V196H180V190H174V179H180Z" fill="#d9a4ff"/>
-  <path d="M185 176H191V182H197V188H191V194H185V188H179V182H185Z" fill="#fff0ff"/>
-  <path d="M197 167 204 161 207 166 200 173Z" fill="#f1d8ff"/>
-
-  <!-- Nose -->
-  <path d="M155 201H165V208H159V214H150V208H155Z" fill="#92899f"/>
-
-  <!-- Wide toothy grin -->
-  <path d="M126 214H194V223H187V232H133V223H126Z" fill="#10091b"/>
-  <path d="M133 216H145V225H133Z M151 216H164V225H151Z M170 216H183V225H170Z" fill="#fffaff"/>
-  <path d="M139 228H181V234H139Z" fill="#cbb9e5"/>
-
-  <!-- Hood side panels and fur -->
-  <path d="M100 158 112 145 118 151 108 171 104 194 112 218 126 245 109 239 95 215 90 190Z" fill="#25103f"/>
-  <path d="M220 158 208 145 202 151 212 171 216 194 208 218 194 245 211 239 225 215 230 190Z" fill="#25103f"/>
-  <path d="M102 148 115 137 124 141 113 153 105 166Z" fill="#c8a2ee"/>
-  <path d="M218 148 205 137 196 141 207 153 215 166Z" fill="#c8a2ee"/>
-  <path d="M96 171 109 160 105 178 94 188Z M224 171 211 160 215 178 226 188Z" fill="#eee2ff"/>
-
-  <!-- Scarf and chest -->
-  <path d="M111 239H209V252H197V263H123V252H111Z" fill="#39165b" stroke="#10091b" stroke-width="4"/>
-  <path d="M120 242H200V251H120Z" fill="#bd91e8"/>
-  <path d="M137 251H183V258H137Z" fill="#d9baff"/>
-  <path d="M143 242H153V249H143Z M167 242H177V249H167Z" fill="#f3e8ff"/>
-</g>
-
-<!-- Tiny glints like the reference, kept within the star's silhouette -->
-<path d="M70 83 74 95 86 99 74 103 70 115 66 103 54 99 66 95Z" fill="#f7eaff"/>
-<path d="M250 111 254 122 265 126 254 130 250 141 246 130 235 126 246 122Z" fill="#f7eaff"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-labelledby="title">
+  <title id="title">Purple and white verified check</title>
+  <defs>
+    <linearGradient id="violet" x1="12" y1="8" x2="84" y2="88" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#c084fc"/>
+      <stop offset=".52" stop-color="#9333ea"/>
+      <stop offset="1" stop-color="#6b21a8"/>
+    </linearGradient>
+  </defs>
+  <circle cx="48" cy="48" r="43" fill="url(#violet)" stroke="#f5eaff" stroke-width="5"/>
+  <path d="M26 49.5 40.5 64 71 32.5" fill="none" stroke="#fff" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>
