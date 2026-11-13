@@ -117,21 +117,28 @@ export function executeLua(source: string, input: string, chatId: string): LuaRe
     lua.lua_setfield(L, -2, to_luastring("log"));
     lua.lua_setglobal(L, to_luastring("bot"));
 
-    // The count hook interrupts non-terminating loops through Lua's protected error path.
-    lua.lua_sethook(L, (state: unknown) => {
-      instructions += HOOK_INTERVAL;
-      if (instructions > MAX_INSTRUCTIONS) {
-        // Throw a host exception from the VM hook. Fengari hooks run with Lua hooks disabled,
-        // so calling luaL_error from inside the hook does not reliably unwind the running chunk.
-        throw new Error("Instruction budget exceeded");
-      }
-      return 0;
-    }, lua.LUA_MASKCOUNT, HOOK_INTERVAL);
+    // Convert native JavaScript errors raised by runtime guards into normal Lua errors.
+    // Fengari provides this bridge for errors thrown across a protected Lua call.
+    lua.lua_atnativeerror(L, (state: unknown) => {
+      const nativeError = lua.lua_touserdata(state, 1) as unknown;
+      const message = nativeError instanceof Error ? nativeError.message : "Lua host callback failed";
+      lua.lua_pushstring(state, to_luastring(message));
+      return 1;
+    });
 
     const loadStatus = lauxlib.luaL_loadstring(L, to_luastring(source));
     if (loadStatus !== lua.LUA_OK) {
       throw new Error(lua.lua_tojsstring(L, -1));
     }
+
+    // Install after parsing so the budget measures executed bytecode only.
+    lua.lua_sethook(L, () => {
+      instructions += HOOK_INTERVAL;
+      if (instructions > MAX_INSTRUCTIONS) {
+        throw new Error("Instruction budget exceeded");
+      }
+    }, lua.LUA_MASKCOUNT, HOOK_INTERVAL);
+
     const runStatus = lua.lua_pcall(L, 0, 0, 0);
     if (runStatus !== lua.LUA_OK) {
       throw new Error(lua.lua_tojsstring(L, -1));
