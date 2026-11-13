@@ -222,6 +222,10 @@ begin
     if p_target_type = 'message' then
       select m.sender_id into owner_id from public.messages m
       where m.id = p_target_id and private.is_conversation_member(m.conversation_id);
+      if owner_id is null then
+        select cm.sender_id into owner_id from public.community_room_messages cm
+        where cm.id = p_target_id and private.is_community_member(cm.room_id);
+      end if;
       if owner_id is null then raise exception 'Message not found or not accessible' using errcode = 'P0002'; end if;
     elsif p_target_type = 'group' then
       select r.created_by into owner_id from public.community_rooms r
