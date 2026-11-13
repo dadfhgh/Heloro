@@ -77,7 +77,7 @@ const settingDefinitions = [
   { key: "public_channels_enabled", ru: "Публичные каналы", en: "Public channels" },
 ];
 
-function errorText(cause: unknown, fallback: string, ru: boolean) {
+function errorText(cause: unknown, fallback: string, ru = /[А-Яа-яЁё]/.test(fallback)) {
   return adminErrorMessage(cause, fallback, ru ? "ru" : "en");
 }
 
@@ -131,10 +131,10 @@ export default function HeloroSPanel({
     setNotice("");
   }
 
-  async function loadOverview() {
+  async function loadOverview(isCurrent: () => boolean = () => true) {
     const { data, error: queryError } = await client.rpc("heloro_admin_overview");
     if (queryError) throw queryError;
-    setOverview(data as Overview);
+    if (isCurrent()) setOverview(data as Overview);
   }
 
   async function loadUsers(query: string, isCurrent: () => boolean = () => true) {
@@ -177,12 +177,13 @@ export default function HeloroSPanel({
     if (isCurrent()) setUsers(items);
   }
 
-  async function loadReports() {
+  async function loadReports(isCurrent: () => boolean = () => true) {
     const { data, error: queryError } = await client.from("user_reports")
       .select("id, reporter_id, reported_user_id, reason, details, status, created_at, target_type, target_id, review_note")
       .order("created_at", { ascending: false }).limit(100);
     if (queryError) throw queryError;
     const items = (data ?? []) as AdminReport[];
+    if (!isCurrent()) return;
     setReports(items);
     if (items.length === 0) { setReportDecisions([]); return; }
     const { data: history, error: historyError } = await client.from("user_report_decisions")
@@ -190,35 +191,52 @@ export default function HeloroSPanel({
       .in("report_id", items.map((item) => item.id))
       .order("created_at", { ascending: false });
     if (historyError) throw historyError;
-    setReportDecisions((history ?? []) as ReportDecision[]);
+    if (isCurrent()) setReportDecisions((history ?? []) as ReportDecision[]);
   }
 
-  async function loadThreads() {
+  async function loadThreads(isCurrent: () => boolean = () => true): Promise<AdminThread[]> {
     const { data, error: queryError } = await client.from("support_threads")
       .select("id, user_id, status, assigned_to, created_at, updated_at")
       .order("updated_at", { ascending: false }).limit(100);
     if (queryError) throw queryError;
-    setThreads((data ?? []) as AdminThread[]);
+    const items = (data ?? []) as AdminThread[];
+    if (isCurrent()) setThreads(items);
+    return items;
   }
 
-  async function loadAudit() {
+  async function loadAudit(isCurrent: () => boolean = () => true) {
     const { data, error: queryError } = await client.from("admin_action_logs")
       .select("id, actor_id, target_user_id, target_type, target_id, action, reason, details, created_at")
       .order("created_at", { ascending: false }).limit(100);
     if (queryError) throw queryError;
-    setAudit((data ?? []) as AuditEntry[]);
+    if (isCurrent()) setAudit((data ?? []) as AuditEntry[]);
   }
 
-  async function loadStaff() {
+  async function loadStaff(isCurrent: () => boolean = () => true) {
     const { data, error: queryError } = await client.rpc("heloro_admin_list_staff");
     if (queryError) throw queryError;
-    setStaffEntries((data ?? []) as StaffEntry[]);
+    const rows = (data ?? []) as StaffEntry[];
+    if (rows.length === 0) {
+      if (isCurrent()) setStaffEntries([]);
+      return;
+    }
+    const { data: profileRows, error: profileError } = await client.from("profiles")
+      .select("id, username, display_name")
+      .in("id", rows.map((item) => item.user_id));
+    const profileById = new Map((profileRows ?? []).map((item) => [item.id, item]));
+    const enriched = rows.map((item) => ({
+      ...item,
+      username: profileById.get(item.user_id)?.username ?? null,
+      display_name: profileById.get(item.user_id)?.display_name ?? null,
+    }));
+    if (profileError) console.warn("HELORO staff profile lookup failed:", profileError.message);
+    if (isCurrent()) setStaffEntries(enriched);
   }
 
-  async function loadCommunities() {
+  async function loadCommunities(isCurrent: () => boolean = () => true) {
     const { data, error: queryError } = await client.rpc("heloro_admin_list_communities");
     if (queryError) throw queryError;
-    setCommunities((data ?? []) as CommunityEntry[]);
+    if (isCurrent()) setCommunities((data ?? []) as CommunityEntry[]);
   }
 
   async function deleteCommunity(item: CommunityEntry) {
