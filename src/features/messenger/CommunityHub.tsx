@@ -24,7 +24,6 @@ function RoomAvatar({ room }: { room: Room }) {
 
 export default function CommunityHub({ client, user, locale, initialRoomId = null, initialCreateKind = null, onRoomsChanged, onClose }: Props) {
   const ru = locale === "ru";
-  const [rooms, setRooms] = useState<Room[]>([]);
   const [room, setRoom] = useState<Room | null>(null);
   const [memberRole, setMemberRole] = useState<string | null>(null);
   const [messages, setMessages] = useState<RoomMessage[]>([]);
@@ -45,7 +44,6 @@ export default function CommunityHub({ client, user, locale, initialRoomId = nul
       .order("updated_at", { ascending: false });
     if (loadError) throw loadError;
     const next = (data ?? []) as Room[];
-    setRooms(next);
     return next;
   }
 
@@ -137,7 +135,6 @@ export default function CommunityHub({ client, user, locale, initialRoomId = nul
         description: description.trim(), avatar_url: null, created_by: user.id,
         is_public: createKind === "channel", updated_at: new Date().toISOString(),
       };
-      setRooms((current) => [nextRoom, ...current]);
       setCreateKind(null); setName(""); setUsername(""); setDescription("");
       setRoom(nextRoom); setMemberRole("owner"); setMessages([]); onRoomsChanged?.();
     } catch (cause) {
@@ -252,19 +249,15 @@ export default function CommunityHub({ client, user, locale, initialRoomId = nul
             )}
           </div>
         ) : (
-          <div className="community-list-view">
-            <div className="community-create-actions">
-              <button type="button" onClick={() => { setCreateKind("group"); setError(""); }}><Users size={18} /><span>{ru ? "Создать группу" : "Create group"}</span><Plus size={16} /></button>
-              <button type="button" onClick={() => { setCreateKind("channel"); setError(""); }}><Megaphone size={18} /><span>{ru ? "Создать канал" : "Create channel"}</span><Plus size={16} /></button>
+          <div className="community-room-view">
+            <div className="community-empty">
+              <MessageCircle size={24} />
+              <span>{loading ? (ru ? "Открываем чат…" : "Opening chat…") : (ru ? "Не удалось найти это сообщество." : "This community could not be found.")}</span>
+              {!loading && <button className="community-primary" type="button" onClick={onClose}>{ru ? "Назад к чатам" : "Back to chats"}</button>}
             </div>
-            <div className="community-section-title">{ru ? "Мои сообщества и каналы" : "My communities and channels"}</div>
-            {loading ? <p className="community-muted">{ru ? "Загрузка…" : "Loading…"}</p> : rooms.length === 0 ? <div className="community-empty"><Users size={24} /><span>{ru ? "Здесь появятся созданные вами группы и каналы." : "Your groups and channels will appear here."}</span></div> : rooms.map((item) => (
-              <button className="community-room-row" type="button" key={item.id} onClick={() => void openRoom(item)}>
-                <RoomAvatar room={item} /><span><strong>{item.name}</strong><small>{item.kind === "group" ? (ru ? "Группа" : "Group") : (ru ? "Публичный канал" : "Public channel")}</small></span><ArrowLeft className="community-row-arrow" size={16} />
-              </button>
-            ))}
           </div>
         )}
+
         {error && <p className="community-error" role="alert">{error}</p>}
       </div>
     </section>
