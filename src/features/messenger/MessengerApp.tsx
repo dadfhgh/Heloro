@@ -73,10 +73,12 @@ function Avatar({ label, className = "", src }: { label: string; className?: str
 
 function VerificationMark({ type, title }: { type?: BadgeType | null; title: string }) {
   if (!type) return null;
-  const label = type === "blue" ? "blue" : type === "gold" ? "gold" : type === "creator" ? "creator" : "epic-sans";
-  const accessibleTitle = type === "epic_sans" ? "Epic Sans" : title;
+  if (type === "epic_sans") {
+    return <BadgeCheck size={14} className="epic-sans-verified-mark" title="Epic Sans" aria-label="Epic Sans" />;
+  }
+  const label = type === "blue" ? "blue" : type === "gold" ? "gold" : "creator";
   return (
-    <span className={`verification-mark verification-${label}`} title={accessibleTitle} aria-label={accessibleTitle}>
+    <span className={`verification-mark verification-${label}`} title={title} aria-label={title}>
       <BadgeCheck size={14} strokeWidth={2.8} />
     </span>
   );
