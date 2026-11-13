@@ -439,24 +439,33 @@ export default function HeloroSPanel({
         p_assigned_to: assignedTo,
       });
       if (rpcError) throw rpcError;
-      await loadThreads();
+      const refreshed = await loadThreads();
+      const current = refreshed.find((item) => item.id === thread.id);
+      if (current && selectedThreadIdRef.current === thread.id) setSelectedThread(current);
       setNotice(ru ? "Обращение обновлено." : "Support thread updated.");
     } catch (cause) {
-      setError(errorText(cause, ru ? "Не удалось обновить обращение." : "Could not update support thread."));
+      setError(errorText(cause, ru ? "Не удалось обновить обращение." : "Could not update support thread.", ru));
     } finally { setBusy(false); }
   }
 
   async function sendReply(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selectedThread || !reply.trim()) return;
+    const threadId = selectedThread?.id;
+    const message = reply.trim();
+    if (!threadId || !message || busy) return;
     setBusy(true); clearMessages();
     try {
-      const item = await sendSupportMessage(client, selectedThread.id, user.id, reply.trim());
-      setSupportMessages((current) => current.some((row) => row.id === item.id) ? current : [...current, item]);
-      setReply("");
-      await loadThreads();
+      const item = await sendSupportMessage(client, threadId, user.id, message);
+      if (selectedThreadIdRef.current === threadId) {
+        setSupportMessages((current) => current.some((row) => row.id === item.id) ? current : [...current, item]);
+        setReply("");
+      }
+      const refreshed = await loadThreads();
+      const current = refreshed.find((thread) => thread.id === threadId);
+      if (current && selectedThreadIdRef.current === threadId) setSelectedThread(current);
+      setNotice(ru ? "Ответ отправлен." : "Reply sent.");
     } catch (cause) {
-      setError(errorText(cause, ru ? "Не удалось отправить ответ." : "Could not send reply."));
+      setError(errorText(cause, ru ? "Не удалось отправить ответ." : "Could not send reply.", ru));
     } finally { setBusy(false); }
   }
 
