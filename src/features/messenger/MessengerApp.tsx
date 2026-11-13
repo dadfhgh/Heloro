@@ -898,7 +898,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                     <button className={`conversation-item pinned-system-item ${systemView === "support" ? "selected" : ""}`} onClick={() => openSystemView("support")}>
                       <div className="system-avatar system-support-avatar"><Headphones size={19} /></div>
                       <span className="conversation-copy">
-                        <span className="conversation-title-line"><strong>Support Heloro</strong><time>{locale === "ru" ? "Поддержка" : "Support"}</time></span>
+                        <span className="conversation-title-line"><strong>Support Heloro <BadgeCheck size={14} className="support-verified-mark" aria-label={locale === "ru" ? "Официальная поддержка" : "Official support"} /></strong><time>{locale === "ru" ? "Поддержка" : "Support"}</time></span>
                         <span className="conversation-preview-line"><small>{locale === "ru" ? "Личный чат с поддержкой" : "Private support chat"}</small></span>
                       </span>
                     </button>
