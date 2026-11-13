@@ -635,3 +635,11 @@ html[data-theme="dark"] .community-create-members .community-member-picker > inp
 html[data-theme="dark"] .community-create-members .community-contact-list {
   border-color: #383838;
 }
+
+
+/* Community profile editing */
+.community-room-edit { display: grid; gap: 10px; padding: 12px; border: 1px solid #e4e4e4; border-radius: 10px; background: #fafafa; }
+.community-room-edit label { display: grid; gap: 7px; color: #555; font-size: 12px; font-weight: 650; }
+.community-room-edit-actions { display: flex; justify-content: flex-end; gap: 8px; }
+html[data-theme="dark"] .community-room-edit { border-color: #383838; background: #1a1a1a; }
+html[data-theme="dark"] .community-room-edit label { color: #bbb; }
