@@ -102,6 +102,11 @@ const LazyMessengerSettings = lazy(async () => {
   return { default: module.MessengerSettings };
 });
 
+const LazyBotsHub = lazy(async () => {
+  const module = await import("./BotsHub");
+  return { default: module.default };
+});
+
 export default function MessengerApp({ client, user, profile, locale, onLocaleChange, roles, theme, onThemeChange }: Props) {
   const [inbox, setInbox] = useState<InboxConversation[]>([]);
   const [ownProfile, setOwnProfile] = useState(profile);
@@ -120,6 +125,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const [error, setError] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showBots, setShowBots] = useState(false);
   const [showNavigation, setShowNavigation] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [activeCommunityRoomId, setActiveCommunityRoomId] = useState<string | null>(null);
@@ -381,10 +387,11 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   }, [search, user.id, locale]);
 
   useEffect(() => {
-    if (!showSettings && !showReport && !showNavigation && !showProfile && !showComposeScreen && !showContactsScreen) return;
+    if (!showSettings && !showBots && !showReport && !showNavigation && !showProfile && !showComposeScreen && !showContactsScreen) return;
     function closeOnEscape(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setShowSettings(false);
+        setShowBots(false);
         setShowNavigation(false);
         setShowReport(false);
         setShowProfile(false);
@@ -398,7 +405,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
     }
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [showSettings, showNavigation, showReport, showProfile, showComposeScreen, showContactsScreen]);
+  }, [showSettings, showBots, showNavigation, showReport, showProfile, showComposeScreen, showContactsScreen]);
 
   useEffect(() => {
     if (showSearch && !showComposeScreen) searchInputRef.current?.focus();
@@ -701,7 +708,23 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
 
   function openSettings(section: SettingsSection = "account") {
     setSettingsSection(section);
+    setShowBots(false);
     setShowSettings(true);
+  }
+
+  function openBots() {
+    setShowSettings(false);
+    setShowNavigation(false);
+    setShowComposeScreen(false);
+    setShowContactsScreen(false);
+    setShowProfile(false);
+    setMobileTab("chats");
+    setShowBots(true);
+  }
+
+  function closeBots() {
+    setShowBots(false);
+    setMobileTab("chats");
   }
 
   return (
@@ -941,7 +964,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
               </div>
             </section>
           )}
-          {!showComposeScreen && !showSettings && !showProfile && !showNavigation && (
+          {!showComposeScreen && !showSettings && !showBots && !showProfile && !showNavigation && (
             <nav className="mobile-bottom-nav" aria-label={locale === "ru" ? "Основная навигация" : "Main navigation"}>
               <button type="button" className={mobileTab === "chats" ? "active" : ""} aria-current={mobileTab === "chats" ? "page" : undefined} onClick={() => openMobileTab("chats")}>
                 <MessageCircle size={21} /><span>{locale === "ru" ? "Чаты" : "Chats"}</span>
@@ -1239,6 +1262,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
             onOpenNews={() => openSystemView("news")}
             onOpenSupport={() => openSystemView("support")}
             onOpenSettings={() => openSettings("account")}
+            onOpenBots={openBots}
             onOpenAdmin={() => openSystemView("admin")}
           />
         </Suspense>
@@ -1247,6 +1271,8 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
       {showSettings && (
         <Suspense fallback={null}>
           <LazyMessengerSettings
+            client={client}
+            userId={user.id}
             profile={ownProfile}
             locale={locale}
             roles={roles}
@@ -1257,10 +1283,17 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
             onLocaleChange={onLocaleChange}
             onClose={() => { setShowSettings(false); setMobileTab("chats"); }}
             onOpenSupport={() => { setShowSettings(false); openSystemView("support"); }}
+            onOpenBots={openBots}
             onOpenMyProfile={() => { setShowSettings(false); void openUserProfile(user.id); }}
             onOpenAdmin={() => { setShowSettings(false); openSystemView("admin"); }}
             onSignOut={() => void signOut()}
           />
+        </Suspense>
+      )}
+
+      {showBots && (
+        <Suspense fallback={null}>
+          <LazyBotsHub client={client} user={user} locale={locale} onClose={closeBots} />
         </Suspense>
       )}
 
