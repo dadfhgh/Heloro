@@ -171,10 +171,11 @@ export function MessengerSettings({
   useEffect(() => {
     let active = true;
     setPreferencesLoading(true);
-    void client.from("user_preferences")
-      .select("message_notifications, group_notifications, sound_enabled, preview_enabled, last_seen_visibility, profile_photo_visibility, allow_group_invites, auto_download_media")
-      .eq("user_id", userId).maybeSingle()
-      .then(async ({ data, error }) => {
+    void (async () => {
+      try {
+        const { data, error } = await client.from("user_preferences")
+          .select("message_notifications, group_notifications, sound_enabled, preview_enabled, last_seen_visibility, profile_photo_visibility, allow_group_invites, auto_download_media")
+          .eq("user_id", userId).maybeSingle();
         if (!active) return;
         if (error) {
           setPreferencesError(error.message);
@@ -191,8 +192,12 @@ export function MessengerSettings({
           if (insertError) setPreferencesError(insertError.message);
           else if (created) setPreferences({ ...defaultPreferences, ...created } as UserPreferences);
         }
-      })
-      .finally(() => { if (active) setPreferencesLoading(false); });
+      } catch (cause) {
+        if (active) setPreferencesError(cause instanceof Error ? cause.message : "Could not load preferences.");
+      } finally {
+        if (active) setPreferencesLoading(false);
+      }
+    })();
     return () => { active = false; };
   }, [client, userId]);
 
