@@ -1849,3 +1849,45 @@ html[data-theme="dark"] .profile-message-action { color: #111 !important; backgr
   .profile-view-avatar { width: 100px; height: 100px; flex-basis: 100px; }
   .profile-actions-row .profile-view-action { flex: 1 1 135px; justify-content: center; min-height: 46px; }
 }
+
+
+/* Final layout constraints for detail pages and the profile information sheet. */
+.settings-home {
+  flex: 1 1 auto;
+  align-self: center;
+  box-sizing: border-box;
+}
+.settings-page-body > .settings-content > .settings-content-heading {
+  margin: 0;
+}
+.settings-page-body > .settings-content > .settings-content-heading + .settings-section-content {
+  width: min(100%, 680px);
+  max-width: none;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+.settings-page-body > .settings-content > .settings-content-heading + .settings-coming-card {
+  width: min(calc(100% - 48px), 680px);
+  margin: 22px auto;
+  box-sizing: border-box;
+}
+.profile-view-content {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+.profile-view-hero { width: 100%; }
+.profile-info-card {
+  width: 100%;
+  box-sizing: border-box;
+}
+.profile-view-error { align-self: stretch; }
+@media (max-width: 760px) {
+  .settings-page-body > .settings-content > .settings-content-heading + .settings-section-content {
+    width: 100%;
+    padding: 16px 14px max(25px, env(safe-area-inset-bottom));
+  }
+  .settings-page-body > .settings-content > .settings-content-heading + .settings-coming-card {
+    width: calc(100% - 28px);
+  }
+}
