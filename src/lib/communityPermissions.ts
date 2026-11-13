@@ -30,3 +30,19 @@ export function canDeleteCommunityMessage(
 ): boolean {
   return senderId === currentUserId || hasCommunityPermission(role, permissions, "delete_messages");
 }
+
+export function canManageCommunityAdmin(
+  role: string | null,
+  actorPermissions: Partial<CommunityAdminPermissions> | null | undefined,
+  targetRole: string,
+  targetPermissions: Partial<CommunityAdminPermissions> | null | undefined,
+): boolean {
+  if (targetRole !== "admin") return false;
+  if (role === "owner") return true;
+  if (role !== "admin" || actorPermissions?.manage_admins !== true) return false;
+  if (targetPermissions?.manage_admins === true) return false;
+  return Object.entries(targetPermissions ?? {}).every(([permission, granted]) => {
+    if (granted !== true) return true;
+    return actorPermissions[permission as CommunityAdminPermission] === true;
+  });
+}
