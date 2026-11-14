@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import type { User } from "@supabase/supabase-js";
 import {
   Activity, BadgeCheck, Ban, Check, CheckCircle2, CircleAlert,
-  FileText, Headphones, LockKeyhole, Megaphone, MessageCircle, RefreshCw,
+  FileText, Gift, Headphones, LockKeyhole, Megaphone, MessageCircle, RefreshCw,
   Search, Settings, ShieldCheck, UserRound, Users, X,
 } from "lucide-react";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -24,7 +24,8 @@ type Props = {
 };
 
 type TabId = "overview" | "users" | "moderation" | "reports" | "support" | "audit" | "settings" | "security" | "verification" | "channels" | "roles" | "groups";
-type CommunityEntry = { id: string; name: string; username: string | null; kind: "group" | "channel"; created_at: string; created_by: string; member_count: number };
+type CommunityBadgeType = "blue" | "gold" | "creator";
+type CommunityEntry = { id: string; name: string; username: string | null; kind: "group" | "channel"; created_at: string; created_by: string; member_count: number; badge_type?: CommunityBadgeType | null };
 type AdminUser = PublicProfile & { created_at: string };
 type AdminReport = {
   id: string; reporter_id: string; reported_user_id: string | null; reason: string;
@@ -116,6 +117,9 @@ export default function HeloroSPanel({
   const [badgeType, setBadgeType] = useState<BadgeType>("blue");
   const [communities, setCommunities] = useState<CommunityEntry[]>([]);
   const [communitySearch, setCommunitySearch] = useState("");
+  const [communityBadgeDraft, setCommunityBadgeDraft] = useState<Record<string, string>>({});
+  const [selectedUserHasFatGift, setSelectedUserHasFatGift] = useState(false);
+  const [giftLoading, setGiftLoading] = useState(false);
 
   function clearMessages() {
     setError("");
@@ -186,7 +190,18 @@ export default function HeloroSPanel({
   async function loadCommunities() {
     const { data, error: queryError } = await client.rpc("heloro_admin_list_communities");
     if (queryError) throw queryError;
-    setCommunities((data ?? []) as CommunityEntry[]);
+    const rows = (data ?? []) as CommunityEntry[];
+    const roomIds = rows.map((item) => item.id);
+    let badgeRows: { room_id: string; badge_type: CommunityBadgeType }[] = [];
+    if (roomIds.length > 0) {
+      const { data: badgeData, error: badgeError } = await client.from("community_verification_badges")
+        .select("room_id, badge_type").in("room_id", roomIds);
+      if (badgeError) throw badgeError;
+      badgeRows = (badgeData ?? []) as typeof badgeRows;
+    }
+    const byRoom = new Map(badgeRows.map((item) => [item.room_id, item.badge_type]));
+    setCommunities(rows.map((item) => ({ ...item, badge_type: byRoom.get(item.id) ?? null })));
+    setCommunityBadgeDraft((current) => Object.fromEntries(rows.map((item) => [item.id, current[item.id] ?? byRoom.get(item.id) ?? ""])));
   }
 
   async function deleteCommunity(item: CommunityEntry) {
@@ -231,6 +246,19 @@ export default function HeloroSPanel({
     if (staff) void run();
     return () => { active = false; };
   }, [client, tab, staff, ru]);
+
+  useEffect(() => {
+    let active = true;
+    setSelectedUserHasFatGift(false);
+    if (!isOwner || tab !== "users" || !selectedUser) return () => { active = false; };
+    void client.from("profile_gifts").select("id").eq("user_id", selectedUser.id).eq("gift_type", "fat_epic_sans").maybeSingle()
+      .then(({ data, error: giftError }) => {
+        if (!active) return;
+        if (giftError) setError(errorText(giftError, ru ? "Не удалось загрузить подарок." : "Could not load the gift."));
+        else setSelectedUserHasFatGift(Boolean(data));
+      });
+    return () => { active = false; };
+  }, [client, isOwner, selectedUser?.id, tab, ru]);
 
   useEffect(() => {
     if (!["users", "moderation", "verification", "roles"].includes(tab)) return;
@@ -417,6 +445,58 @@ export default function HeloroSPanel({
     } finally { setBusy(false); }
   }
 
+  async function toggleFatEpicSansGift(target: AdminUser) {
+    if (!isOwner || giftLoading) return;
+    setGiftLoading(true); clearMessages();
+    try {
+      if (selectedUserHasFatGift) {
+        const { error: deleteError } = await client.from("profile_gifts").delete()
+          .eq("user_id", target.id).eq("gift_type", "fat_epic_sans");
+        if (deleteError) throw deleteError;
+        setSelectedUserHasFatGift(false);
+        setNotice(ru ? "Подарок снят с аккаунта." : "Gift removed from the account.");
+      } else {
+        const { error: insertError } = await client.from("profile_gifts").upsert({
+          user_id: target.id, gift_type: "fat_epic_sans", granted_by: user.id,
+        }, { onConflict: "user_id,gift_type" });
+        if (insertError) throw insertError;
+        setSelectedUserHasFatGift(true);
+        setNotice(ru ? "Подарок выдан аккаунту." : "Gift granted to the account.");
+      }
+      await loadAudit();
+    } catch (cause) {
+      setError(errorText(cause, ru ? "Не удалось изменить подарок." : "Could not update the gift."));
+    } finally { setGiftLoading(false); }
+  }
+
+  async function saveCommunityBadge(target: CommunityEntry) {
+    if (!isOwner || busy) return;
+    const raw = communityBadgeDraft[target.id] ?? target.badge_type ?? "";
+    const nextType = raw === "" ? null : raw;
+    if (nextType !== null && nextType !== "blue" && nextType !== "gold" && nextType !== "creator") return;
+    const question = nextType
+      ? (ru ? "Выдать эту стандартную отметку сообществу?" : "Grant this standard verification mark to the community?")
+      : (ru ? "Снять отметку с сообщества?" : "Revoke the community mark?");
+    if (!window.confirm(question)) return;
+    setBusy(true); clearMessages();
+    try {
+      if (nextType) {
+        const { error: saveError } = await client.from("community_verification_badges").upsert({
+          room_id: target.id, badge_type: nextType, granted_by: user.id,
+        }, { onConflict: "room_id" });
+        if (saveError) throw saveError;
+      } else {
+        const { error: revokeError } = await client.from("community_verification_badges").delete().eq("room_id", target.id);
+        if (revokeError) throw revokeError;
+      }
+      setNotice(ru ? "Отметка сообщества обновлена." : "Community mark updated.");
+      await loadCommunities();
+      await loadAudit();
+    } catch (cause) {
+      setError(errorText(cause, ru ? "Не удалось изменить отметку сообщества." : "Could not update the community mark."));
+    } finally { setBusy(false); }
+  }
+
   function visibleTabs() {
     return tabItems.filter((item) => {
       if (item.id === "roles" || item.id === "settings") return isOwner;
@@ -500,7 +580,15 @@ export default function HeloroSPanel({
                 )}
                 {tab === "roles" && isOwner && <div className="admin-role-editor"><select value={roleChoice} onChange={(event) => setRoleChoice(event.target.value)}><option value="admin">Admin</option><option value="moderator">Moderator</option></select><button disabled={busy || selectedUser.id === user.id} onClick={() => void changeRole(selectedUser, roleChoice)}>{ru ? "Назначить роль" : "Assign role"}</button><button className="admin-secondary-action" disabled={busy || selectedUser.id === user.id} onClick={() => void changeRole(selectedUser, null)}>{ru ? "Снять роль" : "Remove role"}</button></div>}
                 {tab === "verification" && canManageBadges && <div className="admin-role-editor"><select value={badgeType} onChange={(event) => setBadgeType(event.target.value as BadgeType)}><option value="blue">{ru ? "Синяя — подтверждённая личность" : "Blue — verified identity"}</option><option value="gold">{ru ? "Золотая — организация" : "Gold — organization"}</option><option value="creator">{ru ? "Автор" : "Creator"}</option><option value="epic_sans" disabled={!isOwner}>{ru ? "Epic Sans — эксклюзивная фиолетовая звезда" : "Epic Sans — exclusive violet star"}</option></select><button disabled={busy} onClick={() => void saveBadge(selectedUser)}>{ru ? "Выдать отметку" : "Grant badge"}</button><button className="admin-secondary-action" disabled={busy} onClick={() => { if (window.confirm(ru ? "Снять отметку верификации?" : "Revoke this verification badge?")) void setVerificationBadge(client, selectedUser.id, user.id, null).then(() => loadAudit()).then(() => setNotice(ru ? "Отметка снята." : "Badge revoked.")).catch((cause: unknown) => setError(errorText(cause, "Could not revoke badge."))); }}>{ru ? "Снять отметку" : "Revoke badge"}</button></div>}
-                {tab === "users" && <p className="admin-muted">{ru ? "Доступны только публичные данные профиля. Личные переписки и пароли здесь не отображаются." : "Only public profile information is shown. Private chats and passwords are never displayed here."}</p>}
+                {tab === "users" && <>
+                  {isOwner && <div className="admin-role-editor">
+                    <span><Gift size={16} /> {ru ? "Жирный Эпик Санс" : "Fat Epic Sans"}</span>
+                    <button type="button" className={selectedUserHasFatGift ? "admin-secondary-action" : ""} disabled={giftLoading} onClick={() => void toggleFatEpicSansGift(selectedUser)}>
+                      {giftLoading ? (ru ? "Сохранение…" : "Saving…") : selectedUserHasFatGift ? (ru ? "Забрать подарок" : "Remove gift") : (ru ? "Выдать подарок" : "Grant gift")}
+                    </button>
+                  </div>}
+                  <p className="admin-muted">{ru ? "Доступны только публичные данные профиля. Личные переписки и пароли здесь не отображаются." : "Only public profile information is shown. Private chats and passwords are never displayed here."}</p>
+                </>}
               </div>
             )}
           </section>
@@ -575,14 +663,23 @@ export default function HeloroSPanel({
             <div className="admin-user-results">
               {communities.filter((item) => (item.name + " " + (item.username ?? "")).toLowerCase().includes(communitySearch.trim().replace(/^@/, "").toLowerCase())).map((item) => (
                 <article className="admin-record-card" key={item.id}>
-                  <div className="admin-record-heading"><strong>{item.kind === "group" ? (ru ? "Группа" : "Group") : (ru ? "Канал" : "Channel")} · {item.name}</strong><span>{item.member_count} {ru ? "участников" : "members"}</span></div>
+                  <div className="admin-record-heading"><strong>{item.kind === "group" ? (ru ? "Группа" : "Group") : (ru ? "Канал" : "Channel")} · {item.name} {item.badge_type ? <BadgeCheck size={15} className={"verification-mark verification-" + item.badge_type} aria-label={item.badge_type} /> : null}</strong><span>{item.member_count} {ru ? "участников" : "members"}</span></div>
                   <small>{item.username ? "@" + item.username + " · " : ""}{ru ? "Создано" : "Created"}: {new Date(item.created_at).toLocaleString()} · ID: {shortId(item.id)}</small>
+                  {isOwner && <div className="admin-role-editor">
+                    <select value={communityBadgeDraft[item.id] ?? item.badge_type ?? ""} onChange={(event) => setCommunityBadgeDraft((current) => ({ ...current, [item.id]: event.target.value }))}>
+                      <option value="">{ru ? "Без отметки" : "No mark"}</option>
+                      <option value="blue">{ru ? "Синяя" : "Blue"}</option>
+                      <option value="gold">{ru ? "Золотая" : "Gold"}</option>
+                      <option value="creator">{ru ? "Красно-белая · автор" : "Red-white · creator"}</option>
+                    </select>
+                    <button type="button" disabled={busy} onClick={() => void saveCommunityBadge(item)}>{ru ? "Сохранить отметку" : "Save mark"}</button>
+                  </div>}
                   <div className="admin-actions"><button className="system-delete-button" disabled={busy} onClick={() => void deleteCommunity(item)}><Ban size={14} />{ru ? "Удалить для всех" : "Delete for everyone"}</button></div>
                 </article>
               ))}
               {communities.length === 0 && <p className="admin-muted">{ru ? "Сообществ нет или серверное обновление ещё не установлено." : "No communities found, or the backend migration is not installed yet."}</p>}
             </div>
-            <p className="admin-privacy-note">{ru ? "Доступ есть только у Owner и Admin. Каждое удаление проверяется на сервере и записывается в журнал действий. Обычные участники и модераторы не могут удалять сообщества через эту панель." : "Only Owner and Admin can use this action. Every deletion is authorized server-side and recorded in the audit log. Members and moderators cannot delete communities from this panel."}</p>
+            <p className="admin-privacy-note">{ru ? "Выдавать и снимать существующие стандартные отметки сообществам может только Owner. Epic Sans остаётся эксклюзивной отметкой одного пользовательского аккаунта. Удаление сообществ доступно Owner и Admin." : "Only the Owner can grant or revoke existing standard community marks. Epic Sans remains exclusive to one user account. Community deletion is available to Owner and Admin."}</p>
           </section>
         )}
 
