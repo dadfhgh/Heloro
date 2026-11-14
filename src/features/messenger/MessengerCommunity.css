@@ -1219,3 +1219,41 @@ html[data-theme="dark"] .system-channel-edit-form textarea { border-color: #444;
   border-radius: 50%;
   object-fit: cover;
 }
+
+/* The same purple crown sits in the frame opening and beside the username. */
+.avatar.avatar-with-crown .avatar-crown-gap-mark {
+  position: absolute;
+  z-index: 2;
+  top: calc(12.9% - 8px);
+  right: calc(16.5% - 8px);
+  display: grid;
+  width: 17px;
+  height: 17px;
+  place-items: center;
+  color: #8752df;
+  background: transparent;
+  line-height: 1;
+  pointer-events: none;
+}
+.purple-crown-name-mark {
+  display: inline-flex;
+  width: 17px;
+  height: 17px;
+  margin-left: 5px;
+  align-items: center;
+  justify-content: center;
+  vertical-align: -3px;
+  color: #8752df;
+  background: transparent;
+  line-height: 1;
+  pointer-events: none;
+}
+.avatar-crown-gap-mark svg,
+.purple-crown-name-mark svg {
+  fill: rgba(135,82,223,.16);
+  filter: drop-shadow(0 1px 1px rgba(91,33,182,.18));
+}
+html[data-theme="dark"] .avatar.avatar-with-crown .avatar-crown-gap-mark,
+html[data-theme="dark"] .purple-crown-name-mark {
+  color: #c6aaff;
+}
