@@ -684,8 +684,8 @@ export default function HeloroSPanel({
         )}
 
         {tab === "channels" && (
-          <section className="admin-section"><div className="admin-section-heading"><div><h2>{ru ? "Официальные каналы" : "Official channels"}</h2><p>{ru ? "Публикации и обсуждения HELORO New" : "HELORO New posts and discussions"}</p></div></div>
-            <div className="admin-channel-actions"><button onClick={onOpenNews}><Megaphone size={18} /><span><strong>Heloro New</strong><small>{ru ? "Публикации, закрепление и комментарии" : "Posts, pinning and comments"}</small></span></button><button onClick={onOpenDiscussion}><MessageCircle size={18} /><span><strong>Heloro New — {ru ? "обсуждение" : "discussion"}</strong><small>{ru ? "Связанный групповой чат" : "Linked group discussion"}</small></span></button></div>
+          <section className="admin-section"><div className="admin-section-heading"><div><h2>{ru ? "Официальные каналы" : "Official channels"}</h2><p>{ru ? "Публикации и обсуждения HELORO News" : "HELORO News posts and discussions"}</p></div></div>
+            <div className="admin-channel-actions"><button onClick={onOpenNews}><Megaphone size={18} /><span><strong>HELORO News</strong><small>{ru ? "Публикации, закрепление и комментарии" : "Posts, pinning and comments"}</small></span></button><button onClick={onOpenDiscussion}><MessageCircle size={18} /><span><strong>HELORO News — {ru ? "обсуждение" : "discussion"}</strong><small>{ru ? "Связанный групповой чат" : "Linked group discussion"}</small></span></button></div>
           </section>
         )}
 
