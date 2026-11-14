@@ -37,19 +37,21 @@ function jsonResponse(body: Record<string, unknown>, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: corsHeaders });
 }
 
-function safeProperties(input: unknown): SafeProperties {
+function safeProperties(event: AnalyticsEvent, input: unknown): SafeProperties {
   if (!input || typeof input !== "object" || Array.isArray(input)) return {};
   const raw = input as Record<string, unknown>;
   const safe: SafeProperties = {};
 
   if (raw.platform === "web") safe.platform = "web";
   if (raw.locale === "ru" || raw.locale === "en") safe.locale = raw.locale;
-  if (raw.message_kind === "text" || raw.message_kind === "media" ||
-      raw.message_kind === "sticker" || raw.message_kind === "gif") {
+  if ((event === "message_send_succeeded" || event === "message_reply_received") &&
+      (raw.message_kind === "text" || raw.message_kind === "media" ||
+       raw.message_kind === "sticker" || raw.message_kind === "gif")) {
     safe.message_kind = raw.message_kind;
   }
-  if (raw.failure_category === "validation" || raw.failure_category === "backend" ||
-      raw.failure_category === "upload" || raw.failure_category === "unknown") {
+  if (event === "message_send_failed" &&
+      (raw.failure_category === "validation" || raw.failure_category === "backend" ||
+       raw.failure_category === "upload" || raw.failure_category === "unknown")) {
     safe.failure_category = raw.failure_category;
   }
   return safe;
@@ -180,12 +182,12 @@ Deno.serve(async (request: Request) => {
 
   const payload = body as Record<string, unknown>;
   const event = payload.event;
-  if (typeof event !== "string" || !(event in DESTINATIONS)) {
+  if (typeof event !== "string" || !Object.hasOwn(DESTINATIONS, event)) {
     return jsonResponse({ error: "event_not_allowed" }, 400);
   }
 
   const typedEvent = event as AnalyticsEvent;
-  const properties = safeProperties(payload.properties);
+  const properties = safeProperties(typedEvent, payload.properties);
   const config = providerConfig();
 
   // Analytics is explicitly opt-in and fail-closed. Missing settings never trigger provider requests.
