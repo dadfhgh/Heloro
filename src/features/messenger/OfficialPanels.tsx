@@ -39,6 +39,7 @@ import {
 import { formatMessageTime, initials } from "../../lib/domain";
 import type { Locale } from "../../lib/i18n";
 import HeloroSPanel from "./HeloroSPanel";
+import OfficialAvatar from "./OfficialAvatar";
 
 type View = "news" | "discussion" | "support" | "admin";
 
@@ -298,7 +299,7 @@ function NewsChannel({
   return (
     <div className="special-panel">
       <header className="chat-header">
-        <Avatar label={channelName} />
+        <OfficialAvatar client={client} kind="news" label={channelName} fallback={<Megaphone size={18} />} />
         <div className="chat-person">
           <strong>{channelName} <BadgeCheck className="system-verified-mark" size={15} style={{ color: "#229ED9", background: "transparent", boxShadow: "none" }} /></strong>
           <small>{ru ? "Официальный канал HELORO" : "Official HELORO channel"}</small>
@@ -546,7 +547,7 @@ function SupportChat({ client, user, locale }: Omit<Props, "view" | "roles" | "o
   return (
     <div className="special-panel support-panel">
       <header className="chat-header support-chat-header">
-        <div className="avatar system-avatar support-brand-avatar" aria-hidden="true"><Headphones size={21} strokeWidth={2.2} /></div>
+        <OfficialAvatar client={client} kind="support" label="Support Heloro" className="support-brand-avatar" fallback={<Headphones size={21} strokeWidth={2.2} />} />
         <div className="chat-person support-chat-person">
           <strong>Support Heloro <BadgeCheck size={16} className="support-verified-mark" aria-label={ru ? "Официальная поддержка HELORO" : "Official HELORO support"} /></strong>
           <small>{ru ? "Официальная поддержка HELORO" : "Official HELORO support"}</small>
@@ -555,7 +556,7 @@ function SupportChat({ client, user, locale }: Omit<Props, "view" | "roles" | "o
       </header>
       <div className="special-stream support-stream">
         <section className="support-welcome-card" aria-label={ru ? "Информация о поддержке" : "Support information"}>
-          <div className="support-welcome-icon"><Headphones size={25} /></div>
+          <div className="support-welcome-icon"><OfficialAvatar client={client} kind="support" label="Support Heloro" className="support-welcome-brand-avatar" fallback={<Headphones size={25} />} /></div>
           <div className="support-welcome-copy">
             <div className="support-welcome-title">Support Heloro <BadgeCheck size={15} className="support-verified-mark" /></div>
             <span>{ru ? "Официальный аккаунт команды HELORO" : "Official HELORO team account"}</span>
