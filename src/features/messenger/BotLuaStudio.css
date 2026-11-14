@@ -68,3 +68,54 @@ html[data-theme="dark"] .bot-lua-history > div { border-color: #383838; }
   .bot-lua-test-heading { align-items: flex-start; flex-direction: column; }
   .bot-lua-test-heading > span { text-align: left; }
 }
+
+.bot-lua-mode-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 4px; border: 1px solid #dedede; border-radius: 9px; background: #f0f0f0; }
+.bot-lua-mode-tabs button { display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 36px; border: 1px solid transparent; border-radius: 7px; color: #777; background: transparent; font: inherit; font-size: 11px; font-weight: 700; cursor: pointer; }
+.bot-lua-mode-tabs button.is-active { border-color: #ddd; color: #222; background: #fff; box-shadow: 0 1px 2px #0000000d; }
+.bot-lua-code-surface { position: relative; min-height: 260px; overflow: hidden; background: #171717; }
+.bot-lua-highlight, .bot-lua-code-surface .bot-lua-editor { box-sizing: border-box; width: 100%; min-height: 260px; margin: 0; padding: 14px; border: 0; font: 12px/1.65 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; tab-size: 2; white-space: pre; overflow-wrap: normal; }
+.bot-lua-highlight { position: absolute; inset: 0; z-index: 1; overflow: hidden; color: #e8e8e8; pointer-events: none; }
+.bot-lua-code-surface .bot-lua-editor { position: relative; z-index: 2; display: block; resize: vertical; overflow: auto; color: transparent; -webkit-text-fill-color: transparent; caret-color: #fff; background: transparent; outline: 0; }
+.bot-lua-code-surface .bot-lua-editor::selection { color: transparent; -webkit-text-fill-color: transparent; background: #ffffff35; }
+.bot-lua-token-comment { color: #7f9b80; }
+.bot-lua-token-string { color: #d5b879; }
+.bot-lua-token-keyword { color: #c792ea; }
+.bot-lua-token-builtin { color: #82b8df; }
+.bot-lua-token-number { color: #e79a75; }
+.bot-lua-modules { border: 1px solid #e2e2e2; border-radius: 9px; padding: 10px; color: #666; background: #fff; font-size: 10px; }
+.bot-lua-modules summary { display: flex; align-items: center; gap: 7px; cursor: pointer; color: #444; font-weight: 700; list-style: none; }
+.bot-lua-modules > p { margin: 8px 0; color: #888; font-size: 9px; line-height: 1.5; }
+.bot-lua-module-list { display: grid; gap: 6px; margin-top: 9px; }
+.bot-lua-module-list button { display: grid; gap: 3px; padding: 9px 10px; border: 1px solid #e5e5e5; border-radius: 7px; text-align: left; color: #444; background: #fafafa; cursor: pointer; }
+.bot-lua-module-list button strong { font-size: 10px; }
+.bot-lua-module-list button small { color: #888; font-size: 9px; }
+.bot-lua-diagnostics { display: grid; gap: 6px; padding: 10px; border: 1px solid #e2e2e2; border-radius: 9px; background: #fff; }
+.bot-lua-diagnostics-title { color: #555; font-size: 10px; font-weight: 750; }
+.bot-lua-diagnostic { display: flex; align-items: flex-start; gap: 7px; font-size: 9px; line-height: 1.5; }
+.bot-lua-diagnostic svg { flex: 0 0 auto; margin-top: 1px; }
+.bot-lua-diagnostic.is-error { color: #b44e4e; }
+.bot-lua-diagnostic.is-warning { color: #9a773d; }
+.bot-lua-diagnostic.is-info { color: #53815e; }
+.bot-lua-block-notice, .bot-lua-block-note, .bot-lua-publish-hint { padding: 9px 10px; border: 1px solid #e5d9b8; border-radius: 8px; color: #80673a; background: #fffaf0; font-size: 9px; line-height: 1.5; }
+.bot-lua-block-note { border-color: #dfe7ef; color: #627589; background: #f6f9fc; }
+.bot-lua-publish-hint { border-color: #dedede; color: #777; background: #f5f5f5; }
+html[data-theme="dark"] .bot-lua-mode-tabs { border-color: #393939; background: #181818; }
+html[data-theme="dark"] .bot-lua-mode-tabs button { color: #aaa; }
+html[data-theme="dark"] .bot-lua-mode-tabs button.is-active { border-color: #454545; color: #eee; background: #303030; }
+html[data-theme="dark"] .bot-lua-token-comment { color: #8aaa8b; }
+html[data-theme="dark"] .bot-lua-token-string { color: #e1c58c; }
+html[data-theme="dark"] .bot-lua-token-keyword { color: #d6a8f3; }
+html[data-theme="dark"] .bot-lua-token-builtin { color: #8ec6e9; }
+html[data-theme="dark"] .bot-lua-token-number { color: #f0a080; }
+html[data-theme="dark"] .bot-lua-modules,
+html[data-theme="dark"] .bot-lua-diagnostics { border-color: #444; color: #ccc; background: #292929; }
+html[data-theme="dark"] .bot-lua-modules summary,
+html[data-theme="dark"] .bot-lua-diagnostics-title { color: #eee; }
+html[data-theme="dark"] .bot-lua-module-list button { border-color: #444; color: #ddd; background: #202020; }
+html[data-theme="dark"] .bot-lua-block-notice { border-color: #625333; color: #e0c78f; background: #302919; }
+html[data-theme="dark"] .bot-lua-block-note { border-color: #3a4a5c; color: #b3c3d5; background: #222e3b; }
+html[data-theme="dark"] .bot-lua-publish-hint { border-color: #444; color: #aaa; background: #292929; }
+@media (max-width: 640px) {
+  .bot-lua-code-surface, .bot-lua-highlight, .bot-lua-code-surface .bot-lua-editor { min-height: 230px; }
+  .bot-lua-highlight, .bot-lua-code-surface .bot-lua-editor { font-size: 11px; }
+}
