@@ -1,9 +1,9 @@
 name: Bootstrap HELORO analytics SDK dependencies
 
 on:
-  push:
+  pull_request:
     branches:
-      - feat/heloro-dual-analytics
+      - feat/heloro-presence-chat-dates-avatars
     paths:
       - .github/workflows/install-analytics-deps.yml
 
