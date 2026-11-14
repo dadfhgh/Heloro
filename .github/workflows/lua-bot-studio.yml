@@ -5,10 +5,16 @@ on:
     paths:
       - "supabase/functions/run-bot-lua/**"
       - "supabase/migrations/*bot_lua_studio.sql"
+      - "src/features/messenger/BotLuaStudio.*"
+      - "src/features/messenger/BotVisualBuilder.*"
+      - "package.json"
+      - "vite.config.ts"
+      - "tsconfig.json"
       - ".github/workflows/lua-bot-studio.yml"
 
 jobs:
   deno:
+    name: Server-side Lua sandbox
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,3 +25,19 @@ jobs:
         run: deno check --config supabase/functions/run-bot-lua/deno.json supabase/functions/run-bot-lua/index.ts
       - name: Test Lua sandbox
         run: deno test --allow-env=FENGARICONF --config supabase/functions/run-bot-lua/deno.json supabase/functions/run-bot-lua/runtime.test.ts
+
+  frontend:
+    name: Typecheck, unit tests and production build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Run unit tests
+        run: npm test
+      - name: Build frontend
+        run: npm run build
