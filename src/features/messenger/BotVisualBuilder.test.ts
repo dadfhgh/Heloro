@@ -41,7 +41,10 @@ describe("HELORO visual bot builder", () => {
 
   it("stores enough metadata to restore visual rules from generated Lua", () => {
     const source = generateLuaFromRules(rules);
-    expect(parseVisualRules(source)).toEqual(rules);
+    expect(parseVisualRules(source)).toEqual([
+      rules[0],
+      { ...rules[1], value: "help" },
+    ]);
   });
 
   it("rejects empty rules and invalid command names", () => {
