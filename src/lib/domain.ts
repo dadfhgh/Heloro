@@ -41,3 +41,42 @@ export function formatInboxTime(value: string | null): string {
     ? formatMessageTime(value)
     : new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short" }).format(date);
 }
+
+function localDayNumber(date: Date): number {
+  return Math.floor(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / 86_400_000);
+}
+
+export function formatMessageDayLabel(value: string, locale: "ru" | "en", now = new Date()): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const dayDifference = localDayNumber(now) - localDayNumber(date);
+  if (dayDifference === 0) return locale === "ru" ? "Сегодня" : "Today";
+  if (dayDifference === 1) return locale === "ru" ? "Вчера" : "Yesterday";
+  return new Intl.DateTimeFormat(locale === "ru" ? "ru-RU" : "en-US", {
+    day: "numeric",
+    month: "long",
+    ...(date.getFullYear() !== now.getFullYear() ? { year: "numeric" as const } : {}),
+  }).format(date);
+}
+
+export function formatLastSeen(value: string, locale: "ru" | "en", now = new Date()): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const dayDifference = localDayNumber(now) - localDayNumber(date);
+  const time = new Intl.DateTimeFormat(locale === "ru" ? "ru-RU" : "en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+  if (date.getTime() > now.getTime() + 60_000) return "";
+  if (now.getTime() - date.getTime() < 60_000) {
+    return locale === "ru" ? "был(а) недавно" : "last seen recently";
+  }
+  if (dayDifference === 0) return locale === "ru" ? `был(а) сегодня в ${time}` : `last seen today at ${time}`;
+  if (dayDifference === 1) return locale === "ru" ? `был(а) вчера в ${time}` : `last seen yesterday at ${time}`;
+  const dateLabel = new Intl.DateTimeFormat(locale === "ru" ? "ru-RU" : "en-US", {
+    day: "numeric",
+    month: "short",
+    ...(date.getFullYear() !== now.getFullYear() ? { year: "numeric" as const } : {}),
+  }).format(date);
+  return locale === "ru" ? `был(а) ${dateLabel} в ${time}` : `last seen ${dateLabel} at ${time}`;
+}
