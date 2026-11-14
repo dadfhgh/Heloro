@@ -1,6 +1,6 @@
 begin;
 
-select plan(33);
+select plan(50);
 
 select has_table('public', 'profiles', 'profiles table exists');
 select has_table('public', 'conversations', 'conversations table exists');
@@ -38,5 +38,72 @@ select ok(exists (select 1 from pg_policies where schemaname = 'storage' and tab
 select has_function('public', 'heloro_admin_list_communities', array[]::text[], 'HELORO S community list RPC exists');
 select has_function('public', 'heloro_admin_delete_community', array['uuid'], 'HELORO S community deletion RPC exists');
 select ok(has_function_privilege('authenticated', 'public.heloro_admin_delete_community(uuid)', 'execute') and not has_function_privilege('anon', 'public.heloro_admin_delete_community(uuid)', 'execute'), 'community deletion RPC is restricted to authenticated users');
+
+-- Additional baseline security assertions for all application tables and RPCs.
+select ok(
+  not exists (
+    select 1
+    from pg_class c
+    join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public'
+      and c.relkind in ('r', 'p')
+      and not c.relrowsecurity
+  ),
+  'RLS is enabled on every public application table'
+);
+
+select ok(
+  (select relrowsecurity from pg_class where oid = 'storage.objects'::regclass),
+  'RLS is enabled on Storage objects'
+);
+
+select ok(
+  not has_schema_privilege('anon', 'private', 'USAGE'),
+  'anonymous users cannot access the private schema'
+);
+
+select ok(
+  not exists (
+    select 1
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and p.prosecdef
+      and not coalesce(p.proconfig, array[]::text[]) @> array['search_path=""']::text[]
+  ),
+  'public SECURITY DEFINER functions pin an empty search_path'
+);
+
+select ok(
+  not exists (
+    select 1
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and p.prosecdef
+      and has_function_privilege('anon', p.oid, 'EXECUTE')
+  ),
+  'anonymous users cannot execute public SECURITY DEFINER functions'
+);
+
+select ok(not has_table_privilege('anon', 'public.user_roles', 'select'), 'anonymous users cannot read HELORO staff roles');
+select ok(not has_table_privilege('anon', 'public.admin_action_logs', 'select'), 'anonymous users cannot read HELORO admin audit logs');
+select ok(not has_table_privilege('authenticated', 'public.admin_action_logs', 'insert'), 'signed-in users cannot directly insert admin audit logs');
+select ok(not has_table_privilege('authenticated', 'public.admin_action_logs', 'update'), 'signed-in users cannot directly update admin audit logs');
+select ok(not has_table_privilege('authenticated', 'public.admin_action_logs', 'delete'), 'signed-in users cannot directly delete admin audit logs');
+select ok(
+  not has_table_privilege('authenticated', 'public.user_roles', 'insert')
+  and not has_table_privilege('authenticated', 'public.user_roles', 'update')
+  and not has_table_privilege('authenticated', 'public.user_roles', 'delete'),
+  'signed-in users cannot directly change HELORO staff roles'
+);
+
+select ok(has_function_privilege('authenticated', 'public.save_bot_script(uuid,text,boolean)', 'execute'), 'bot owners can call the guarded script-save RPC');
+select ok(has_function_privilege('authenticated', 'public.prepare_bot_lua_message(uuid,text)', 'execute'), 'authenticated users can call the guarded bot-message prepare RPC');
+select ok(has_function_privilege('authenticated', 'public.finish_bot_lua_message(uuid,uuid,jsonb)', 'execute'), 'authenticated users can call the guarded bot-message finish RPC');
+select ok(not has_function_privilege('anon', 'public.save_bot_script(uuid,text,boolean)', 'execute'), 'anonymous users cannot save Lua bot scripts');
+select ok(not has_function_privilege('anon', 'public.prepare_bot_lua_message(uuid,text)', 'execute'), 'anonymous users cannot prepare Lua bot messages');
+select ok(not has_function_privilege('anon', 'public.finish_bot_lua_message(uuid,uuid,jsonb)', 'execute'), 'anonymous users cannot finish Lua bot messages');
+
 select * from finish();
 rollback;
