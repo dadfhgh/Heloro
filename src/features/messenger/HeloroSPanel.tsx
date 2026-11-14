@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { User } from "@supabase/supabase-js";
 import {
   Activity, BadgeCheck, Ban, Check, CheckCircle2, CircleAlert,
@@ -13,6 +13,7 @@ import {
 import { formatMessageTime } from "../../lib/domain";
 import type { Locale } from "../../lib/i18n";
 import type { PublicProfile } from "../../lib/types";
+import { adminErrorMessage, escapeAdminLikePattern, normalizeAdminSearch } from "./adminPanelUtils";
 
 type Props = {
   client: SupabaseClient;
@@ -34,6 +35,7 @@ type AdminReport = {
 type AdminThread = {
   id: string; user_id: string; status?: string; assigned_to?: string | null;
   created_at: string; updated_at: string;
+  username?: string | null; display_name?: string | null;
 };
 type ReportDecision = {
   id: string; report_id: string; actor_id: string;
@@ -45,7 +47,8 @@ type AuditEntry = {
   action: string; reason?: string | null; details?: Record<string, unknown>;
   created_at: string;
 };
-type StaffEntry = { user_id: string; role: string; granted_at: string };
+type StaffEntry = { user_id: string; role: string; granted_at: string; username?: string | null; display_name?: string | null };
+type ActiveRestriction = { id: string; restriction_type: string; reason: string; created_at: string; expires_at: string | null; revoked_at: string | null; created_by: string };
 type Overview = {
   users_total: number; registrations_24h: number; active_users_24h: number;
   messages_total: number; messages_24h: number; reports_open: number;
@@ -75,12 +78,17 @@ const settingDefinitions = [
   { key: "public_channels_enabled", ru: "Публичные каналы", en: "Public channels" },
 ];
 
-function errorText(cause: unknown, fallback: string) {
-  return cause instanceof Error ? cause.message : fallback;
+function errorText(cause: unknown, fallback: string, ru = /[А-Яа-яЁё]/.test(fallback)) {
+  return adminErrorMessage(cause, fallback, ru ? "ru" : "en");
 }
 
 function shortId(value: string | null | undefined) {
   return value ? value.slice(0, 8) : "—";
+}
+
+function dateTimeLocalValue(timestamp: number) {
+  const local = new Date(timestamp - new Date(timestamp).getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 16);
 }
 
 export default function HeloroSPanel({
@@ -91,18 +99,26 @@ export default function HeloroSPanel({
   const isAdmin = roles.includes("admin");
   const staff = isOwner || isAdmin || roles.includes("moderator");
   const canManageBadges = isOwner || isAdmin;
+  const maxRestrictionDays = isOwner || isAdmin ? 30 : 1;
   const [tab, setTab] = useState<TabId>("overview");
   const [busy, setBusy] = useState(false);
+  const [loadingTab, setLoadingTab] = useState<TabId | null>(null);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const selectedUserIdRef = useRef<string | null>(null);
+  const selectedThreadIdRef = useRef<string | null>(null);
+  const userSearchRequestRef = useRef(0);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [overview, setOverview] = useState<Overview | null>(null);
   const [search, setSearch] = useState("");
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
+  useEffect(() => { selectedUserIdRef.current = selectedUser?.id ?? null; }, [selectedUser]);
   const [reports, setReports] = useState<AdminReport[]>([]);
   const [reportDecisions, setReportDecisions] = useState<ReportDecision[]>([]);
   const [threads, setThreads] = useState<AdminThread[]>([]);
   const [selectedThread, setSelectedThread] = useState<AdminThread | null>(null);
+  useEffect(() => { selectedThreadIdRef.current = selectedThread?.id ?? null; }, [selectedThread]);
   const [supportMessages, setSupportMessages] = useState<SupportMessage[]>([]);
   const [reply, setReply] = useState("");
   const [audit, setAudit] = useState<AuditEntry[]>([]);
@@ -122,35 +138,59 @@ export default function HeloroSPanel({
     setNotice("");
   }
 
-  async function loadOverview() {
+  async function loadOverview(isCurrent: () => boolean = () => true) {
     const { data, error: queryError } = await client.rpc("heloro_admin_overview");
     if (queryError) throw queryError;
-    setOverview(data as Overview);
+    if (isCurrent()) setOverview(data as Overview);
   }
 
-  async function loadUsers(query: string) {
-    let request = client.from("profiles")
-      .select("id, username, display_name, avatar_url, created_at")
-      .order("created_at", { ascending: false })
-      .limit(30);
-    const normalized = query.trim().replace(/^@/, "").replace(/[%,_()]/g, "");
-    if (normalized.length >= 2) {
-      request = request.or("username.ilike.%"+normalized+"%,display_name.ilike.%"+normalized+"%");
-    } else if (query.trim().length > 0) {
-      setUsers([]);
+  async function loadUsers(query: string, isCurrent: () => boolean = () => true) {
+    const raw = query.trim();
+    const normalized = normalizeAdminSearch(raw);
+    if (raw.length > 0 && normalized.length < 2) {
+      if (isCurrent()) setUsers([]);
       return;
     }
-    const { data, error: queryError } = await request;
-    if (queryError) throw queryError;
-    setUsers((data ?? []) as AdminUser[]);
+
+    const columns = "id, username, display_name, avatar_url, created_at";
+    if (raw.length === 0) {
+      const { data, error: queryError } = await client.from("profiles")
+        .select(columns).order("created_at", { ascending: false }).limit(30);
+      if (queryError) throw queryError;
+      if (isCurrent()) setUsers((data ?? []) as AdminUser[]);
+      return;
+    }
+
+    const pattern = "%" + escapeAdminLikePattern(normalized) + "%";
+    const usernameQuery = client.from("profiles").select(columns)
+      .ilike("username", pattern).order("created_at", { ascending: false }).limit(30);
+    const queries = raw.startsWith("@")
+      ? [usernameQuery]
+      : [
+          usernameQuery,
+          client.from("profiles").select(columns)
+            .ilike("display_name", pattern).order("created_at", { ascending: false }).limit(30),
+        ];
+    const results = await Promise.all(queries);
+    const failed = results.find((result) => result.error);
+    if (failed?.error) throw failed.error;
+    const merged = new Map<string, AdminUser>();
+    for (const result of results) {
+      for (const item of (result.data ?? []) as AdminUser[]) merged.set(item.id, item);
+    }
+    const items = [...merged.values()]
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .slice(0, 30);
+    if (isCurrent()) setUsers(items);
   }
 
-  async function loadReports() {
+  async function loadReports(isCurrent: () => boolean = () => true) {
     const { data, error: queryError } = await client.from("user_reports")
       .select("id, reporter_id, reported_user_id, reason, details, status, created_at, target_type, target_id, review_note")
       .order("created_at", { ascending: false }).limit(100);
     if (queryError) throw queryError;
     const items = (data ?? []) as AdminReport[];
+    if (!isCurrent()) return;
     setReports(items);
     if (items.length === 0) { setReportDecisions([]); return; }
     const { data: history, error: historyError } = await client.from("user_report_decisions")
@@ -158,35 +198,66 @@ export default function HeloroSPanel({
       .in("report_id", items.map((item) => item.id))
       .order("created_at", { ascending: false });
     if (historyError) throw historyError;
-    setReportDecisions((history ?? []) as ReportDecision[]);
+    if (isCurrent()) setReportDecisions((history ?? []) as ReportDecision[]);
   }
 
-  async function loadThreads() {
+  async function loadThreads(isCurrent: () => boolean = () => true): Promise<AdminThread[]> {
     const { data, error: queryError } = await client.from("support_threads")
       .select("id, user_id, status, assigned_to, created_at, updated_at")
       .order("updated_at", { ascending: false }).limit(100);
     if (queryError) throw queryError;
-    setThreads((data ?? []) as AdminThread[]);
+    const rows = (data ?? []) as AdminThread[];
+    if (rows.length === 0) {
+      if (isCurrent()) setThreads([]);
+      return [];
+    }
+    const { data: profileRows, error: profileError } = await client.from("profiles")
+      .select("id, username, display_name")
+      .in("id", rows.map((item) => item.user_id));
+    if (profileError) console.warn("HELORO support profile lookup failed:", profileError.message);
+    const profileById = new Map((profileRows ?? []).map((item) => [item.id, item]));
+    const items = rows.map((item) => ({
+      ...item,
+      username: profileById.get(item.user_id)?.username ?? null,
+      display_name: profileById.get(item.user_id)?.display_name ?? null,
+    }));
+    if (isCurrent()) setThreads(items);
+    return items;
   }
 
-  async function loadAudit() {
+  async function loadAudit(isCurrent: () => boolean = () => true) {
     const { data, error: queryError } = await client.from("admin_action_logs")
       .select("id, actor_id, target_user_id, target_type, target_id, action, reason, details, created_at")
       .order("created_at", { ascending: false }).limit(100);
     if (queryError) throw queryError;
-    setAudit((data ?? []) as AuditEntry[]);
+    if (isCurrent()) setAudit((data ?? []) as AuditEntry[]);
   }
 
-  async function loadStaff() {
+  async function loadStaff(isCurrent: () => boolean = () => true) {
     const { data, error: queryError } = await client.rpc("heloro_admin_list_staff");
     if (queryError) throw queryError;
-    setStaffEntries((data ?? []) as StaffEntry[]);
+    const rows = (data ?? []) as StaffEntry[];
+    if (rows.length === 0) {
+      if (isCurrent()) setStaffEntries([]);
+      return;
+    }
+    const { data: profileRows, error: profileError } = await client.from("profiles")
+      .select("id, username, display_name")
+      .in("id", rows.map((item) => item.user_id));
+    const profileById = new Map((profileRows ?? []).map((item) => [item.id, item]));
+    const enriched = rows.map((item) => ({
+      ...item,
+      username: profileById.get(item.user_id)?.username ?? null,
+      display_name: profileById.get(item.user_id)?.display_name ?? null,
+    }));
+    if (profileError) console.warn("HELORO staff profile lookup failed:", profileError.message);
+    if (isCurrent()) setStaffEntries(enriched);
   }
 
-  async function loadCommunities() {
+  async function loadCommunities(isCurrent: () => boolean = () => true) {
     const { data, error: queryError } = await client.rpc("heloro_admin_list_communities");
     if (queryError) throw queryError;
-    setCommunities((data ?? []) as CommunityEntry[]);
+    if (isCurrent()) setCommunities((data ?? []) as CommunityEntry[]);
   }
 
   async function deleteCommunity(item: CommunityEntry) {
@@ -198,34 +269,40 @@ export default function HeloroSPanel({
       if (rpcError) throw rpcError;
       setCommunities((current) => current.filter((row) => row.id !== item.id));
       setNotice(ru ? "Сообщество удалено для всех участников." : "Community deleted for all members.");
-      await loadAudit();
+      void loadAudit().catch((cause: unknown) => {
+        setError(errorText(cause, ru ? "Сообщество удалено, но журнал не удалось обновить." : "Community deleted, but the audit log could not be refreshed.", ru));
+      });
     } catch (cause) {
-      setError(errorText(cause, ru ? "Не удалось удалить сообщество." : "Could not delete community."));
+      setError(errorText(cause, ru ? "Не удалось удалить сообщество." : "Could not delete community.", ru));
     } finally { setBusy(false); }
   }
 
-  async function loadSettings() {
+  async function loadSettings(isCurrent: () => boolean = () => true) {
     const { data, error: queryError } = await client.from("heloro_settings")
       .select("setting_key, value, updated_at, updated_by")
       .order("setting_key");
     if (queryError) throw queryError;
-    setSettings((data ?? []) as SettingEntry[]);
+    if (isCurrent()) setSettings((data ?? []) as SettingEntry[]);
   }
 
   useEffect(() => {
     let active = true;
     clearMessages();
+    const isCurrent = () => active;
     const run = async () => {
+      setLoadingTab(tab);
       try {
-        if (tab === "overview") await loadOverview();
-        if (tab === "reports") await loadReports();
-        if (tab === "support") await loadThreads();
-        if (tab === "audit") await loadAudit();
-        if (tab === "roles") await loadStaff();
-        if (tab === "settings") await loadSettings();
-        if (tab === "groups") await loadCommunities();
+        if (tab === "overview") await loadOverview(isCurrent);
+        if (tab === "reports") await loadReports(isCurrent);
+        if (tab === "support") await loadThreads(isCurrent);
+        if (tab === "audit") await loadAudit(isCurrent);
+        if (tab === "roles") await loadStaff(isCurrent);
+        if (tab === "settings") await loadSettings(isCurrent);
+        if (tab === "groups") await loadCommunities(isCurrent);
       } catch (cause) {
-        if (active) setError(errorText(cause, ru ? "Не удалось загрузить раздел." : "Could not load this section."));
+        if (active) setError(errorText(cause, ru ? "Не удалось загрузить раздел." : "Could not load this section.", ru));
+      } finally {
+        if (active) setLoadingTab(null);
       }
     };
     if (staff) void run();
@@ -233,59 +310,119 @@ export default function HeloroSPanel({
   }, [client, tab, staff, ru]);
 
   useEffect(() => {
-    if (!["users", "moderation", "verification", "roles"].includes(tab)) return;
-    let active = true;
-    const timer = window.setTimeout(() => {
-      loadUsers(search).catch((cause: unknown) => {
-        if (active) setError(errorText(cause, ru ? "Не удалось найти пользователей." : "Could not search users."));
-      });
-    }, 180);
-    return () => { active = false; window.clearTimeout(timer); };
-  }, [client, tab, search, ru]);
-
-  useEffect(() => {
-    if (!selectedThread) {
-      setSupportMessages([]);
+    if (!["users", "moderation", "verification", "roles"].includes(tab)) {
+      setUsersLoading(false);
       return;
     }
     let active = true;
-    getSupportMessages(client, selectedThread.id)
-      .then((items) => { if (active) setSupportMessages(items); })
-      .catch((cause: unknown) => { if (active) setError(errorText(cause, ru ? "Не удалось загрузить переписку поддержки." : "Could not load support conversation.")); });
-    const channel = client.channel("heloro-s-admin-support-"+selectedThread.id)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "support_messages", filter: "thread_id=eq."+selectedThread.id }, (payload) => {
+    const requestId = ++userSearchRequestRef.current;
+    setUsersLoading(true);
+    const timer = window.setTimeout(() => {
+      loadUsers(search, () => active && userSearchRequestRef.current === requestId)
+        .catch((cause: unknown) => {
+          if (active && userSearchRequestRef.current === requestId) {
+            setError(errorText(cause, ru ? "Не удалось найти пользователей." : "Could not search users.", ru));
+          }
+        })
+        .finally(() => {
+          if (active && userSearchRequestRef.current === requestId) setUsersLoading(false);
+        });
+    }, 180);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+      if (userSearchRequestRef.current === requestId) userSearchRequestRef.current += 1;
+      setUsersLoading(false);
+    };
+  }, [client, tab, search, ru]);
+
+  useEffect(() => {
+    if (tab !== "support" || !selectedThread) {
+      if (!selectedThread) selectedThreadIdRef.current = null;
+      setSupportMessages([]);
+      return;
+    }
+    const threadId = selectedThread.id;
+    selectedThreadIdRef.current = threadId;
+    let active = true;
+    setSupportMessages([]);
+    getSupportMessages(client, threadId)
+      .then((items) => {
+        if (active && selectedThreadIdRef.current === threadId) setSupportMessages(items);
+      })
+      .catch((cause: unknown) => {
+        if (active && selectedThreadIdRef.current === threadId) {
+          setError(errorText(cause, ru ? "Не удалось загрузить переписку поддержки." : "Could not load support conversation.", ru));
+        }
+      });
+    const channel = client.channel("heloro-s-admin-support-"+threadId)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "support_messages", filter: "thread_id=eq."+threadId }, (payload) => {
+        if (!active || selectedThreadIdRef.current !== threadId) return;
         const item = payload.new as SupportMessage;
         setSupportMessages((current) => current.some((row) => row.id === item.id) ? current : [...current, item]);
       }).subscribe();
     return () => { active = false; void client.removeChannel(channel); };
-  }, [client, selectedThread, ru]);
+  }, [client, selectedThread, tab, ru]);
+
+  async function loadSelectedRestrictions(targetUserId = selectedUser?.id): Promise<ActiveRestriction[]> {
+    if (!targetUserId) return [];
+    const { data, error: queryError } = await client.from("account_restrictions")
+      .select("id, restriction_type, reason, created_at, expires_at, revoked_at, created_by")
+      .eq("user_id", targetUserId)
+      .is("revoked_at", null)
+      .order("created_at", { ascending: false });
+    if (queryError) throw queryError;
+    return ((data ?? []) as ActiveRestriction[]).filter((item) =>
+      !item.expires_at || new Date(item.expires_at).getTime() > Date.now()
+    );
+  }
 
   async function applyRestriction() {
     if (!selectedUser || !restrictionReason.trim()) return;
-    if (!window.confirm(ru ? "Подтвердить это действие модерации?" : "Confirm this moderation action?")) return;
-    if (restrictionType === "temporary_ban" && !restrictionUntil) {
-      setError(ru ? "Укажите дату окончания временного ограничения." : "Set an expiry for the temporary restriction.");
-      return;
+    const targetUserId = selectedUser.id;
+    const maxDays = isOwner || isAdmin ? 30 : 1;
+    let expiresAt: string | null = null;
+    if (restrictionType === "temporary_ban") {
+      const expiryTime = new Date(restrictionUntil).getTime();
+      const maxExpiry = Date.now() + maxDays * 24 * 60 * 60 * 1000;
+      if (!restrictionUntil || !Number.isFinite(expiryTime) || expiryTime <= Date.now() || expiryTime > maxExpiry) {
+        setError(ru
+          ? `Укажите срок в будущем, не более чем на ${maxDays} дн.`
+          : `Choose a future expiry within ${maxDays} day(s).`);
+        return;
+      }
+      expiresAt = new Date(expiryTime).toISOString();
     }
+    if (!window.confirm(ru ? "Подтвердить это действие модерации?" : "Confirm this moderation action?")) return;
     setBusy(true); clearMessages();
     try {
-      const expiresAt = restrictionType === "temporary_ban" ? new Date(restrictionUntil).toISOString() : null;
       const { error: rpcError } = await client.rpc("heloro_admin_apply_restriction", {
-        p_target_user_id: selectedUser.id,
+        p_target_user_id: targetUserId,
         p_restriction_type: restrictionType,
         p_reason: restrictionReason.trim(),
         p_expires_at: expiresAt,
       });
       if (rpcError) throw rpcError;
-      setNotice(ru ? "Действие модерации записано." : "Moderation action saved.");
+
+      setNotice(ru ? "Действие модерации сохранено." : "Moderation action saved.");
       setRestrictionReason("");
-      await loadAudit();
+      setRestrictionUntil("");
+
+      try {
+        const refreshed = await loadSelectedRestrictions(targetUserId);
+        if (selectedUserIdRef.current === targetUserId) setActiveRestrictions(refreshed);
+      } catch (refreshError) {
+        setError(errorText(refreshError, ru ? "Действие применено, но список не удалось обновить." : "Action applied, but the restriction list could not be refreshed.", ru));
+      }
+      void loadAudit().catch((cause: unknown) => {
+        setError(errorText(cause, ru ? "Действие сохранено, но журнал не обновился." : "Action saved, but the audit log could not be refreshed.", ru));
+      });
     } catch (cause) {
-      setError(errorText(cause, ru ? "Не удалось применить ограничение." : "Could not apply restriction."));
+      setError(errorText(cause, ru ? "Не удалось применить ограничение." : "Could not apply restriction.", ru));
     } finally { setBusy(false); }
   }
 
-  async function revokeRestriction(restrictionId: string) {
+  async function revokeRestriction(restrictionId: string, targetUserId: string) {
     if (!window.confirm(ru ? "Снять это ограничение?" : "Revoke this restriction?")) return;
     setBusy(true); clearMessages();
     try {
@@ -294,30 +431,34 @@ export default function HeloroSPanel({
         p_reason: ru ? "Снято через HELORO S" : "Revoked from HELORO S",
       });
       if (rpcError) throw rpcError;
+
       setNotice(ru ? "Ограничение снято." : "Restriction lifted.");
-      await loadAudit();
+      try {
+        const refreshed = await loadSelectedRestrictions(targetUserId);
+        if (selectedUserIdRef.current === targetUserId) setActiveRestrictions(refreshed);
+      } catch (refreshError) {
+        setError(errorText(refreshError, ru ? "Ограничение снято, но список не удалось обновить." : "Restriction revoked, but the list could not be refreshed.", ru));
+      }
+      void loadAudit().catch((cause: unknown) => {
+        setError(errorText(cause, ru ? "Ограничение снято, но журнал не обновился." : "Restriction revoked, but the audit log could not be refreshed.", ru));
+      });
     } catch (cause) {
-      setError(errorText(cause, ru ? "Не удалось снять ограничение." : "Could not lift restriction."));
+      setError(errorText(cause, ru ? "Не удалось снять ограничение." : "Could not lift restriction.", ru));
     } finally { setBusy(false); }
   }
 
-  async function loadSelectedRestrictions() {
-    if (!selectedUser) return [];
-    const { data, error: queryError } = await client.from("account_restrictions")
-      .select("id, restriction_type, reason, created_at, expires_at, revoked_at")
-      .eq("user_id", selectedUser.id).is("revoked_at", null).order("created_at", { ascending: false });
-    if (queryError) throw queryError;
-    return ((data ?? []) as { id: string; restriction_type: string; reason: string; created_at: string; expires_at: string | null; revoked_at: string | null }[]).filter((item) => !item.expires_at || new Date(item.expires_at).getTime() > Date.now());
-  }
-
-  const [activeRestrictions, setActiveRestrictions] = useState<{ id: string; restriction_type: string; reason: string; created_at: string; expires_at: string | null; revoked_at: string | null }[]>([]);
+  const [activeRestrictions, setActiveRestrictions] = useState<ActiveRestriction[]>([]);
   useEffect(() => {
     let active = true;
     if (tab !== "moderation" || !selectedUser) { setActiveRestrictions([]); return; }
-    loadSelectedRestrictions().then((items) => { if (active) setActiveRestrictions(items); })
-      .catch((cause: unknown) => { if (active) setError(errorText(cause, ru ? "Не удалось загрузить ограничения." : "Could not load restrictions.")); });
+    const targetUserId = selectedUser.id;
+    loadSelectedRestrictions(targetUserId).then((items) => {
+      if (active && selectedUserIdRef.current === targetUserId) setActiveRestrictions(items);
+    }).catch((cause: unknown) => {
+      if (active) setError(errorText(cause, ru ? "Не удалось загрузить ограничения." : "Could not load restrictions.", ru));
+    });
     return () => { active = false; };
-  }, [client, tab, selectedUser]);
+  }, [client, tab, selectedUser, ru]);
 
   async function updateReport(report: AdminReport, status: string) {
     setBusy(true); clearMessages();
@@ -328,10 +469,12 @@ export default function HeloroSPanel({
         p_note: (reportNote[report.id] ?? "").trim(),
       });
       if (rpcError) throw rpcError;
-      await loadReports();
       setNotice(ru ? "Решение по жалобе сохранено." : "Report decision saved.");
+      void loadReports().catch((cause: unknown) => {
+        setError(errorText(cause, ru ? "Решение сохранено, но список жалоб не обновился." : "Decision saved, but the report list could not be refreshed.", ru));
+      });
     } catch (cause) {
-      setError(errorText(cause, ru ? "Не удалось обновить жалобу." : "Could not update report."));
+      setError(errorText(cause, ru ? "Не удалось обновить жалобу." : "Could not update report.", ru));
     } finally { setBusy(false); }
   }
 
@@ -344,24 +487,39 @@ export default function HeloroSPanel({
         p_assigned_to: assignedTo,
       });
       if (rpcError) throw rpcError;
-      await loadThreads();
       setNotice(ru ? "Обращение обновлено." : "Support thread updated.");
+      void loadThreads().then((refreshed) => {
+        const current = refreshed.find((item) => item.id === thread.id);
+        if (current && selectedThreadIdRef.current === thread.id) setSelectedThread(current);
+      }).catch((cause: unknown) => {
+        setError(errorText(cause, ru ? "Обращение обновлено, но список поддержки не обновился." : "Support request updated, but the inbox could not be refreshed.", ru));
+      });
     } catch (cause) {
-      setError(errorText(cause, ru ? "Не удалось обновить обращение." : "Could not update support thread."));
+      setError(errorText(cause, ru ? "Не удалось обновить обращение." : "Could not update support thread.", ru));
     } finally { setBusy(false); }
   }
 
   async function sendReply(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selectedThread || !reply.trim()) return;
+    const threadId = selectedThread?.id;
+    const message = reply.trim();
+    if (!threadId || !message || busy) return;
     setBusy(true); clearMessages();
     try {
-      const item = await sendSupportMessage(client, selectedThread.id, user.id, reply.trim());
-      setSupportMessages((current) => current.some((row) => row.id === item.id) ? current : [...current, item]);
-      setReply("");
-      await loadThreads();
+      const item = await sendSupportMessage(client, threadId, user.id, message);
+      if (selectedThreadIdRef.current === threadId) {
+        setSupportMessages((current) => current.some((row) => row.id === item.id) ? current : [...current, item]);
+        setReply("");
+      }
+      setNotice(ru ? "Ответ отправлен." : "Reply sent.");
+      void loadThreads().then((refreshed) => {
+        const current = refreshed.find((thread) => thread.id === threadId);
+        if (current && selectedThreadIdRef.current === threadId) setSelectedThread(current);
+      }).catch((cause: unknown) => {
+        setError(errorText(cause, ru ? "Ответ отправлен, но список обращений не обновился." : "Reply sent, but the support inbox could not be refreshed.", ru));
+      });
     } catch (cause) {
-      setError(errorText(cause, ru ? "Не удалось отправить ответ." : "Could not send reply."));
+      setError(errorText(cause, ru ? "Не удалось отправить ответ." : "Could not send reply.", ru));
     } finally { setBusy(false); }
   }
 
@@ -374,10 +532,12 @@ export default function HeloroSPanel({
         p_role: nextRole,
       });
       if (rpcError) throw rpcError;
-      await loadStaff();
       setNotice(ru ? "Роль обновлена." : "Role updated.");
+      void loadStaff().catch((cause: unknown) => {
+        setError(errorText(cause, ru ? "Роль изменена, но список сотрудников не обновился." : "Role changed, but the staff list could not be refreshed.", ru));
+      });
     } catch (cause) {
-      setError(errorText(cause, ru ? "Не удалось изменить роль." : "Could not change role."));
+      setError(errorText(cause, ru ? "Не удалось изменить роль." : "Could not change role.", ru));
     } finally { setBusy(false); }
   }
 
@@ -390,11 +550,26 @@ export default function HeloroSPanel({
         p_value: value,
       });
       if (rpcError) throw rpcError;
-      await loadSettings();
       setNotice(ru ? "Настройка сохранена." : "Setting saved.");
+      void loadSettings().catch((cause: unknown) => {
+        setError(errorText(cause, ru ? "Настройка сохранена, но список параметров не обновился." : "Setting saved, but settings could not be refreshed.", ru));
+      });
     } catch (cause) {
-      setError(errorText(cause, ru ? "Не удалось сохранить настройку." : "Could not save setting."));
+      setError(errorText(cause, ru ? "Не удалось сохранить настройку." : "Could not save setting.", ru));
     } finally { setBusy(false); }
+  }
+
+  async function refreshAdminData(loader: () => Promise<unknown>, fallback: string) {
+    const section = tab;
+    setLoadingTab(section);
+    setError("");
+    try {
+      await loader();
+    } catch (cause) {
+      setError(errorText(cause, fallback, ru));
+    } finally {
+      setLoadingTab((current) => current === section ? null : current);
+    }
   }
 
   async function saveBadge(target: AdminUser) {
@@ -408,12 +583,28 @@ export default function HeloroSPanel({
     try {
       await setVerificationBadge(client, target.id, user.id, badgeType);
       setNotice(ru ? "Отметка верификации обновлена." : "Verification badge updated.");
-      await loadAudit();
+      void loadAudit().catch((cause: unknown) => {
+        setError(errorText(cause, ru ? "Отметка обновлена, но журнал не обновился." : "Badge updated, but the audit log could not be refreshed.", ru));
+      });
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : "";
       setError(message.includes("epic_sans_badge_already_assigned")
         ? (ru ? "Эксклюзивная отметка Epic Sans уже выдана другому аккаунту." : "The exclusive Epic Sans badge is already assigned to another account.")
-        : errorText(cause, ru ? "Не удалось изменить отметку." : "Could not update badge."));
+        : errorText(cause, ru ? "Не удалось изменить отметку." : "Could not update badge.", ru));
+    } finally { setBusy(false); }
+  }
+
+  async function revokeBadge(target: AdminUser) {
+    if (!window.confirm(ru ? "Снять отметку верификации?" : "Revoke this verification badge?")) return;
+    setBusy(true); clearMessages();
+    try {
+      await setVerificationBadge(client, target.id, user.id, null);
+      setNotice(ru ? "Отметка снята." : "Badge revoked.");
+      void loadAudit().catch((cause: unknown) => {
+        setError(errorText(cause, ru ? "Отметка снята, но журнал не обновился." : "Badge revoked, but the audit log could not be refreshed.", ru));
+      });
+    } catch (cause) {
+      setError(errorText(cause, ru ? "Не удалось снять отметку." : "Could not revoke badge.", ru));
     } finally { setBusy(false); }
   }
 
@@ -421,11 +612,25 @@ export default function HeloroSPanel({
     return tabItems.filter((item) => {
       if (item.id === "roles" || item.id === "settings") return isOwner;
       if (item.id === "verification") return canManageBadges;
-      if (item.id === "security") return isOwner || isAdmin;
-      if (item.id === "groups") return isOwner || isAdmin;
+      if (item.id === "security" || item.id === "groups") return isOwner || isAdmin;
       return true;
     });
   }
+
+  function filteredCommunities() {
+    const query = communitySearch.trim().replace(/^@/, "").toLocaleLowerCase();
+    if (!query) return communities;
+    return communities.filter((item) => (item.name + " " + (item.username ?? "")).toLocaleLowerCase().includes(query));
+  }
+
+  useEffect(() => {
+    if (!visibleTabs().some((item) => item.id === tab)) {
+      setTab("overview");
+      setSelectedUser(null);
+      setSelectedThread(null);
+      setActiveRestrictions([]);
+    }
+  }, [isOwner, isAdmin, canManageBadges, tab]);
 
   if (!staff) return null;
 
@@ -448,10 +653,11 @@ export default function HeloroSPanel({
         </nav>
         {error && <div className="admin-alert admin-alert-error" role="alert"><CircleAlert size={15} />{error}<button onClick={() => setError("")} aria-label={ru ? "Закрыть" : "Dismiss"}><X size={14} /></button></div>}
         {notice && <div className="admin-alert admin-alert-success" role="status"><CheckCircle2 size={15} />{notice}<button onClick={() => setNotice("")} aria-label={ru ? "Закрыть" : "Dismiss"}><X size={14} /></button></div>}
+        {loadingTab === tab && <div className="admin-section-loading" role="status"><RefreshCw size={14} />{ru ? "Загрузка раздела…" : "Loading section…"}</div>}
 
         {tab === "overview" && (
           <section className="admin-section">
-            <div className="admin-section-heading"><div><h2>{ru ? "Обзор" : "Overview"}</h2><p>{ru ? "Сводка по активности сервиса" : "Service activity summary"}</p></div><button className="admin-icon-action" onClick={() => void loadOverview()}><RefreshCw size={15} />{ru ? "Обновить" : "Refresh"}</button></div>
+            <div className="admin-section-heading"><div><h2>{ru ? "Обзор" : "Overview"}</h2><p>{ru ? "Сводка по активности сервиса" : "Service activity summary"}</p></div><button className="admin-icon-action" onClick={() => void refreshAdminData(() => loadOverview(), ru ? "Не удалось загрузить обзор." : "Could not load overview.")}><RefreshCw size={15} />{ru ? "Обновить" : "Refresh"}</button></div>
             {overview ? <div className="admin-stats-grid">
               {[
                 [ru ? "Пользователи" : "Users", overview.users_total],
@@ -470,14 +676,15 @@ export default function HeloroSPanel({
         {(tab === "users" || tab === "moderation" || tab === "roles" || tab === "verification") && (
           <section className="admin-section">
             <div className="admin-section-heading"><div><h2>{tab === "users" ? (ru ? "Пользователи" : "Users") : tab === "moderation" ? (ru ? "Модерация аккаунтов" : "Account moderation") : tab === "roles" ? (ru ? "Роли и доступ" : "Roles and access") : (ru ? "Верификация" : "Verification")}</h2><p>{ru ? "Поиск по имени или @username" : "Search by name or @username"}</p></div></div>
-            <div className="admin-search"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={ru ? "Имя пользователя или @username" : "Display name or @username"} /><button onClick={() => setSearch("")} aria-label={ru ? "Очистить" : "Clear"}><X size={14} /></button></div>
-            <div className="admin-user-results">
+            <div className="admin-search"><Search size={16} /><input value={search} onChange={(event) => { setUsers([]); setSelectedUser(null); setActiveRestrictions([]); setSearch(event.target.value); }} placeholder={ru ? "Имя пользователя или @username" : "Display name or @username"} /><button onClick={() => { setUsers([]); setSelectedUser(null); setActiveRestrictions([]); setSearch(""); }} aria-label={ru ? "Очистить" : "Clear"}><X size={14} /></button></div>
+            <div className="admin-user-results" aria-live="polite">
+              {usersLoading && <p className="admin-muted" role="status">{ru ? "Поиск пользователей…" : "Searching users…"}</p>}
               {users.map((item) => <button key={item.id} className={"admin-user-row"+(selectedUser?.id === item.id ? " active" : "")} onClick={() => setSelectedUser(item)}>
                 <span className="admin-user-avatar">{(item.display_name || item.username || "?").slice(0,1).toUpperCase()}</span>
                 <span className="admin-user-copy"><strong>{item.display_name || item.username || "—"}</strong><small>@{item.username || "—"} · {ru ? "регистрация" : "joined"} {new Date(item.created_at).toLocaleDateString()}</small></span>
                 <span className="admin-user-select"><Check size={15} /></span>
               </button>)}
-              {users.length === 0 && <p className="admin-muted">{ru ? "Введите минимум 2 символа для поиска." : "Enter at least 2 characters to search."}</p>}
+              {!usersLoading && users.length === 0 && <p className="admin-muted">{search.trim().length === 0 ? (ru ? "Пользователей пока нет." : "No users found.") : normalizeAdminSearch(search).length < 2 ? (ru ? "Введите минимум 2 символа." : "Enter at least 2 characters.") : (ru ? "Ничего не найдено." : "No matching users.")}</p>}
             </div>
             {selectedUser && (
               <div className="admin-selected-user">
@@ -490,16 +697,19 @@ export default function HeloroSPanel({
                       <option value="freeze" disabled={!isOwner && !isAdmin}>{ru ? "Заморозить аккаунт" : "Freeze account"}</option>
                       <option value="ban" disabled={!isOwner && !isAdmin}>{ru ? "Заблокировать аккаунт" : "Ban account"}</option>
                     </select></label>
-                    {restrictionType === "temporary_ban" && <label>{ru ? "Действует до" : "Expires at"}<input type="datetime-local" value={restrictionUntil} onChange={(event) => setRestrictionUntil(event.target.value)} /></label>}
+                    {restrictionType === "temporary_ban" && <label>{ru ? "Действует до" : "Expires at"}<input type="datetime-local" min={dateTimeLocalValue(Date.now() + 60_000)} max={dateTimeLocalValue(Date.now() + maxRestrictionDays * 24 * 60 * 60 * 1000)} value={restrictionUntil} onChange={(event) => setRestrictionUntil(event.target.value)} /></label>}
                     <label>{ru ? "Причина (обязательно)" : "Reason (required)"}<textarea rows={2} value={restrictionReason} onChange={(event) => setRestrictionReason(event.target.value)} maxLength={1000} /></label>
                     <button className="admin-primary-action" disabled={busy || !restrictionReason.trim() || selectedUser.id === user.id} onClick={() => void applyRestriction()}><Ban size={15} />{ru ? "Применить действие" : "Apply action"}</button>
                     <div className="admin-active-restrictions"><strong>{ru ? "Активные действия" : "Active actions"}</strong>
-                      {activeRestrictions.length === 0 ? <small>{ru ? "Активных ограничений нет." : "No active restrictions."}</small> : activeRestrictions.map((item) => <div key={item.id}><span>{item.restriction_type}: {item.reason}</span><button disabled={busy} onClick={() => void revokeRestriction(item.id)}>{ru ? "Снять" : "Revoke"}</button></div>)}
+                      {activeRestrictions.length === 0 ? <small>{ru ? "Активных ограничений нет." : "No active restrictions."}</small> : activeRestrictions.map((item) => {
+                        const canRevoke = isOwner || isAdmin || item.created_by === user.id;
+                        return <div key={item.id}><span>{item.restriction_type}: {item.reason}{item.expires_at ? " · " + (ru ? "до" : "until") + " " + new Date(item.expires_at).toLocaleString() : ""}</span><button disabled={busy || !canRevoke} title={!canRevoke ? (ru ? "Модератор может снять только своё ограничение." : "Moderators can revoke only their own actions.") : undefined} onClick={() => void revokeRestriction(item.id, selectedUser.id)}>{ru ? "Снять" : "Revoke"}</button></div>;
+                      })}
                     </div>
                   </div>
                 )}
                 {tab === "roles" && isOwner && <div className="admin-role-editor"><select value={roleChoice} onChange={(event) => setRoleChoice(event.target.value)}><option value="admin">Admin</option><option value="moderator">Moderator</option></select><button disabled={busy || selectedUser.id === user.id} onClick={() => void changeRole(selectedUser, roleChoice)}>{ru ? "Назначить роль" : "Assign role"}</button><button className="admin-secondary-action" disabled={busy || selectedUser.id === user.id} onClick={() => void changeRole(selectedUser, null)}>{ru ? "Снять роль" : "Remove role"}</button></div>}
-                {tab === "verification" && canManageBadges && <div className="admin-role-editor"><select value={badgeType} onChange={(event) => setBadgeType(event.target.value as BadgeType)}><option value="blue">{ru ? "Синяя — подтверждённая личность" : "Blue — verified identity"}</option><option value="gold">{ru ? "Золотая — организация" : "Gold — organization"}</option><option value="creator">{ru ? "Автор" : "Creator"}</option><option value="epic_sans" disabled={!isOwner}>{ru ? "Epic Sans — эксклюзивная фиолетовая звезда" : "Epic Sans — exclusive violet star"}</option></select><button disabled={busy} onClick={() => void saveBadge(selectedUser)}>{ru ? "Выдать отметку" : "Grant badge"}</button><button className="admin-secondary-action" disabled={busy} onClick={() => { if (window.confirm(ru ? "Снять отметку верификации?" : "Revoke this verification badge?")) void setVerificationBadge(client, selectedUser.id, user.id, null).then(() => loadAudit()).then(() => setNotice(ru ? "Отметка снята." : "Badge revoked.")).catch((cause: unknown) => setError(errorText(cause, "Could not revoke badge."))); }}>{ru ? "Снять отметку" : "Revoke badge"}</button></div>}
+                {tab === "verification" && canManageBadges && <div className="admin-role-editor"><select value={badgeType} onChange={(event) => setBadgeType(event.target.value as BadgeType)}><option value="blue">{ru ? "Синяя — подтверждённая личность" : "Blue — verified identity"}</option><option value="gold">{ru ? "Золотая — организация" : "Gold — organization"}</option><option value="creator">{ru ? "Автор" : "Creator"}</option><option value="epic_sans" disabled={!isOwner}>{ru ? "Epic Sans — эксклюзивная фиолетовая звезда" : "Epic Sans — exclusive violet star"}</option></select><button disabled={busy} onClick={() => void saveBadge(selectedUser)}>{ru ? "Выдать отметку" : "Grant badge"}</button><button className="admin-secondary-action" disabled={busy} onClick={() => void revokeBadge(selectedUser)}>{ru ? "Снять отметку" : "Revoke badge"}</button></div>}
                 {tab === "users" && <p className="admin-muted">{ru ? "Доступны только публичные данные профиля. Личные переписки и пароли здесь не отображаются." : "Only public profile information is shown. Private chats and passwords are never displayed here."}</p>}
               </div>
             )}
@@ -507,7 +717,7 @@ export default function HeloroSPanel({
         )}
 
         {tab === "reports" && (
-          <section className="admin-section"><div className="admin-section-heading"><div><h2>{ru ? "Жалобы" : "Reports"}</h2><p>{ru ? "Жалобы на пользователей и ссылки на объекты" : "Reports about users and references to reported objects"}</p></div><button className="admin-icon-action" onClick={() => void loadReports()}><RefreshCw size={15} /></button></div>
+          <section className="admin-section"><div className="admin-section-heading"><div><h2>{ru ? "Жалобы" : "Reports"}</h2><p>{ru ? "Жалобы на пользователей и ссылки на объекты" : "Reports about users and references to reported objects"}</p></div><button className="admin-icon-action" onClick={() => void refreshAdminData(() => loadReports(), ru ? "Не удалось загрузить жалобы." : "Could not load reports.")}><RefreshCw size={15} /></button></div>
             {reports.map((report) => <article className="admin-record-card" key={report.id}>
               <div className="admin-record-heading"><strong>{ru ? "Жалоба" : "Report"} · {report.reason}</strong><span>{report.status}</span></div>
               <small>{ru ? "Тип объекта" : "Target"}: {report.target_type || "user"} · ID: {shortId(report.target_id || report.reported_user_id)} · {new Date(report.created_at).toLocaleString()}</small>
@@ -522,23 +732,23 @@ export default function HeloroSPanel({
         )}
 
         {tab === "support" && (
-          <section className="admin-section"><div className="admin-section-heading"><div><h2>{ru ? "Поддержка" : "Support"}</h2><p>{ru ? "Входящие обращения Support Heloro" : "Support Heloro inbox"}</p></div><button className="admin-icon-action" onClick={() => void loadThreads()}><RefreshCw size={15} /></button></div>
+          <section className="admin-section"><div className="admin-section-heading"><div><h2>{ru ? "Поддержка" : "Support"}</h2><p>{ru ? "Входящие обращения Support Heloro" : "Support Heloro inbox"}</p></div><button className="admin-icon-action" onClick={() => void refreshAdminData(() => loadThreads(), ru ? "Не удалось загрузить обращения." : "Could not load support requests.")}><RefreshCw size={15} /></button></div>
             <div className="admin-support-grid"><div className="admin-record-list">
-              {threads.map((thread) => <button key={thread.id} className={"admin-thread-row"+(selectedThread?.id === thread.id ? " active" : "")} onClick={() => setSelectedThread(thread)}><UserRound size={15} /><span>{shortId(thread.user_id)}</span><small>{thread.status || "open"}</small></button>)}
-              {threads.length === 0 && <p className="admin-muted">{ru ? "Обращений пока нет." : "No support requests yet."}</p>}
+              {threads.map((thread) => <button key={thread.id} className={"admin-thread-row"+(selectedThread?.id === thread.id ? " active" : "")} disabled={busy} onClick={() => { selectedThreadIdRef.current = thread.id; setSelectedThread(thread); setSupportMessages([]); setReply(""); }}><UserRound size={15} /><span>{thread.display_name || thread.username || shortId(thread.user_id)}{thread.username ? <small>@{thread.username}</small> : null}</span><small>{thread.status || "open"}</small></button>)}
+              {threads.length === 0 && loadingTab !== "support" && <p className="admin-muted">{ru ? "Обращений пока нет." : "No support requests yet."}</p>}
             </div>
             <div className="admin-support-detail">
               {selectedThread ? <>
-                <div className="admin-support-controls"><strong>{ru ? "Обращение" : "Support thread"} · {shortId(selectedThread.user_id)}</strong><select value={selectedThread.status || "open"} onChange={(event) => void updateSupport(selectedThread, event.target.value, selectedThread.assigned_to || null)}><option value="open">open</option><option value="in_progress">in_progress</option><option value="resolved">resolved</option><option value="closed">closed</option></select><button disabled={busy} onClick={() => void updateSupport(selectedThread, selectedThread.status || "open", user.id)}>{ru ? "Назначить мне" : "Assign to me"}</button></div>
-                <div className="admin-support-messages">{supportMessages.map((item) => <article className={"admin-support-message"+(item.sender_id === user.id ? " mine" : "")} key={item.id}><strong>{item.sender_id === user.id ? (ru ? "Вы" : "You") : (ru ? "Пользователь" : "User")}</strong><p>{item.body}</p><time>{formatMessageTime(item.created_at)}</time></article>)}</div>
-                <form className="admin-support-reply" onSubmit={sendReply}><input value={reply} onChange={(event) => setReply(event.target.value)} placeholder={ru ? "Ответить пользователю…" : "Reply to user…"} maxLength={4000} /><button type="submit" disabled={busy || !reply.trim()}><MessageCircle size={15} />{ru ? "Ответить" : "Reply"}</button></form>
+                <div className="admin-support-controls"><strong>{ru ? "Обращение" : "Support thread"} · {selectedThread.display_name || selectedThread.username || shortId(selectedThread.user_id)}</strong><select disabled={busy} value={selectedThread.status || "open"} onChange={(event) => void updateSupport(selectedThread, event.target.value, selectedThread.assigned_to || null)}><option value="open">open</option><option value="in_progress">in_progress</option><option value="resolved">resolved</option><option value="closed">closed</option></select><button disabled={busy} onClick={() => void updateSupport(selectedThread, selectedThread.status || "open", user.id)}>{ru ? "Назначить мне" : "Assign to me"}</button></div>
+                <div className="admin-support-messages" aria-live="polite">{supportMessages.map((item) => <article className={"admin-support-message"+(item.sender_id === user.id ? " mine" : "")} key={item.id}><strong>{item.sender_id === user.id ? (ru ? "Вы" : "You") : (ru ? "Пользователь" : "User")}</strong><p>{item.body}</p><time>{formatMessageTime(item.created_at)}</time></article>)}</div>
+                <form className="admin-support-reply" onSubmit={sendReply}><input disabled={busy} value={reply} onChange={(event) => setReply(event.target.value)} placeholder={ru ? "Ответить пользователю…" : "Reply to user…"} maxLength={4000} /><button type="submit" disabled={busy || !reply.trim()}><MessageCircle size={15} />{ru ? "Ответить" : "Reply"}</button></form>
               </> : <p className="admin-muted">{ru ? "Выберите обращение." : "Select a support request."}</p>}
             </div></div>
           </section>
         )}
 
         {tab === "audit" && (
-          <section className="admin-section"><div className="admin-section-heading"><div><h2>{ru ? "Журнал действий" : "Audit log"}</h2><p>{ru ? "История привилегированных действий" : "History of privileged actions"}</p></div><button className="admin-icon-action" onClick={() => void loadAudit()}><RefreshCw size={15} /></button></div>
+          <section className="admin-section"><div className="admin-section-heading"><div><h2>{ru ? "Журнал действий" : "Audit log"}</h2><p>{ru ? "История привилегированных действий" : "History of privileged actions"}</p></div><button className="admin-icon-action" onClick={() => void refreshAdminData(() => loadAudit(), ru ? "Не удалось загрузить журнал." : "Could not load audit log.")}><RefreshCw size={15} /></button></div>
             {audit.map((entry) => <article className="admin-record-card" key={entry.id}><div className="admin-record-heading"><strong>{entry.action}</strong><time>{new Date(entry.created_at).toLocaleString()}</time></div><small>{ru ? "Исполнитель" : "Actor"}: {shortId(entry.actor_id)} · {ru ? "Объект" : "Target"}: {entry.target_type || "user"} / {shortId(entry.target_id || entry.target_user_id)}</small><p>{entry.reason || "—"}</p></article>)}
             {audit.length === 0 && <p className="admin-muted">{ru ? "Записей пока нет." : "No audit events yet."}</p>}
             <p className="admin-privacy-note">{ru ? "Записи доступны только сотрудникам и не редактируются из клиентского приложения." : "Entries are staff-only and cannot be edited from the client app."}</p>
@@ -546,7 +756,7 @@ export default function HeloroSPanel({
         )}
 
         {tab === "settings" && isOwner && (
-          <section className="admin-section"><div className="admin-section-heading"><div><h2>{ru ? "Настройки HELORO" : "HELORO settings"}</h2><p>{ru ? "Системные параметры — только владелец" : "System controls — owner only"}</p></div><button className="admin-icon-action" onClick={() => void loadSettings()}><RefreshCw size={15} /></button></div>
+          <section className="admin-section"><div className="admin-section-heading"><div><h2>{ru ? "Настройки HELORO" : "HELORO settings"}</h2><p>{ru ? "Системные параметры — только владелец" : "System controls — owner only"}</p></div><button className="admin-icon-action" onClick={() => void refreshAdminData(() => loadSettings(), ru ? "Не удалось загрузить настройки." : "Could not load settings.")}><RefreshCw size={15} /></button></div>
             {settingDefinitions.map((item) => {
               const entry = settings.find((value) => value.setting_key === item.key);
               const checked = entry?.value === true;
@@ -564,23 +774,24 @@ export default function HeloroSPanel({
               <div><FileText size={18} /><span><strong>{ru ? "Аудит привилегированных действий" : "Privileged action auditing"}</strong><small>{ru ? "Роли, ограничения, жалобы, поддержка и настройки." : "Roles, restrictions, reports, support and settings."}</small></span><CheckCircle2 size={17} /></div>
               <div><Ban size={18} /><span><strong>{ru ? "Пароли недоступны персоналу" : "Passwords are never exposed"}</strong><small>{ru ? "Только безопасное восстановление доступа." : "Account recovery remains a secure flow."}</small></span><CheckCircle2 size={17} /></div>
             </div>
-            <p className="admin-privacy-note">{ru ? "Перед публичным запуском нужно пройти проверку RLS и тесты с отдельными Owner, Admin, Moderator и обычным аккаунтом." : "Before public launch, validate RLS with separate Owner, Admin, Moderator and regular-user accounts."}</p>
+            <p className="admin-privacy-note">{ru ? "Важно: в подключённой Supabase-базе сейчас отсутствуют серверные миграции HELORO S. Вкладки и действия, вызывающие admin RPC, не заработают до установки миграций. Это нельзя безопасно исправить одним изменением интерфейса." : "Important: the connected Supabase database currently lacks the HELORO S server migrations. Tabs and actions that call admin RPCs will not work until those migrations are installed. This cannot be safely fixed with a frontend-only change."}</p>
+            <p className="admin-privacy-note">{ru ? "После установки backend нужно пройти проверку RLS и тесты с отдельными Owner, Admin, Moderator и обычным аккаунтом." : "After the backend is installed, validate RLS with separate Owner, Admin, Moderator and regular-user accounts."}</p>
           </section>
         )}
 
         {tab === "groups" && (isOwner || isAdmin) && (
           <section className="admin-section">
-            <div className="admin-section-heading"><div><h2>{ru ? "Группы и сообщества" : "Groups and communities"}</h2><p>{ru ? "Удаление тестовых и других сообществ для всех участников. Официальная поддержка и системный канал здесь не отображаются." : "Delete test and other communities for everyone. Official Support and the system channel are not listed here."}</p></div><button className="admin-icon-action" disabled={busy} onClick={() => void loadCommunities()}><RefreshCw size={15} /></button></div>
+            <div className="admin-section-heading"><div><h2>{ru ? "Группы и сообщества" : "Groups and communities"}</h2><p>{ru ? "Удаление тестовых и других сообществ для всех участников. Официальная поддержка и системный канал здесь не отображаются." : "Delete test and other communities for everyone. Official Support and the system channel are not listed here."}</p></div><button className="admin-icon-action" disabled={busy} onClick={() => void refreshAdminData(() => loadCommunities(), ru ? "Не удалось загрузить сообщества." : "Could not load communities.")}><RefreshCw size={15} /></button></div>
             <div className="admin-search"><Search size={16} /><input value={communitySearch} onChange={(event) => setCommunitySearch(event.target.value)} placeholder={ru ? "Поиск по названию или @username" : "Search by name or @username"} /><button onClick={() => setCommunitySearch("")} aria-label={ru ? "Очистить" : "Clear"}><X size={14} /></button></div>
             <div className="admin-user-results">
-              {communities.filter((item) => (item.name + " " + (item.username ?? "")).toLowerCase().includes(communitySearch.trim().replace(/^@/, "").toLowerCase())).map((item) => (
+              {filteredCommunities().map((item) => (
                 <article className="admin-record-card" key={item.id}>
                   <div className="admin-record-heading"><strong>{item.kind === "group" ? (ru ? "Группа" : "Group") : (ru ? "Канал" : "Channel")} · {item.name}</strong><span>{item.member_count} {ru ? "участников" : "members"}</span></div>
                   <small>{item.username ? "@" + item.username + " · " : ""}{ru ? "Создано" : "Created"}: {new Date(item.created_at).toLocaleString()} · ID: {shortId(item.id)}</small>
                   <div className="admin-actions"><button className="system-delete-button" disabled={busy} onClick={() => void deleteCommunity(item)}><Ban size={14} />{ru ? "Удалить для всех" : "Delete for everyone"}</button></div>
                 </article>
               ))}
-              {communities.length === 0 && <p className="admin-muted">{ru ? "Сообществ нет или серверное обновление ещё не установлено." : "No communities found, or the backend migration is not installed yet."}</p>}
+              {filteredCommunities().length === 0 && <p className="admin-muted">{communities.length === 0 ? (ru ? "Сообществ пока нет." : "No communities found.") : (ru ? "По этому запросу ничего не найдено." : "No communities match this search.")}</p>}
             </div>
             <p className="admin-privacy-note">{ru ? "Доступ есть только у Owner и Admin. Каждое удаление проверяется на сервере и записывается в журнал действий. Обычные участники и модераторы не могут удалять сообщества через эту панель." : "Only Owner and Admin can use this action. Every deletion is authorized server-side and recorded in the audit log. Members and moderators cannot delete communities from this panel."}</p>
           </section>
@@ -593,8 +804,8 @@ export default function HeloroSPanel({
         )}
 
         {tab === "roles" && isOwner && (
-          <section className="admin-section"><div className="admin-section-heading"><div><h2>{ru ? "Роли и разрешения" : "Roles and permissions"}</h2><p>{ru ? "Только Owner назначает Admin и Moderator" : "Only Owner can appoint Admin and Moderator"}</p></div><button className="admin-icon-action" onClick={() => void loadStaff()}><RefreshCw size={15} /></button></div>
-            <div className="admin-role-list">{staffEntries.map((entry) => <article key={entry.user_id}><span className="admin-user-avatar"><ShieldCheck size={15} /></span><span><strong>{entry.role}</strong><small>{shortId(entry.user_id)} · {new Date(entry.granted_at).toLocaleString()}</small></span></article>)}</div>
+          <section className="admin-section"><div className="admin-section-heading"><div><h2>{ru ? "Роли и разрешения" : "Roles and permissions"}</h2><p>{ru ? "Только Owner назначает Admin и Moderator" : "Only Owner can appoint Admin and Moderator"}</p></div><button className="admin-icon-action" onClick={() => void refreshAdminData(() => loadStaff(), ru ? "Не удалось загрузить список сотрудников." : "Could not load staff.")}><RefreshCw size={15} /></button></div>
+            <div className="admin-role-list">{staffEntries.map((entry) => <article key={entry.user_id}><span className="admin-user-avatar"><ShieldCheck size={15} /></span><span><strong>{entry.display_name || entry.username || shortId(entry.user_id)}</strong><small>{entry.username ? "@" + entry.username + " · " : ""}{entry.role} · {shortId(entry.user_id)} · {new Date(entry.granted_at).toLocaleString()}</small></span></article>)}</div>
             <p className="admin-privacy-note">{ru ? "Owner не может изменить собственную роль через эту панель. Назначение Owner не выполняется через обычный интерфейс ролей." : "Owner cannot change their own role here. Owner assignment is intentionally excluded from the regular role editor."}</p>
           </section>
         )}
