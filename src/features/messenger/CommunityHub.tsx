@@ -372,7 +372,7 @@ export default function CommunityHub({ client, user, locale, roles = [], contact
     setDiscussionRooms([]);
     setCommentTargetId(null);
     setPostComments([]);
-    if (nextRoom.kind === "channel" && (roles.includes("owner") || roles.includes("admin") || nextRoom.created_by === user.id)) {
+    if (nextRoom.kind === "channel") {
       const { data: groups, error: groupError } = await client.from("community_rooms")
         .select("id, name").eq("kind", "group").order("updated_at", { ascending: false }).limit(100);
       if (!groupError) setDiscussionRooms((groups ?? []) as Array<{ id: string; name: string }>);
