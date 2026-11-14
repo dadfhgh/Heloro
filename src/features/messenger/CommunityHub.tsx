@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { User } from "@supabase/supabase-js";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { ArrowLeft, ImagePlus, MessageCircle, Megaphone, Send, Users, X, Check, PencilLine, ChevronRight, Trash2, ShieldCheck } from "lucide-react";
+import { ArrowLeft, BadgeCheck, ImagePlus, MessageCircle, Megaphone, Send, Users, X, Check, PencilLine, ChevronRight, Trash2, ShieldCheck } from "lucide-react";
 import type { Locale } from "../../lib/i18n";
 import { searchProfiles } from "../../lib/messenger";
 import type { PublicProfile } from "../../lib/types";
@@ -17,6 +17,7 @@ type Room = {
   created_by: string;
   is_public: boolean;
   updated_at: string;
+  badge_type?: "blue" | "gold" | "creator" | null;
 };
 type RoomMessage = {
   id: string;
@@ -60,6 +61,11 @@ type RoomAdminEntry = {
   promoter: PublicProfile | null;
 };
 type Props = { client: SupabaseClient; user: User; locale: Locale; contacts?: PublicProfile[]; initialRoomId?: string | null; initialCreateKind?: "group" | "channel" | null; onRoomsChanged?: () => void; onClose: () => void };
+
+function RoomVerificationMark({ type }: { type?: "blue" | "gold" | "creator" | null }) {
+  if (!type) return null;
+  return <span className={"community-verification-mark community-verification-" + type} aria-label="Verified community"><BadgeCheck size={15} strokeWidth={2.7} /></span>;
+}
 
 function RoomAvatar({ room, className = "" }: { room: Room; className?: string }) {
   return <div className={`community-avatar ${className}`.trim()}>{room.avatar_url ? <img src={room.avatar_url} alt="" /> : room.kind === "channel" ? <Megaphone size={19} /> : <Users size={19} />}</div>;
@@ -332,6 +338,11 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
     setRoomNameDraft(nextRoom.name);
     setRoomDescriptionDraft(nextRoom.description);
     setRoom(nextRoom);
+    void client.from("community_verification_badges").select("badge_type").eq("room_id", nextRoom.id).maybeSingle()
+      .then(({ data, error: badgeError }) => {
+        if (badgeError) { console.warn("HELORO community badge lookup failed:", badgeError.message); return; }
+        setRoom((current) => current?.id === nextRoom.id ? { ...current, badge_type: (data?.badge_type as Room["badge_type"]) ?? null } : current);
+      });
     setMemberRole(null);
     setMyAdminPermissions(EMPTY_COMMUNITY_ADMIN_PERMISSIONS);
     setAdminManagementOpen(false);
@@ -760,7 +771,7 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
             <button className="community-header-room" type="button" onClick={() => setShowRoomInfo(true)} aria-label={ru ? "Открыть информацию о сообществе" : "Open community info"}>
               <RoomAvatar room={room} />
               <span>
-                <strong>{room.name}</strong>
+                <strong>{room.name}<RoomVerificationMark type={room.badge_type} /></strong>
                 <small>{roomMemberLabel(room.kind, memberCount, ru)}{!room.is_public ? (ru ? " · Частное" : " · Private") : ""}</small>
               </span>
               <ChevronRight size={18} />
@@ -979,7 +990,7 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
               <div className="community-info-section">
                 <div className="community-info-section-label">{ru ? "Тип" : "Type"}</div>
                 <div className="community-info-detail">
-                  <strong>{room.kind === "channel" ? (ru ? "Канал" : "Channel") : (ru ? "Группа" : "Group")}</strong>
+                  <strong>{room.kind === "channel" ? (ru ? "Канал" : "Channel") : (ru ? "Группа" : "Group")}<RoomVerificationMark type={room.badge_type} /></strong>
                   <small>{room.is_public
                     ? (ru ? "Открыто для поиска и вступления" : "Discoverable and open to join")
                     : (ru ? "Закрытое сообщество" : "Private community")}</small>
