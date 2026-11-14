@@ -138,15 +138,19 @@ create policy "Members comment on channel posts"
 on public.community_message_comments for insert to authenticated
 with check (
   user_id = (select auth.uid())
-  and exists (
-    select 1
-    from public.community_rooms r
-    join public.community_room_members m on m.room_id = r.id
-    join public.community_room_messages p on p.room_id = r.id
-    where r.id = room_id
-      and r.kind = 'channel'
-      and m.user_id = (select auth.uid())
-      and p.id = message_id
+  and (
+    private.has_heloro_role('owner')
+    or private.has_heloro_role('admin')
+    or exists (
+      select 1
+      from public.community_rooms r
+      join public.community_room_members m on m.room_id = r.id
+      join public.community_room_messages p on p.room_id = r.id
+      where r.id = community_message_comments.room_id
+        and r.kind = 'channel'
+        and m.user_id = (select auth.uid())
+        and p.id = community_message_comments.message_id
+    )
   )
 );
 
@@ -159,6 +163,17 @@ using (
   or (select private.has_heloro_role('admin'))
   or (select private.has_heloro_role('moderator'))
   or (select private.has_community_permission(room_id, 'delete_messages'))
+);
+
+drop policy if exists "Authors and room managers delete community messages" on public.community_room_messages;
+drop policy if exists "Authors and permitted admins delete community messages" on public.community_room_messages;
+create policy "Authors and HELORO staff delete community messages"
+on public.community_room_messages for delete to authenticated
+using (
+  sender_id = (select auth.uid())
+  or private.has_heloro_role('owner')
+  or private.has_heloro_role('admin')
+  or private.has_community_permission(room_id, 'delete_messages')
 );
 
 -- HELORO owners/admins can manage community spaces without being separately added to every room.
