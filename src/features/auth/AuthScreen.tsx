@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { ArrowRight, Eye, EyeOff, MessageCircle, Search, ShieldCheck } from "lucide-react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { t, type Locale } from "../../lib/i18n";
+import { trackAnalyticsEvent } from "../../lib/analytics";
 
 type Props = {
   client: SupabaseClient;
@@ -55,6 +56,7 @@ export default function AuthScreen({ client, locale, onLocaleChange }: Props) {
           setNotice(t(locale, "authEmailNotice"));
         } else {
           setNotice(t(locale, "authAccountReady"));
+          trackAnalyticsEvent("signup_completed", { locale });
         }
       } else {
         const { error: authError } = await client.auth.signInWithPassword({
@@ -62,6 +64,7 @@ export default function AuthScreen({ client, locale, onLocaleChange }: Props) {
           password,
         });
         if (authError) throw authError;
+        trackAnalyticsEvent("login_completed", { locale });
       }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : t(locale, "authGenericError"));
