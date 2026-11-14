@@ -290,13 +290,19 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   }
 
   async function openNewsDiscussion() {
-    const { data, error: channelError } = await client.from("heloro_channels")
+    const { data: channel, error: channelError } = await client.from("heloro_channels")
       .select("id").eq("slug", "heloro-new").single();
-    if (channelError || !data) {
+    if (channelError || !channel) {
       setError(channelError?.message || (locale === "ru" ? "Канал News не найден." : "News channel was not found."));
       return;
     }
-    await openChannelDiscussion(data.id);
+    const { data: discussionId, error: joinError } = await client.rpc("join_channel_discussion", { p_channel_id: channel.id });
+    if (joinError || typeof discussionId !== "string" || !discussionId) {
+      // Keep the existing discussion reachable until the additive database migration is applied.
+      openSystemView("discussion");
+      return;
+    }
+    openCommunity(discussionId);
   }
 
   useEffect(() => {
