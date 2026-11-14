@@ -1187,7 +1187,7 @@ html[data-theme="dark"] .system-channel-edit-form input,
 html[data-theme="dark"] .system-channel-edit-form textarea { border-color: #444; }
 
 
-/* Purple Crown — polished open violet arc, inspired by the user's sketch. */
+/* Purple frame — a clean avatar arc with a small opening; no crown icon. */
 .avatar.avatar-with-crown {
   position: relative;
   overflow: visible;
@@ -1201,12 +1201,12 @@ html[data-theme="dark"] .system-channel-edit-form textarea { border-color: #444;
   border-radius: 50%;
   padding: 3px;
   background: conic-gradient(
-    from 34deg,
-    transparent 0deg 48deg,
-    #a879f4 58deg,
+    from 42deg,
+    transparent 0deg 7deg,
+    #a879f4 13deg,
     #8150dc 190deg,
-    #a879f4 305deg,
-    transparent 312deg 360deg
+    #a879f4 344deg,
+    transparent 350deg 360deg
   );
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
@@ -1219,63 +1219,3 @@ html[data-theme="dark"] .system-channel-edit-form textarea { border-color: #444;
   border-radius: 50%;
   object-fit: cover;
 }
-.purple-crown-name-mark {
-  display: inline-flex;
-  width: 17px;
-  height: 17px;
-  margin-left: 5px;
-  align-items: center;
-  justify-content: center;
-  vertical-align: -3px;
-  color: #8752df;
-  background: transparent;
-  line-height: 1;
-}
-.purple-crown-name-mark svg {
-  fill: rgba(135,82,223,.16);
-  filter: drop-shadow(0 1px 1px rgba(91,33,182,.18));
-}
-html[data-theme="dark"] .avatar.avatar-with-crown::after {
-  background: conic-gradient(
-    from 34deg,
-    transparent 0deg 48deg,
-    #c3a0ff 58deg,
-    #9564ec 190deg,
-    #c3a0ff 305deg,
-    transparent 312deg 360deg
-  );
-}
-html[data-theme="dark"] .purple-crown-name-mark { color: #c6aaff; }
-.profile-crown-gift-action { width: 100%; justify-content: center; margin-top: 10px; border-color: rgba(139,92,246,.5); color: #7541c8; }
-.profile-crown-card {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  margin: 0 0 17px;
-  padding: 14px;
-  border: 1px solid rgba(139,92,246,.45);
-  border-radius: 14px;
-  background: linear-gradient(110deg, rgba(167,139,250,.16), rgba(124,58,237,.055));
-}
-.profile-crown-icon {
-  display: grid;
-  width: 58px;
-  height: 58px;
-  flex: 0 0 58px;
-  place-items: center;
-  border: 1px solid rgba(139,92,246,.48);
-  border-radius: 16px;
-  color: #7c3aed;
-  background: rgba(167,139,250,.16);
-}
-.profile-crown-card > div:last-child { display: grid; min-width: 0; gap: 4px; }
-.profile-crown-card small { color: #7c3aed; font-size: 9px; font-weight: 800; letter-spacing: .08em; }
-.profile-crown-card strong { color: #38215d; font-size: 14px; }
-.profile-crown-card span { color: #806b9e; font-size: 11px; }
-.profile-crown-notice { margin: 9px 0 0; padding: 10px 12px; border-radius: 10px; background: rgba(139,92,246,.1); color: #7541c8; font-size: 13px; }
-html[data-theme="dark"] .profile-crown-card { border-color: rgba(167,139,250,.34); background: linear-gradient(110deg, rgba(167,139,250,.12), rgba(124,58,237,.045)); }
-html[data-theme="dark"] .profile-crown-icon { color: #c4a5fd; background: rgba(167,139,250,.1); }
-html[data-theme="dark"] .profile-crown-card strong { color: #eee4ff; }
-html[data-theme="dark"] .profile-crown-card span { color: #b6a4d0; }
-html[data-theme="dark"] .profile-crown-notice { color: #d7c0ff; background: rgba(139,92,246,.14); }
-html[data-theme="dark"] .profile-crown-gift-action { color: #c4a5fd; border-color: rgba(167,139,250,.45); }
