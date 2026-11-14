@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { displayNameSchema, formatInboxTime, formatMessageTime, initials, messageBodySchema, usernameSchema } from "./domain";
+import { displayNameSchema, formatInboxTime, formatLastSeen, formatMessageDayLabel, formatMessageTime, initials, messageBodySchema, usernameSchema } from "./domain";
 
 describe("usernameSchema", () => {
   it("normalizes usernames to lowercase", () => {
@@ -39,5 +39,15 @@ describe("display helpers", () => {
   it("formats timestamps without throwing on invalid values", () => {
     expect(formatMessageTime("not-a-date")).toBe("");
     expect(formatInboxTime(null)).toBe("");
+  });
+});
+
+describe("message day separators", () => {
+  it("labels the current day", () => {
+    expect(formatMessageDayLabel(new Date().toISOString(), "en")).toBe("Today");
+  });
+
+  it("uses an approximate label when exact last-seen time is hidden", () => {
+    expect(formatLastSeen(null, "ru", true)).toBe("был(а) недавно");
   });
 });
