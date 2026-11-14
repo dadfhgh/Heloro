@@ -1097,7 +1097,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                     <div className="new-message-empty"><UserRound size={25} /><strong>{locale === "ru" ? "Пока нет пользователей" : "No users yet"}</strong></div>
                   ) : directoryUsers.map((person) => (
                     <button className="new-message-person" type="button" key={person.id} onClick={() => void startConversation(person)}>
-                      <Avatar label={person.display_name || person.username} src={person.avatar_url} />
+                      <Avatar label={person.display_name || person.username} src={person.avatar_url} crown={Boolean(crownMap[person.id])} />
                       <span className="new-message-person-copy">
                         <strong>{person.display_name || person.username}<VerificationMark type={person.badge_type} title={locale === "ru" ? "Аккаунт подтверждён HELORO" : "Verified by HELORO"} /></strong>
                         <small>@{person.username}</small>
@@ -1203,7 +1203,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                       <p className="new-message-empty">{t(locale, "inboxNoResults")}</p>
                     ) : results.map((person) => (
                       <button className="new-message-person" type="button" key={person.id} onClick={() => void startConversation(person)}>
-                        <Avatar label={person.display_name || person.username} src={person.avatar_url} />
+                        <Avatar label={person.display_name || person.username} src={person.avatar_url} crown={Boolean(crownMap[person.id])} />
                         <span className="new-message-person-copy">
                           <strong>{person.display_name || person.username}<VerificationMark type={person.badge_type} title={locale === "ru" ? "Аккаунт подтверждён HELORO" : "Verified by HELORO"} /></strong>
                           <small>@{person.username}</small>
