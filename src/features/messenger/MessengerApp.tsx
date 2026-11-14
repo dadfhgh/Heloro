@@ -506,7 +506,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
       })
       .finally(() => { if (active) setLoadingMessages(false); });
 
-    const channel = subscribeToMessages(activeId,
+    const channel = subscribeToMessages(activeId, user.id,
       () => {
         void getMessages(activeId).then(setMessages).catch((cause: unknown) => setError(cause instanceof Error ? cause.message : t(locale, "messagesLoadFailed")));
         void refreshInbox();

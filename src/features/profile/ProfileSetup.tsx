@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { displayNameSchema, usernameSchema } from "../../lib/domain";
 import type { Profile } from "../../lib/types";
 import { t, type Locale } from "../../lib/i18n";
+import { trackAnalyticsEvent } from "../../lib/analytics";
 
 type Props = {
   client: SupabaseClient;
@@ -35,6 +36,7 @@ export default function ProfileSetup({ client, userId, onSaved, locale }: Props)
         .select("id, username, display_name, avatar_url")
         .single();
       if (updateError) throw updateError;
+      trackAnalyticsEvent("profile_completed", { locale });
       onSaved(data as Profile);
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : t(locale, "profileSaveError");
