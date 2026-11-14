@@ -70,12 +70,13 @@ function Avatar({ label, className = "", src, crown = false }: { label: string; 
   return <div className={`avatar ${crown ? "avatar-with-crown" : ""} ${className}`.trim()} aria-hidden="true">
     {src ? <img src={src} alt="" loading="lazy" /> : initials(label)}
     {crown && (
-      <svg className="avatar-crown-frame-art" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
-        <path className="avatar-crown-frame-ring" d="M 46.2 10.9 A 25.4 25.4 0 1 0 56.4 24.8" />
-
-        <path className="avatar-crown-frame-detail" d="M 48.8 19.7 Q 52.2 17.8 55.6 20.3" />
-      </svg>
-      <span className="avatar-crown-frame-crown" aria-hidden="true"><Crown size={17} strokeWidth={2.5} /></span>
+      <>
+        <svg className="avatar-crown-frame-art" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+          <path className="avatar-crown-frame-ring" d="M 46.2 10.9 A 25.4 25.4 0 1 0 56.4 24.8" />
+          <path className="avatar-crown-frame-detail" d="M 48.8 19.7 Q 52.2 17.8 55.6 20.3" />
+        </svg>
+        <span className="avatar-crown-frame-crown" aria-hidden="true"><Crown size={17} strokeWidth={2.5} /></span>
+      </>
     )}
   </div>;
 }
