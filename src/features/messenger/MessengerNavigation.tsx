@@ -8,6 +8,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Profile } from "../../lib/types";
 import type { Locale } from "../../lib/i18n";
 import type { ThemePreference } from "../../lib/preferences";
+import OfficialBrandingSettings from "./OfficialBrandingSettings";
 
 type NavigationProps = {
   profile: Profile;
@@ -382,7 +383,7 @@ export function MessengerSettings({
             )}
             {activeSection === "privacy" && (
               <div className="settings-section-content">
-                <p className="settings-description">{ru ? "Предпочтения сохраняются в аккаунте. Отображение статуса «в сети» и разграничение контактов будут включены после внедрения presence и системы контактов." : "Preferences are saved to your account. Online status and contact-based visibility will apply after presence and contacts are implemented."}</p>
+                <p className="settings-description">{ru ? "Статусы «в сети», «печатает…» и время последнего посещения работают в личных чатах. Точная активность скрывается по выбранному правилу приватности." : "Online, typing and last-seen indicators are available in direct chats and respect this privacy setting."}</p>
                 <label className="settings-select-row">{ru ? "Кто видит время последней активности" : "Who can see last seen"}
                   <select value={preferences.last_seen_visibility} onChange={(event) => void updatePreference("last_seen_visibility", event.target.value as UserPreferences["last_seen_visibility"])} disabled={preferencesLoading || savingPreference}>
                     <option value="everyone">{ru ? "Все" : "Everybody"}</option><option value="contacts">{ru ? "Контакты" : "Contacts"}</option><option value="nobody">{ru ? "Никто" : "Nobody"}</option>
@@ -459,7 +460,8 @@ export function MessengerSettings({
             {activeSection === "staff" && staff && (
               <div className="settings-section-content">
                 <div className="settings-staff-banner"><ShieldCheck size={25} /><div><strong>HELORO S</strong><span>{ru ? "Рабочее пространство команды" : "Staff workspace"}</span></div></div>
-                <p className="settings-description">{ru ? "Жалобы, обращения в поддержку и управление галочками." : "Reports, support conversations and verification management."}</p>
+                <p className="settings-description">{ru ? "Жалобы, обращения в поддержку, управление галочками и официальным оформлением." : "Reports, support conversations, verification and official branding."}</p>
+                {roles.includes("owner") && <OfficialBrandingSettings client={client} userId={userId} locale={locale} />}
                 <button type="button" className="settings-action-button" onClick={onOpenAdmin}><ShieldCheck size={18} /> {ru ? "Открыть HELORO S" : "Open HELORO S"}</button>
               </div>
             )}
