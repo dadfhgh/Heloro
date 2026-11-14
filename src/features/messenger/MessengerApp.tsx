@@ -1430,7 +1430,6 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                   <Avatar label={activeConversation.display_name || activeConversation.username} className="chat-header-avatar" src={activeConversation.avatar_url} crown={Boolean(crownMap[activeConversation.other_user_id])} />
                   <span className="chat-person">
                     <strong>{activeConversation.display_name || activeConversation.username}<VerificationMark type={badgeMap[activeConversation.other_user_id]} title={locale === "ru" ? "Аккаунт подтверждён HELORO" : "Verified by HELORO"} /></strong>
-                    <small>@{activeConversation.username}<PurpleCrownNameMark active={Boolean(crownMap[activeConversation.other_user_id])} /></small>
                     <small className={`chat-presence-status ${onlineMap[activeConversation.other_user_id] ? "is-online" : ""}`}>{isTyping ? (locale === "ru" ? "печатает…" : "typing…") : onlineMap[activeConversation.other_user_id] ? (locale === "ru" ? "в сети" : "online") : formatLastSeen(lastSeenMap[activeConversation.other_user_id] ?? null, locale, !lastSeenMap[activeConversation.other_user_id])}</small>
                   </span>
                 </button>
