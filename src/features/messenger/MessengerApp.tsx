@@ -1108,7 +1108,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                       <Avatar label={person.display_name || person.username} src={person.avatar_url} crown={Boolean(crownMap[person.id])} />
                       <span className="new-message-person-copy">
                         <strong>{person.display_name || person.username}<VerificationMark type={person.badge_type} title={locale === "ru" ? "Аккаунт подтверждён HELORO" : "Verified by HELORO"} /></strong>
-                        <small>@{person.username}</small>
+                        <small>@{person.username}<PurpleCrownNameMark active={Boolean(crownMap[person.id])} /></small>
                       </span>
                       <MessageCircle size={18} />
                     </button>
@@ -1214,7 +1214,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                         <Avatar label={person.display_name || person.username} src={person.avatar_url} crown={Boolean(crownMap[person.id])} />
                         <span className="new-message-person-copy">
                           <strong>{person.display_name || person.username}<VerificationMark type={person.badge_type} title={locale === "ru" ? "Аккаунт подтверждён HELORO" : "Verified by HELORO"} /></strong>
-                          <small>@{person.username}</small>
+                          <small>@{person.username}<PurpleCrownNameMark active={Boolean(crownMap[person.id])} /></small>
                         </span>
                         <MessageCircle size={18} />
                       </button>
