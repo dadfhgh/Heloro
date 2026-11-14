@@ -36,5 +36,10 @@ jobs:
         run: supabase test db
 
       - name: Stop local Supabase stack
-        if: always() && steps.setup-cli.outcome == 'success'
-        run: supabase stop --no-backup
+        if: always()
+        run: |
+          if command -v supabase >/dev/null 2>&1; then
+            supabase stop --no-backup
+          else
+            echo "Supabase CLI is unavailable; nothing to stop."
+          fi
