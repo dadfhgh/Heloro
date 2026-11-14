@@ -78,6 +78,9 @@ begin
   if caller_id is null then
     raise exception 'Authentication required' using errcode = '28000';
   end if;
+  if not private.is_current_user_account_active() then
+    raise exception 'Active account required' using errcode = '42501';
+  end if;
 
   select r.discussion_room_id into discussion_id
   from public.community_rooms r
@@ -248,6 +251,9 @@ declare
 begin
   if actor_id is null then
     raise exception 'Authentication required' using errcode = '28000';
+  end if;
+  if not private.is_current_user_account_active() then
+    raise exception 'Active account required' using errcode = '42501';
   end if;
 
   select * into target
