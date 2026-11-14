@@ -10,6 +10,7 @@ export default function OfficialBrandingSettings({ client, userId, locale }: Pro
   const ru = locale === "ru";
   const [avatars, setAvatars] = useState<Record<OfficialBrandingKind, string | null>>({ news: null, support: null });
   const [busy, setBusy] = useState<OfficialBrandingKind | null>(null);
+  const [schemaReady, setSchemaReady] = useState(true);
   const [error, setError] = useState("");
   const newsInput = useRef<HTMLInputElement>(null);
   const supportInput = useRef<HTMLInputElement>(null);
@@ -17,9 +18,12 @@ export default function OfficialBrandingSettings({ client, userId, locale }: Pro
   useEffect(() => {
     let active = true;
     void Promise.all([getOfficialBrandingAvatar(client, "news"), getOfficialBrandingAvatar(client, "support")])
-      .then(([news, support]) => { if (active) setAvatars({ news, support }); })
-      .catch((cause: unknown) => {
-        if (active) setError(cause instanceof Error ? cause.message : (ru ? "Не удалось загрузить аватары." : "Could not load official avatars."));
+      .then(([news, support]) => { if (active) { setAvatars({ news, support }); setSchemaReady(true); } })
+      .catch(() => {
+        if (active) {
+          setSchemaReady(false);
+          setError(ru ? "Для смены аватаров нужно включить серверную поддержку официального оформления HELORO." : "The HELORO official-branding database migration is required before avatars can be changed.");
+        }
       });
     return () => { active = false; };
   }, [client, ru]);
@@ -49,7 +53,7 @@ export default function OfficialBrandingSettings({ client, userId, locale }: Pro
           <div className="official-branding-setting-preview">{avatars.news ? <img src={avatars.news} alt="" /> : <Megaphone size={19} />}</div>
           <div className="official-branding-setting-copy">
             <strong>News</strong>
-            <button type="button" disabled={busy !== null} onClick={() => newsInput.current?.click()}>{busy === "news" ? (ru ? "Загрузка…" : "Uploading…") : (ru ? "Изменить аватар" : "Change avatar")}</button>
+            <button type="button" disabled={busy !== null || !schemaReady} onClick={() => newsInput.current?.click()}>{busy === "news" ? (ru ? "Загрузка…" : "Uploading…") : (ru ? "Изменить аватар" : "Change avatar")}</button>
             <input ref={newsInput} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(event) => void chooseAvatar("news", event.target.files?.[0])} />
           </div>
         </div>
@@ -57,7 +61,7 @@ export default function OfficialBrandingSettings({ client, userId, locale }: Pro
           <div className="official-branding-setting-preview">{avatars.support ? <img src={avatars.support} alt="" /> : <Headphones size={19} />}</div>
           <div className="official-branding-setting-copy">
             <strong>Support Heloro</strong>
-            <button type="button" disabled={busy !== null} onClick={() => supportInput.current?.click()}>{busy === "support" ? (ru ? "Загрузка…" : "Uploading…") : (ru ? "Изменить аватар" : "Change avatar")}</button>
+            <button type="button" disabled={busy !== null || !schemaReady} onClick={() => supportInput.current?.click()}>{busy === "support" ? (ru ? "Загрузка…" : "Uploading…") : (ru ? "Изменить аватар" : "Change avatar")}</button>
             <input ref={supportInput} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(event) => void chooseAvatar("support", event.target.files?.[0])} />
           </div>
         </div>
