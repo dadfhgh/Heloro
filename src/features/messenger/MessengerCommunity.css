@@ -1185,3 +1185,68 @@ html[data-theme="dark"] .community-post-comments { border-color: #333; backgroun
 html[data-theme="dark"] .system-channel-edit-form { border-color: #333; }
 html[data-theme="dark"] .system-channel-edit-form input,
 html[data-theme="dark"] .system-channel-edit-form textarea { border-color: #444; }
+
+
+/* Purple Crown collectible gift — a violet avatar outline with a crown topper. */
+.avatar.avatar-with-crown {
+  position: relative;
+  overflow: visible;
+  border: 2.5px solid #8b5cf6;
+  box-shadow: 0 0 0 2px rgba(139,92,246,.2), 0 0 12px rgba(139,92,246,.22);
+}
+.avatar.avatar-with-crown > img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.avatar-crown-token {
+  position: absolute;
+  z-index: 3;
+  top: -11px;
+  left: 50%;
+  display: grid;
+  width: 25px;
+  height: 22px;
+  place-items: center;
+  transform: translateX(-50%);
+  border: 1.5px solid #e8d9ff;
+  border-radius: 8px 8px 6px 6px;
+  color: #fff;
+  background: linear-gradient(145deg, #b78aff 0%, #7c3aed 58%, #5b21b6 100%);
+  box-shadow: 0 2px 7px rgba(91,33,182,.38);
+}
+html[data-theme="dark"] .avatar-crown-token { border-color: #38215d; }
+.profile-crown-gift-action { width: 100%; justify-content: center; margin-top: 10px; border-color: rgba(139,92,246,.5); color: #7541c8; }
+.profile-crown-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 0 0 17px;
+  padding: 14px;
+  border: 1px solid rgba(139,92,246,.45);
+  border-radius: 14px;
+  background: linear-gradient(110deg, rgba(167,139,250,.16), rgba(124,58,237,.055));
+}
+.profile-crown-icon {
+  display: grid;
+  width: 58px;
+  height: 58px;
+  flex: 0 0 58px;
+  place-items: center;
+  border: 1px solid rgba(139,92,246,.48);
+  border-radius: 16px;
+  color: #7c3aed;
+  background: rgba(167,139,250,.16);
+}
+.profile-crown-card > div:last-child { display: grid; min-width: 0; gap: 4px; }
+.profile-crown-card small { color: #7c3aed; font-size: 9px; font-weight: 800; letter-spacing: .08em; }
+.profile-crown-card strong { color: #38215d; font-size: 14px; }
+.profile-crown-card span { color: #806b9e; font-size: 11px; }
+.profile-crown-notice { margin: 9px 0 0; padding: 10px 12px; border-radius: 10px; background: rgba(139,92,246,.1); color: #7541c8; font-size: 13px; }
+html[data-theme="dark"] .profile-crown-card { border-color: rgba(167,139,250,.34); background: linear-gradient(110deg, rgba(167,139,250,.12), rgba(124,58,237,.045)); }
+html[data-theme="dark"] .profile-crown-icon { color: #c4a5fd; background: rgba(167,139,250,.1); }
+html[data-theme="dark"] .profile-crown-card strong { color: #eee4ff; }
+html[data-theme="dark"] .profile-crown-card span { color: #b6a4d0; }
+html[data-theme="dark"] .profile-crown-notice { color: #d7c0ff; background: rgba(139,92,246,.14); }
+html[data-theme="dark"] .profile-crown-gift-action { color: #c4a5fd; border-color: rgba(167,139,250,.45); }
