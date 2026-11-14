@@ -1223,11 +1223,12 @@ html[data-theme="dark"] .system-channel-edit-form textarea { border-color: #444;
 .avatar.avatar-with-crown .avatar-crown-frame-crown {
   position: absolute;
   z-index: 4;
-  top: 4%;
-  right: 5%;
+  top: 3%;
+  right: -4%;
   display: inline-flex;
-  width: 22%;
-  height: 22%;
+  width: 32%;
+  height: 32%;
+  box-sizing: border-box;
   align-items: center;
   justify-content: center;
   color: #8752df;
