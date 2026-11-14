@@ -1187,20 +1187,30 @@ html[data-theme="dark"] .system-channel-edit-form input,
 html[data-theme="dark"] .system-channel-edit-form textarea { border-color: #444; }
 
 
-/* Purple Crown collectible gift — a violet avatar outline with a crown topper. */
+/* Purple Crown — polished open violet arc, inspired by the user's sketch. */
 .avatar.avatar-with-crown {
   position: relative;
   overflow: visible;
-  box-sizing: border-box;
-  border: 2px solid #9569e8;
-  box-shadow: 0 0 0 2px rgba(139,92,246,.14), 0 2px 7px rgba(91,33,182,.16);
+  border-color: transparent !important;
+  box-shadow: none !important;
 }
 .avatar.avatar-with-crown::after {
-  position: absolute;
-  inset: 2px;
   content: "";
-  border: 1px solid rgba(255,255,255,.72);
-  border-radius: inherit;
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  padding: 3px;
+  background: conic-gradient(
+    from 34deg,
+    transparent 0deg 48deg,
+    #a879f4 58deg,
+    #8150dc 190deg,
+    #a879f4 305deg,
+    transparent 312deg 360deg
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
   pointer-events: none;
 }
 .avatar.avatar-with-crown > img {
@@ -1217,22 +1227,25 @@ html[data-theme="dark"] .system-channel-edit-form textarea { border-color: #444;
   align-items: center;
   justify-content: center;
   vertical-align: -3px;
-  border-radius: 5px;
-  color: #8152d4;
-  background: rgba(139,92,246,.12);
+  color: #8752df;
+  background: transparent;
   line-height: 1;
 }
-html[data-theme="dark"] .avatar.avatar-with-crown {
-  border-color: #ad8af5;
-  box-shadow: 0 0 0 2px rgba(167,139,250,.18), 0 2px 8px rgba(0,0,0,.28);
+.purple-crown-name-mark svg {
+  fill: rgba(135,82,223,.16);
+  filter: drop-shadow(0 1px 1px rgba(91,33,182,.18));
 }
 html[data-theme="dark"] .avatar.avatar-with-crown::after {
-  border-color: rgba(255,255,255,.25);
+  background: conic-gradient(
+    from 34deg,
+    transparent 0deg 48deg,
+    #c3a0ff 58deg,
+    #9564ec 190deg,
+    #c3a0ff 305deg,
+    transparent 312deg 360deg
+  );
 }
-html[data-theme="dark"] .purple-crown-name-mark {
-  color: #c6aaff;
-  background: rgba(167,139,250,.16);
-}
+html[data-theme="dark"] .purple-crown-name-mark { color: #c6aaff; }
 .profile-crown-gift-action { width: 100%; justify-content: center; margin-top: 10px; border-color: rgba(139,92,246,.5); color: #7541c8; }
 .profile-crown-card {
   display: flex;
