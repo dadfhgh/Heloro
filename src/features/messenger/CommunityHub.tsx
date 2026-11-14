@@ -149,7 +149,7 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
   }, [channelPhotoFile]);
 
   function chooseChannelPhoto(file?: File) {
-    if (!file || !room || room.kind !== "channel" || !canPostChannelMessages) return;
+    if (!file || !room || !memberRole || (room.kind === "channel" && !canPostChannelMessages)) return;
     const supported = ["image/png", "image/jpeg", "image/webp"];
     if (!supported.includes(file.type) || file.size < 1 || file.size > 5 * 1024 * 1024) {
       setError(ru ? "Выбери PNG, JPEG или WebP размером до 5 МБ." : "Choose a PNG, JPEG or WebP photo up to 5 MB.");
@@ -467,9 +467,9 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
     event.preventDefault();
     if (!room || !memberRole) return;
     const caption = draft.trim();
-    const photo = room.kind === "channel" ? channelPhotoFile : null;
+    const photo = channelPhotoFile;
     if (!caption && !photo) return;
-    if (photo && !canPostChannelMessages) return;
+    if (room.kind === "channel" && !canPostChannelMessages) return;
     setBusy(true);
     setError("");
     let uploadedPath: string | null = null;
@@ -903,7 +903,7 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
                   {messages.length === 0 ? <div className="community-empty"><MessageCircle size={24} /><span>{ru ? "Пока нет сообщений" : "No messages yet"}</span></div> : messages.map((item) => (
                     <article className={"community-message " + (item.sender_id === user.id ? "mine" : "")} key={item.id}>
                       {item.sender_id !== user.id && <small>{ru ? "Участник" : "Member"}</small>}
-                      {item.media?.url && <img className="community-message-photo" src={item.media.url} alt={ru ? "Фотография в канале" : "Channel photo"} loading="lazy" />}
+                      {item.media?.url && <img className="community-message-photo" src={item.media.url} alt={ru ? "Фотография в сообществе" : "Community photo"} loading="lazy" />}
                       {item.body && <p>{item.body}</p>}<footer><time>{new Date(item.created_at).toLocaleTimeString(ru ? "ru-RU" : "en-US", { hour: "2-digit", minute: "2-digit" })}</time>
                       {canDeleteCommunityMessage(memberRole, myAdminPermissions, item.sender_id, user.id) && <button type="button" onClick={() => void deleteMessage(item)}>{ru ? "Удалить" : "Delete"}</button>}</footer>
                     </article>
@@ -912,7 +912,7 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
                 </div>
                 {(room.kind === "group" || canPostChannelMessages) ? (
                   <>
-                    {room.kind === "channel" && channelPhotoPreview && (
+                    {channelPhotoPreview && (
                       <div className="community-channel-photo-preview">
                         <img src={channelPhotoPreview} alt={ru ? "Выбранное фото" : "Selected photo"} />
                         <span>{channelPhotoFile?.name}</span>
@@ -920,7 +920,7 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
                       </div>
                     )}
                     <form className="community-composer" onSubmit={sendMessage}>
-                      {room.kind === "channel" && (
+                      {(room.kind === "group" || canPostChannelMessages) && (
                         <>
                           <input ref={channelPhotoInput} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(event) => chooseChannelPhoto(event.target.files?.[0])} />
                           <button className="community-attach-photo" type="button" onClick={() => channelPhotoInput.current?.click()} disabled={busy} aria-label={ru ? "Прикрепить фото" : "Attach photo"} title={ru ? "Прикрепить фото" : "Attach photo"}><ImagePlus size={18} /></button>
