@@ -72,9 +72,10 @@ function Avatar({ label, className = "", src, crown = false }: { label: string; 
     {crown && (
       <svg className="avatar-crown-frame-art" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
         <path className="avatar-crown-frame-ring" d="M 46.2 10.9 A 25.4 25.4 0 1 0 56.4 24.8" />
-        <path className="avatar-crown-frame-crown" d="M 46.2 10.9 L 48.8 6.1 L 51.7 11.1 Q 52.2 11.9 52.8 11.1 L 56.2 6.0 L 57.1 13.7 Q 57.2 14.6 58.1 14.3 L 61.2 13.3 L 56.4 24.8" />
+
         <path className="avatar-crown-frame-detail" d="M 48.8 19.7 Q 52.2 17.8 55.6 20.3" />
       </svg>
+      <span className="avatar-crown-frame-crown" aria-hidden="true"><Crown size={17} strokeWidth={2.5} /></span>
     )}
   </div>;
 }
