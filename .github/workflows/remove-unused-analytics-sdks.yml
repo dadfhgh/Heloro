@@ -1,0 +1,47 @@
+name: Remove unused browser analytics SDKs
+
+on:
+  pull_request:
+    branches:
+      - feat/heloro-presence-chat-dates-avatars
+    paths:
+      - .github/workflows/remove-unused-analytics-sdks.yml
+
+permissions:
+  contents: write
+
+jobs:
+  uninstall:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out analytics feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/heloro-dual-analytics
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Remove browser SDKs (relay uses server-side HTTP)
+        run: npm uninstall --no-audit --no-fund posthog-js @amplitude/analytics-browser
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Build production bundle
+        run: npm run build
+
+      - name: Commit npm-generated manifest and lockfile
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          if git diff --cached --quiet; then
+            echo "No dependency changes to commit."
+          else
+            git commit -m "chore: remove unused client analytics SDKs"
+            git push origin HEAD:feat/heloro-dual-analytics
+          fi
