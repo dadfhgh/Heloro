@@ -2,6 +2,7 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 import { messageBodySchema } from "./domain";
 import { supabase, type SupabaseClient } from "./supabase";
 import type { InboxConversation, Message, Profile, PublicProfile } from "./types";
+import { trackAnalyticsEvent } from "./analytics";
 
 function client(): SupabaseClient {
   if (!supabase) throw new Error("HELORO backend is not configured.");
@@ -53,7 +54,10 @@ export async function uploadAvatar(userId: string, file: File): Promise<Profile>
   const path = `${userId}/${crypto.randomUUID()}.${extension}`;
   const storage = client().storage.from("profile-avatars");
   const { error: uploadError } = await storage.upload(path, file, { contentType: file.type, cacheControl: "3600", upsert: false });
-  if (uploadError) throw uploadError;
+  if (uploadError) {
+    trackAnalyticsEvent("message_send_failed", { failure_category: "upload" });
+    throw uploadError;
+  }
   const avatarUrl = storage.getPublicUrl(path).data.publicUrl;
   const { data, error } = await client().from("profiles").update({ avatar_url: avatarUrl })
     .eq("id", userId).select("id, username, display_name, avatar_url").single();
@@ -144,6 +148,7 @@ export async function createDirectConversation(username: string): Promise<string
 
   if (error) throw error;
   if (typeof data !== "string") throw new Error("The conversation could not be created.");
+  trackAnalyticsEvent("direct_conversation_opened");
   return data;
 }
 
@@ -210,7 +215,11 @@ export async function sendMessage(
     .select("id, conversation_id, sender_id, body, created_at")
     .single();
 
-  if (error) throw error;
+  if (error) {
+    trackAnalyticsEvent("message_send_failed", { failure_category: "backend" });
+    throw error;
+  }
+  trackAnalyticsEvent("message_send_succeeded", { message_kind: "text" });
   return data as Message;
 }
 
@@ -250,9 +259,11 @@ export async function sendMediaMessage(
     body: `HELORO_MEDIA:${JSON.stringify({ kind, path })}`,
   });
   if (messageError) {
+    trackAnalyticsEvent("message_send_failed", { failure_category: "backend" });
     await storage.remove([path]);
     throw messageError;
   }
+  trackAnalyticsEvent("message_send_succeeded", { message_kind: kind });
 }
 
 export async function deleteDirectMessage(message: Message, currentUserId: string): Promise<void> {
@@ -276,6 +287,7 @@ export async function deleteDirectMessage(message: Message, currentUserId: strin
 
 export function subscribeToMessages(
   conversationId: string,
+  currentUserId: string,
   onInsert: (message: Message) => void,
   onDelete?: () => void,
 ): RealtimeChannel {
@@ -289,7 +301,23 @@ export function subscribeToMessages(
         table: "messages",
         filter: `conversation_id=eq.${conversationId}`,
       },
-      (payload) => onInsert(payload.new as Message),
+      (payload) => {
+        const message = payload.new as Message;
+        if (message.sender_id !== currentUserId) {
+          let messageKind: "text" | "media" | "sticker" | "gif" = "text";
+          if (message.body.startsWith("HELORO_MEDIA:")) {
+            try {
+              const media = JSON.parse(message.body.slice("HELORO_MEDIA:".length)) as { kind?: unknown };
+              if (media.kind === "sticker" || media.kind === "gif") messageKind = media.kind;
+              else messageKind = "media";
+            } catch {
+              messageKind = "media";
+            }
+          }
+          trackAnalyticsEvent("message_reply_received", { message_kind: messageKind });
+        }
+        onInsert(message);
+      },
     )
     .on("postgres_changes", { event: "DELETE", schema: "public", table: "messages" }, () => onDelete?.())
     .subscribe();
