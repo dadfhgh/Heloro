@@ -1,0 +1,44 @@
+name: Bootstrap HELORO analytics SDK dependencies
+
+on:
+  push:
+    branches:
+      - feat/heloro-dual-analytics
+    paths:
+      - .github/workflows/install-analytics-deps.yml
+
+permissions:
+  contents: write
+
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out the analytics feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/heloro-dual-analytics
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install SDKs through npm
+        run: npm install --no-audit --no-fund --save posthog-js@1 @amplitude/analytics-browser@2
+
+      - name: Verify the unchanged application build
+        run: npm run build
+
+      - name: Commit npm-generated manifest and lockfile
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          if git diff --cached --quiet; then
+            echo "No dependency changes to commit."
+          else
+            git commit -m "chore: install analytics browser SDKs"
+            git push origin HEAD:feat/heloro-dual-analytics
+          fi
