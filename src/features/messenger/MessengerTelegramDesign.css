@@ -2165,3 +2165,74 @@ html[data-theme="dark"] .system-publish-preview {
 }
 html[data-theme="dark"] .system-publish-preview button { color: #ccc; }
 html[data-theme="dark"] .system-post-image { background: #202020; }
+
+
+/* Collectible HELORO gift decoration. The character artwork is intentionally
+   kept separate from the UI until an approved source asset is provided. */
+.avatar.avatar-with-gift {
+  position: relative;
+  overflow: visible;
+  border: 2px solid #d6b45d;
+  box-shadow: 0 0 0 2px rgba(214,180,93,.22);
+}
+.avatar.avatar-with-gift > img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.avatar-gift-token {
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  z-index: 2;
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  color: #70501a;
+  background: #f4d47d;
+  box-shadow: 0 1px 4px rgba(0,0,0,.2);
+}
+html[data-theme="dark"] .avatar-gift-token { border-color: #1d1d1d; }
+.profile-gift-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 0 0 17px;
+  padding: 14px;
+  border: 1px solid rgba(207,169,82,.5);
+  border-radius: 14px;
+  background: linear-gradient(110deg, rgba(239,207,128,.16), rgba(214,180,93,.06));
+}
+.profile-gift-icon {
+  display: grid;
+  width: 58px;
+  height: 58px;
+  flex: 0 0 58px;
+  place-items: center;
+  border: 1px solid rgba(207,169,82,.52);
+  border-radius: 16px;
+  color: #9a742b;
+  background: rgba(239,207,128,.18);
+}
+.profile-gift-card > div:last-child { display: grid; min-width: 0; gap: 4px; }
+.profile-gift-card small { color: #9a742b; font-size: 9px; font-weight: 800; letter-spacing: .08em; }
+.profile-gift-card strong { color: #332a1a; font-size: 14px; }
+.profile-gift-card span { color: #8a7b60; font-size: 11px; }
+html[data-theme="dark"] .profile-gift-card { border-color: rgba(207,169,82,.34); background: linear-gradient(110deg, rgba(239,207,128,.10), rgba(214,180,93,.035)); }
+html[data-theme="dark"] .profile-gift-icon { color: #e1c477; background: rgba(239,207,128,.08); }
+html[data-theme="dark"] .profile-gift-card strong { color: #f1e5c9; }
+html[data-theme="dark"] .profile-gift-card span { color: #b9aa8d; }
+.community-verification-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 5px;
+  vertical-align: -2px;
+}
+.community-verification-blue { color: #229ED9; }
+.community-verification-gold { color: #d3a335; }
+.community-verification-creator { color: #d74e66; }

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { User } from "@supabase/supabase-js";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { ArrowLeft, ImagePlus, MessageCircle, Megaphone, Send, Users, X, Check, PencilLine, ChevronRight, Trash2, ShieldCheck } from "lucide-react";
+import { ArrowLeft, BadgeCheck, ImagePlus, MessageCircle, Megaphone, Send, Users, X, Check, PencilLine, ChevronRight, Trash2, ShieldCheck } from "lucide-react";
 import type { Locale } from "../../lib/i18n";
 import { searchProfiles } from "../../lib/messenger";
 import type { PublicProfile } from "../../lib/types";
@@ -17,6 +17,7 @@ type Room = {
   created_by: string;
   is_public: boolean;
   updated_at: string;
+  badge_type?: "blue" | "gold" | "creator" | null;
 };
 type RoomMessage = {
   id: string;
@@ -60,6 +61,11 @@ type RoomAdminEntry = {
   promoter: PublicProfile | null;
 };
 type Props = { client: SupabaseClient; user: User; locale: Locale; contacts?: PublicProfile[]; initialRoomId?: string | null; initialCreateKind?: "group" | "channel" | null; onRoomsChanged?: () => void; onClose: () => void };
+
+function RoomVerificationMark({ type }: { type?: "blue" | "gold" | "creator" | null }) {
+  if (!type) return null;
+  return <span className={"community-verification-mark community-verification-" + type} aria-label="Verified community"><BadgeCheck size={15} strokeWidth={2.7} /></span>;
+}
 
 function RoomAvatar({ room, className = "" }: { room: Room; className?: string }) {
   return <div className={`community-avatar ${className}`.trim()}>{room.avatar_url ? <img src={room.avatar_url} alt="" /> : room.kind === "channel" ? <Megaphone size={19} /> : <Users size={19} />}</div>;
@@ -149,7 +155,7 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
   }, [channelPhotoFile]);
 
   function chooseChannelPhoto(file?: File) {
-    if (!file || !room || room.kind !== "channel" || !canPostChannelMessages) return;
+    if (!file || !room || !memberRole || (room.kind === "channel" && !canPostChannelMessages)) return;
     const supported = ["image/png", "image/jpeg", "image/webp"];
     if (!supported.includes(file.type) || file.size < 1 || file.size > 5 * 1024 * 1024) {
       setError(ru ? "Выбери PNG, JPEG или WebP размером до 5 МБ." : "Choose a PNG, JPEG or WebP photo up to 5 MB.");
@@ -332,6 +338,11 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
     setRoomNameDraft(nextRoom.name);
     setRoomDescriptionDraft(nextRoom.description);
     setRoom(nextRoom);
+    void client.from("community_verification_badges").select("badge_type").eq("room_id", nextRoom.id).maybeSingle()
+      .then(({ data, error: badgeError }) => {
+        if (badgeError) { console.warn("HELORO community badge lookup failed:", badgeError.message); return; }
+        setRoom((current) => current?.id === nextRoom.id ? { ...current, badge_type: (data?.badge_type as Room["badge_type"]) ?? null } : current);
+      });
     setMemberRole(null);
     setMyAdminPermissions(EMPTY_COMMUNITY_ADMIN_PERMISSIONS);
     setAdminManagementOpen(false);
@@ -467,9 +478,9 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
     event.preventDefault();
     if (!room || !memberRole) return;
     const caption = draft.trim();
-    const photo = room.kind === "channel" ? channelPhotoFile : null;
+    const photo = channelPhotoFile;
     if (!caption && !photo) return;
-    if (photo && !canPostChannelMessages) return;
+    if (room.kind === "channel" && !canPostChannelMessages) return;
     setBusy(true);
     setError("");
     let uploadedPath: string | null = null;
@@ -760,7 +771,7 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
             <button className="community-header-room" type="button" onClick={() => setShowRoomInfo(true)} aria-label={ru ? "Открыть информацию о сообществе" : "Open community info"}>
               <RoomAvatar room={room} />
               <span>
-                <strong>{room.name}</strong>
+                <strong>{room.name}<RoomVerificationMark type={room.badge_type} /></strong>
                 <small>{roomMemberLabel(room.kind, memberCount, ru)}{!room.is_public ? (ru ? " · Частное" : " · Private") : ""}</small>
               </span>
               <ChevronRight size={18} />
@@ -903,7 +914,7 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
                   {messages.length === 0 ? <div className="community-empty"><MessageCircle size={24} /><span>{ru ? "Пока нет сообщений" : "No messages yet"}</span></div> : messages.map((item) => (
                     <article className={"community-message " + (item.sender_id === user.id ? "mine" : "")} key={item.id}>
                       {item.sender_id !== user.id && <small>{ru ? "Участник" : "Member"}</small>}
-                      {item.media?.url && <img className="community-message-photo" src={item.media.url} alt={ru ? "Фотография в канале" : "Channel photo"} loading="lazy" />}
+                      {item.media?.url && <img className="community-message-photo" src={item.media.url} alt={ru ? "Фотография в сообществе" : "Community photo"} loading="lazy" />}
                       {item.body && <p>{item.body}</p>}<footer><time>{new Date(item.created_at).toLocaleTimeString(ru ? "ru-RU" : "en-US", { hour: "2-digit", minute: "2-digit" })}</time>
                       {canDeleteCommunityMessage(memberRole, myAdminPermissions, item.sender_id, user.id) && <button type="button" onClick={() => void deleteMessage(item)}>{ru ? "Удалить" : "Delete"}</button>}</footer>
                     </article>
@@ -912,7 +923,7 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
                 </div>
                 {(room.kind === "group" || canPostChannelMessages) ? (
                   <>
-                    {room.kind === "channel" && channelPhotoPreview && (
+                    {channelPhotoPreview && (
                       <div className="community-channel-photo-preview">
                         <img src={channelPhotoPreview} alt={ru ? "Выбранное фото" : "Selected photo"} />
                         <span>{channelPhotoFile?.name}</span>
@@ -920,7 +931,7 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
                       </div>
                     )}
                     <form className="community-composer" onSubmit={sendMessage}>
-                      {room.kind === "channel" && (
+                      {(room.kind === "group" || canPostChannelMessages) && (
                         <>
                           <input ref={channelPhotoInput} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(event) => chooseChannelPhoto(event.target.files?.[0])} />
                           <button className="community-attach-photo" type="button" onClick={() => channelPhotoInput.current?.click()} disabled={busy} aria-label={ru ? "Прикрепить фото" : "Attach photo"} title={ru ? "Прикрепить фото" : "Attach photo"}><ImagePlus size={18} /></button>
@@ -979,7 +990,7 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
               <div className="community-info-section">
                 <div className="community-info-section-label">{ru ? "Тип" : "Type"}</div>
                 <div className="community-info-detail">
-                  <strong>{room.kind === "channel" ? (ru ? "Канал" : "Channel") : (ru ? "Группа" : "Group")}</strong>
+                  <strong>{room.kind === "channel" ? (ru ? "Канал" : "Channel") : (ru ? "Группа" : "Group")}<RoomVerificationMark type={room.badge_type} /></strong>
                   <small>{room.is_public
                     ? (ru ? "Открыто для поиска и вступления" : "Discoverable and open to join")
                     : (ru ? "Закрытое сообщество" : "Private community")}</small>
