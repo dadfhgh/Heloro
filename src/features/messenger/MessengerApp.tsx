@@ -6,6 +6,7 @@ import {
   BadgeCheck,
   CheckCheck,
   Flag,
+  Gift,
   Headphones,
   ImagePlus,
   Menu,
@@ -51,7 +52,7 @@ import "./MessengerTelegramDesign.css";
 import "./MessengerCommunity.css";
 
 type SystemView = "news" | "discussion" | "support" | "admin";
-type CommunityRoomPreview = { id: string; kind: "group" | "channel"; name: string; username: string; description: string; avatar_url: string | null; is_public: boolean; updated_at: string };
+type CommunityRoomPreview = { id: string; kind: "group" | "channel"; name: string; username: string; description: string; avatar_url: string | null; is_public: boolean; updated_at: string; badge_type?: "blue" | "gold" | "creator" | null };
 type VisibleChatItem = { kind: "direct"; sortAt: string; conversation: InboxConversation } | { kind: "community"; sortAt: string; room: CommunityRoomPreview };
 
 type Props = {
@@ -65,9 +66,10 @@ type Props = {
   onThemeChange: (next: ThemePreference) => void;
 };
 
-function Avatar({ label, className = "", src }: { label: string; className?: string; src?: string | null }) {
-  return <div className={`avatar ${className}`} aria-hidden="true">
+function Avatar({ label, className = "", src, gift = false }: { label: string; className?: string; src?: string | null; gift?: boolean }) {
+  return <div className={`avatar ${gift ? "avatar-with-gift" : ""} ${className}`.trim()} aria-hidden="true">
     {src ? <img src={src} alt="" loading="lazy" /> : initials(label)}
+    {gift && <span className="avatar-gift-token" title="Жирный Эпик Санс"><Gift size={12} /></span>}
   </div>;
 }
 
@@ -121,6 +123,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const [search, setSearch] = useState("");
   const [results, setResults] = useState<PublicProfile[]>([]);
   const [badgeMap, setBadgeMap] = useState<Record<string, BadgeType>>({});
+  const [giftMap, setGiftMap] = useState<Record<string, boolean>>({});
   const [searching, setSearching] = useState(false);
   const [loadingInbox, setLoadingInbox] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
@@ -228,6 +231,15 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
     }
   }
 
+  async function attachCommunityBadges(rows: CommunityRoomPreview[]) {
+    if (rows.length === 0) return rows;
+    const { data, error: badgeError } = await client.from("community_verification_badges")
+      .select("room_id, badge_type").in("room_id", rows.map((item) => item.id));
+    if (badgeError) throw badgeError;
+    const badges = new Map((data ?? []).map((item) => [item.room_id as string, item.badge_type as "blue" | "gold" | "creator"]));
+    return rows.map((item) => ({ ...item, badge_type: badges.get(item.id) ?? null }));
+  }
+
   async function refreshCommunityRooms() {
     const { data: memberships, error: membershipError } = await client.from("community_room_members")
       .select("room_id").eq("user_id", user.id);
@@ -241,7 +253,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
       .select("id, kind, name, username, description, avatar_url, is_public, updated_at")
       .in("id", roomIds).order("updated_at", { ascending: false }).limit(100);
     if (roomError) throw roomError;
-    setCommunityRooms((data ?? []) as CommunityRoomPreview[]);
+    setCommunityRooms(await attachCommunityBadges((data ?? []) as CommunityRoomPreview[]));
   }
 
   function openCommunity(roomId: string | null, createKind: "group" | "channel" | null = null) {
@@ -313,7 +325,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
           setCommunitySearchRooms([]);
           return;
         }
-        setCommunitySearchRooms((data ?? []) as CommunityRoomPreview[]);
+        void attachCommunityBadges((data ?? []) as CommunityRoomPreview[]).then(setCommunitySearchRooms).catch(() => setCommunitySearchRooms([]));
       });
     return () => { active = false; };
   }, [client, search, showSearch]);
@@ -343,6 +355,21 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
       });
     return () => { active = false; };
   }, [client, inbox]);
+
+  useEffect(() => {
+    let active = true;
+    const ids = [...new Set([user.id, ...inbox.map((item) => item.other_user_id), ...(viewedProfile ? [viewedProfile.id] : [])])];
+    void client.from("profile_gifts").select("user_id").in("user_id", ids)
+      .then(({ data, error: giftError }) => {
+        if (!active) return;
+        if (giftError) {
+          console.warn("HELORO profile gift lookup failed:", giftError.message);
+          return;
+        }
+        setGiftMap(Object.fromEntries((data ?? []).map((item) => [item.user_id as string, true])));
+      });
+    return () => { active = false; };
+  }, [client, inbox, user.id, viewedProfile?.id]);
 
   useEffect(() => {
     if (!activeId) {
@@ -664,7 +691,8 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
       for (const room of [...(publicResult.data ?? []), ...joinedRooms] as CommunityRoomPreview[]) {
         uniqueRooms.set(room.id, room);
       }
-      setDirectoryRooms([...uniqueRooms.values()].sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at)));
+      const hydratedRooms = await attachCommunityBadges([...uniqueRooms.values()]);
+      setDirectoryRooms(hydratedRooms.sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at)));
       setDirectoryRoomsLoaded(true);
     } catch (cause) {
       setDirectoryError(cause instanceof Error ? cause.message : (locale === "ru" ? "Не удалось загрузить группы и каналы." : "Could not load groups and channels."));
@@ -937,7 +965,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                     </div>
                     <span className="conversation-copy">
                       <span className="conversation-title-line">
-                        <strong>{entry.room.name}</strong>
+                        <strong>{entry.room.name}<VerificationMark type={entry.room.badge_type ?? null} title={locale === "ru" ? "Сообщество подтверждено HELORO" : "Community verified by HELORO"} /></strong>
                         <time>{entry.room.kind === "channel" ? (locale === "ru" ? "Канал" : "Channel") : (locale === "ru" ? "Группа" : "Group")}</time>
                       </span>
                       <span className="conversation-preview-line"><small>@{entry.room.username}{entry.room.description ? ` · ${entry.room.description}` : ""}</small></span>
@@ -952,7 +980,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                       key={item.conversation_id}
                       onClick={() => { setActiveCommunityRoomId(null); setCommunityCreateKind(null); setActiveId(item.conversation_id); setSystemView(null); setShowSearch(false); }}
                     >
-                      <Avatar label={label} src={item.avatar_url} />
+                      <Avatar label={label} src={item.avatar_url} gift={Boolean(giftMap[item.other_user_id])} />
                       <span className="conversation-copy">
                         <span className="conversation-title-line">
                           <strong>{label}<VerificationMark type={badgeMap[item.other_user_id]} title={locale === "ru" ? "Аккаунт подтверждён HELORO" : "Verified by HELORO"} /></strong>
@@ -972,7 +1000,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
 
           <footer className="inbox-profile">
             <button className="inbox-own-profile" type="button" onClick={() => void openUserProfile(user.id)} aria-label={t(locale, "profileViewTitle")}>
-              <Avatar label={ownProfile.display_name} className="profile-avatar" src={ownProfile.avatar_url} />
+              <Avatar label={ownProfile.display_name} className="profile-avatar" src={ownProfile.avatar_url} gift={Boolean(giftMap[user.id])} />
               <span className="profile-summary"><strong>{ownProfile.display_name}</strong><small>@{ownProfile.username}</small></span>
             </button>
             {roles.includes("owner") && <span className="owner-mini-mark" title={t(locale, "ownerRole")}><ShieldCheck size={15} /></span>}
@@ -1155,7 +1183,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                           badge_type: badgeMap[item.other_user_id] ?? null,
                         })}
                       >
-                        <Avatar label={item.display_name || item.username} src={item.avatar_url} />
+                        <Avatar label={item.display_name || item.username} src={item.avatar_url} gift={Boolean(giftMap[item.other_user_id])} />
                         <span className="new-message-person-copy">
                           <strong>{item.display_name || item.username}<VerificationMark type={badgeMap[item.other_user_id]} title={locale === "ru" ? "Аккаунт подтверждён HELORO" : "Verified by HELORO"} /></strong>
                           <small>@{item.username}</small>
@@ -1213,7 +1241,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                   <ArrowLeft size={20} />
                 </button>
                 <button type="button" className="chat-profile-trigger" onClick={() => void openUserProfile(activeConversation.other_user_id)} aria-label={t(locale, "profileViewTitle")}>
-                  <Avatar label={activeConversation.display_name || activeConversation.username} className="chat-header-avatar" src={activeConversation.avatar_url} />
+                  <Avatar label={activeConversation.display_name || activeConversation.username} className="chat-header-avatar" src={activeConversation.avatar_url} gift={Boolean(giftMap[activeConversation.other_user_id])} />
                   <span className="chat-person">
                     <strong>{activeConversation.display_name || activeConversation.username}<VerificationMark type={badgeMap[activeConversation.other_user_id]} title={locale === "ru" ? "Аккаунт подтверждён HELORO" : "Verified by HELORO"} /></strong>
                     <small>@{activeConversation.username}</small>
@@ -1404,10 +1432,14 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
               {profileLoading ? <p className="profile-view-loading">{t(locale, "appLoading")}</p> : viewedProfile ? <>
                 <div className="profile-view-cover" />
                 <div className="profile-view-hero">
-                  <Avatar label={viewedProfile.display_name || viewedProfile.username} className="profile-view-avatar" src={viewedProfile.avatar_url} />
+                  <Avatar label={viewedProfile.display_name || viewedProfile.username} className="profile-view-avatar" src={viewedProfile.avatar_url} gift={Boolean(giftMap[viewedProfile.id])} />
                   <h2 id="profile-view-title">{viewedProfile.display_name || viewedProfile.username}<VerificationMark type={viewedProfile.badge_type} title={locale === "ru" ? "Аккаунт подтверждён HELORO" : "Verified by HELORO"} /></h2>
                   <p className="profile-view-username">@{viewedProfile.username}</p>
                 </div>
+                {giftMap[viewedProfile.id] && <section className="profile-gift-card" aria-label={locale === "ru" ? "Коллекционный подарок" : "Collectible gift"}>
+                  <div className="profile-gift-art-placeholder"><Gift size={34} /></div>
+                  <div><small>{locale === "ru" ? "КОЛЛЕКЦИОННЫЙ ПОДАРОК" : "COLLECTIBLE GIFT"}</small><strong>{locale === "ru" ? "Жирный Эпик Санс" : "Fat Epic Sans"}</strong><span>{locale === "ru" ? "Подарок HELORO" : "HELORO gift"}</span></div>
+                </section>}
                 <div className="profile-info-card">
                   <div className="profile-info-row">
                     <UserRound size={19} />
