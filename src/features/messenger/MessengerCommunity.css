@@ -1187,31 +1187,12 @@ html[data-theme="dark"] .system-channel-edit-form input,
 html[data-theme="dark"] .system-channel-edit-form textarea { border-color: #444; }
 
 
-/* Purple frame — a clean avatar arc with a small opening; no crown icon. */
+/* Purple avatar frame: hand-drawn open ring, angular crown and inner curve. */
 .avatar.avatar-with-crown {
   position: relative;
   overflow: visible;
   border-color: transparent !important;
   box-shadow: none !important;
-}
-.avatar.avatar-with-crown::after {
-  content: "";
-  position: absolute;
-  inset: -3px;
-  border-radius: 50%;
-  padding: 3px;
-  background: conic-gradient(
-    from 42deg,
-    transparent 0deg 7deg,
-    #a879f4 13deg,
-    #8150dc 190deg,
-    #a879f4 344deg,
-    transparent 350deg 360deg
-  );
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  pointer-events: none;
 }
 .avatar.avatar-with-crown > img {
   width: 100%;
@@ -1219,22 +1200,26 @@ html[data-theme="dark"] .system-channel-edit-form textarea { border-color: #444;
   border-radius: 50%;
   object-fit: cover;
 }
-
-/* The same purple crown sits in the frame opening and beside the username. */
-.avatar.avatar-with-crown .avatar-crown-gap-mark {
+.avatar.avatar-with-crown .avatar-crown-frame-art {
   position: absolute;
-  z-index: 2;
-  top: calc(12.9% - 8px);
-  right: calc(16.5% - 8px);
-  display: grid;
-  width: 17px;
-  height: 17px;
-  place-items: center;
-  color: #8752df;
-  background: transparent;
-  line-height: 1;
+  z-index: 3;
+  top: -33%;
+  left: 0;
+  width: 130%;
+  height: 133%;
+  overflow: visible;
+  fill: none;
+  stroke: #ad50df;
+  stroke-width: 29;
+  stroke-linecap: round;
+  stroke-linejoin: round;
   pointer-events: none;
 }
+html[data-theme="dark"] .avatar.avatar-with-crown .avatar-crown-frame-art {
+  stroke: #ad50df;
+}
+
+/* Username mark remains the same existing small crown until the user reviews it. */
 .purple-crown-name-mark {
   display: inline-flex;
   width: 17px;
