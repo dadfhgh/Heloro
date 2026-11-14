@@ -1437,7 +1437,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                   <p className="profile-view-username">@{viewedProfile.username}</p>
                 </div>
                 {giftMap[viewedProfile.id] && <section className="profile-gift-card" aria-label={locale === "ru" ? "Коллекционный подарок" : "Collectible gift"}>
-                  <div className="profile-gift-art-placeholder"><Gift size={34} /></div>
+                  <div className="profile-gift-icon"><Gift size={34} /></div>
                   <div><small>{locale === "ru" ? "КОЛЛЕКЦИОННЫЙ ПОДАРОК" : "COLLECTIBLE GIFT"}</small><strong>{locale === "ru" ? "Жирный Эпик Санс" : "Fat Epic Sans"}</strong><span>{locale === "ru" ? "Подарок HELORO" : "HELORO gift"}</span></div>
                 </section>}
                 <div className="profile-info-card">
