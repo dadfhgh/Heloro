@@ -40,6 +40,8 @@ import {
   subscribeToUserPresence,
   subscribeToConversationTyping,
   sendTypingIndicator,
+  touchUserLastSeen,
+  getVisibleLastSeen,
   uploadAvatar,
 } from "../../lib/messenger";
 import { formatInboxTime, formatLastSeen, formatMessageDayLabel, formatMessageTime, initials, messageBodySchema, usernameSchema, displayNameSchema } from "../../lib/domain";
@@ -141,6 +143,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState("");
   const [onlineMap, setOnlineMap] = useState<Record<string, boolean>>({});
+  const [lastSeenMap, setLastSeenMap] = useState<Record<string, string>>({});
   const [isTyping, setIsTyping] = useState(false);
   const [search, setSearch] = useState("");
   const [results, setResults] = useState<PublicProfile[]>([]);
@@ -199,6 +202,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingChannelRef = useRef<RealtimeChannel | null>(null);
+  const typingChannelReadyRef = useRef(false);
   const typingTimeoutRef = useRef<number | null>(null);
   const remoteTypingTimeoutRef = useRef<number | null>(null);
   const lastTypingBroadcastRef = useRef(0);
@@ -216,29 +220,30 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
 
   useEffect(() => {
     let active = true;
-    const touchLastSeen = () => {
-      void client.from("user_preferences")
-        .upsert({ user_id: user.id, last_seen_at: new Date().toISOString() }, { onConflict: "user_id" })
-        .then(({ error: presenceError }) => {
-          if (active && presenceError) console.warn("HELORO last-seen update unavailable:", presenceError.message);
-        });
-    };
-    touchLastSeen();
-    const interval = window.setInterval(touchLastSeen, 30000);
-    const onPageHide = () => touchLastSeen();
-    window.addEventListener("pagehide", onPageHide);
-    return () => {
-      active = false;
-      window.clearInterval(interval);
-      window.removeEventListener("pagehide", onPageHide);
-      touchLastSeen();
-    };
-  }, [client, user.id]);
-
-  useEffect(() => {
-    let active = true;
     let channels: RealtimeChannel[] = [];
-    const targetIds = [...new Set([user.id, ...presenceContactKey.split(",").filter(Boolean)])];
+    const peerIds = presenceContactKey.split(",").filter(Boolean);
+    const targetIds = [...new Set([user.id, ...peerIds])];
+    setOnlineMap(Object.fromEntries(peerIds.map((id) => [id, false])));
+
+    const refreshLastSeen = async () => {
+      if (peerIds.length === 0) {
+        if (active) setLastSeenMap({});
+        return;
+      }
+      try {
+        const rows = await getVisibleLastSeen(peerIds);
+        if (active) setLastSeenMap(Object.fromEntries(rows.map((row) => [row.user_id, row.last_seen_at])));
+      } catch (cause) {
+        console.warn("HELORO last-seen lookup failed:", cause);
+      }
+    };
+
+    const touchActivity = () => {
+      if (document.visibilityState !== "visible") return;
+      void touchUserLastSeen().catch((cause) => console.warn("HELORO last-seen heartbeat failed:", cause));
+      void refreshLastSeen();
+    };
+
     void (async () => {
       try {
         await client.realtime.setAuth();
@@ -257,8 +262,14 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
         console.warn("HELORO contact presence is unavailable:", cause);
       }
     })();
+
+    touchActivity();
+    const heartbeat = window.setInterval(touchActivity, 60000);
+    document.addEventListener("visibilitychange", touchActivity);
     return () => {
       active = false;
+      window.clearInterval(heartbeat);
+      document.removeEventListener("visibilitychange", touchActivity);
       channels.forEach((channel) => { void client.removeChannel(channel); });
     };
   }, [client, user.id, presenceContactKey]);
@@ -514,17 +525,18 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
     }
     let active = true;
     let channel: RealtimeChannel | null = null;
+    typingChannelReadyRef.current = false;
     void client.realtime.setAuth()
       .then(() => subscribeToConversationTyping(activeId, user.id, (typing) => {
         if (!active) return;
         setIsTyping(typing);
         if (remoteTypingTimeoutRef.current !== null) window.clearTimeout(remoteTypingTimeoutRef.current);
         if (typing) {
-          remoteTypingTimeoutRef.current = window.setTimeout(() => setIsTyping(false), 3500);
+          remoteTypingTimeoutRef.current = window.setTimeout(() => setIsTyping(false), 2500);
         } else {
           remoteTypingTimeoutRef.current = null;
         }
-      }))
+      }, (ready) => { typingChannelReadyRef.current = ready; }))
       .then((connected) => {
         if (!active) {
           void client.removeChannel(connected);
@@ -536,6 +548,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
       .catch((cause: unknown) => console.warn("HELORO typing indicator is unavailable:", cause));
     return () => {
       active = false;
+      typingChannelReadyRef.current = false;
       if (typingTimeoutRef.current !== null) window.clearTimeout(typingTimeoutRef.current);
       if (remoteTypingTimeoutRef.current !== null) window.clearTimeout(remoteTypingTimeoutRef.current);
       typingTimeoutRef.current = null;
@@ -622,7 +635,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   function handleDraftChange(value: string) {
     setDraft(value);
     const channel = typingChannelRef.current;
-    if (!channel) return;
+    if (!channel || !typingChannelReadyRef.current) return;
     if (!value.trim()) {
       sendTypingIndicator(channel, user.id, false);
       if (typingTimeoutRef.current !== null) window.clearTimeout(typingTimeoutRef.current);
@@ -643,7 +656,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
 
   async function handleSend(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (typingChannelRef.current) sendTypingIndicator(typingChannelRef.current, user.id, false);
+    if (typingChannelRef.current && typingChannelReadyRef.current) sendTypingIndicator(typingChannelRef.current, user.id, false);
     if (typingTimeoutRef.current !== null) window.clearTimeout(typingTimeoutRef.current);
     typingTimeoutRef.current = null;
     const parsed = messageBodySchema.safeParse(draft);
@@ -1418,7 +1431,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                   <span className="chat-person">
                     <strong>{activeConversation.display_name || activeConversation.username}<VerificationMark type={badgeMap[activeConversation.other_user_id]} title={locale === "ru" ? "Аккаунт подтверждён HELORO" : "Verified by HELORO"} /></strong>
                     <small>@{activeConversation.username}<PurpleCrownNameMark active={Boolean(crownMap[activeConversation.other_user_id])} /></small>
-                    <small className={`chat-presence-status ${onlineMap[activeConversation.other_user_id] ? "is-online" : ""}`}>{isTyping ? (locale === "ru" ? "печатает…" : "typing…") : onlineMap[activeConversation.other_user_id] ? (locale === "ru" ? "в сети" : "online") : formatLastSeen(activeConversation.other_last_seen_at, locale, Boolean(activeConversation.other_last_seen_hidden), activeConversation.other_last_seen_bucket)}</small>
+                    <small className={`chat-presence-status ${onlineMap[activeConversation.other_user_id] ? "is-online" : ""}`}>{isTyping ? (locale === "ru" ? "печатает…" : "typing…") : onlineMap[activeConversation.other_user_id] ? (locale === "ru" ? "в сети" : "online") : formatLastSeen(lastSeenMap[activeConversation.other_user_id] ?? null, locale, !lastSeenMap[activeConversation.other_user_id])}</small>
                   </span>
                 </button>
                 <div className="chat-header-actions">
@@ -1531,7 +1544,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                 <input
                   value={draft}
                   onChange={(event) => handleDraftChange(event.target.value)}
-                  onBlur={() => { if (typingChannelRef.current) sendTypingIndicator(typingChannelRef.current, user.id, false); if (typingTimeoutRef.current !== null) window.clearTimeout(typingTimeoutRef.current); typingTimeoutRef.current = null; }}
+                  onBlur={() => { if (typingChannelRef.current && typingChannelReadyRef.current) sendTypingIndicator(typingChannelRef.current, user.id, false); if (typingTimeoutRef.current !== null) window.clearTimeout(typingTimeoutRef.current); typingTimeoutRef.current = null; }}
                   placeholder={mediaSending ? (locale === "ru" ? "Отправка медиа…" : "Sending media…") : t(locale, "messagePlaceholder")}
                   aria-label={t(locale, "messagePlaceholder")}
                   maxLength={4000}
