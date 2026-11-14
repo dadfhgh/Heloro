@@ -663,7 +663,7 @@ export default function HeloroSPanel({
             <div className="admin-user-results">
               {communities.filter((item) => (item.name + " " + (item.username ?? "")).toLowerCase().includes(communitySearch.trim().replace(/^@/, "").toLowerCase())).map((item) => (
                 <article className="admin-record-card" key={item.id}>
-                  <div className="admin-record-heading"><strong>{item.kind === "group" ? (ru ? "Группа" : "Group") : (ru ? "Канал" : "Channel")} · {item.name} {item.badge_type ? <BadgeCheck size={15} className={"verification-mark verification-" + item.badge_type} aria-label={item.badge_type} /> : null}</strong><span>{item.member_count} {ru ? "участников" : "members"}</span></div>
+                  <div className="admin-record-heading"><strong>{item.kind === "group" ? (ru ? "Группа" : "Group") : (ru ? "Канал" : "Channel")} · {item.name} {item.badge_type ? <BadgeCheck size={15} className={"community-verification-mark community-verification-" + item.badge_type} aria-label={item.badge_type} /> : null}</strong><span>{item.member_count} {ru ? "участников" : "members"}</span></div>
                   <small>{item.username ? "@" + item.username + " · " : ""}{ru ? "Создано" : "Created"}: {new Date(item.created_at).toLocaleString()} · ID: {shortId(item.id)}</small>
                   {isOwner && <div className="admin-role-editor">
                     <select value={communityBadgeDraft[item.id] ?? item.badge_type ?? ""} onChange={(event) => setCommunityBadgeDraft((current) => ({ ...current, [item.id]: event.target.value }))}>
