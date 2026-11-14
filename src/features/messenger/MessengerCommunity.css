@@ -1149,3 +1149,42 @@ html[data-theme="dark"] .community-composer .community-attach-photo {
   color: #ddd;
   background: #333;
 }
+
+
+/* Linked channel discussion and per-post comments */
+.community-info-discussion,
+.community-info-discussion-link { width: 100%; margin-top: 12px; }
+.community-info-discussion { display: flex; align-items: center; justify-content: center; gap: 9px; }
+.community-info-discussion-link { display: grid; gap: 9px; padding: 13px; border: 1px solid var(--border, #e5e5e5); border-radius: 14px; }
+.community-info-discussion-link label { display: grid; gap: 7px; font-size: 12px; color: #777; font-weight: 600; }
+.community-info-discussion-link select { width: 100%; min-height: 42px; border: 1px solid var(--border, #ddd); border-radius: 10px; padding: 0 10px; color: inherit; background: transparent; }
+.community-post-comments { display: grid; gap: 9px; padding: 11px 12px 12px; border-top: 1px solid var(--border, #e8e8e8); background: rgba(128,128,128,.045); }
+.community-post-comment { display: grid; gap: 5px; padding: 8px 10px; border-radius: 10px; background: var(--surface, #fff); }
+.community-post-comment p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.community-post-comment footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: #888; font-size: 11px; }
+.community-post-comment footer button,
+.community-message footer button { border: 0; background: transparent; color: #777; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+.community-post-comment-form { display: flex; gap: 8px; }
+.community-post-comment-form input { min-width: 0; flex: 1; border: 1px solid var(--border, #ddd); border-radius: 20px; padding: 10px 13px; background: var(--surface, #fff); color: inherit; }
+.community-post-comment-form button { width: 38px; height: 38px; flex: 0 0 38px; border: 0; border-radius: 50%; display: grid; place-items: center; background: #171717; color: #fff; }
+html[data-theme="dark"] .community-info-discussion-link { border-color: #333; }
+html[data-theme="dark"] .community-info-discussion-link select,
+html[data-theme="dark"] .community-post-comment-form input { border-color: #444; background: #181818; color: #eee; }
+html[data-theme="dark"] .community-post-comment { background: #202020; }
+html[data-theme="dark"] .community-post-comments { border-color: #333; background: #171717; }
+
+
+/* Owner-only editing for official HELORO channels and gift dispatch */
+.system-channel-edit-form { display: grid; gap: 11px; padding: 14px; margin: 10px 0 14px; border: 1px solid var(--border, #e5e5e5); border-radius: 14px; }
+.system-channel-edit-form label { display: grid; gap: 6px; color: #777; font-size: 12px; font-weight: 600; }
+.system-channel-edit-form input,
+.system-channel-edit-form textarea { width: 100%; min-height: 40px; border: 1px solid var(--border, #ddd); border-radius: 9px; padding: 9px 11px; color: inherit; background: transparent; font: inherit; }
+.system-channel-edit-form textarea { min-height: 76px; resize: vertical; }
+.system-channel-edit-form > div { display: flex; justify-content: flex-end; gap: 8px; }
+.system-channel-edit-form > div button { min-height: 38px; padding: 0 12px; border: 1px solid var(--border, #ddd); border-radius: 9px; background: transparent; color: inherit; }
+.profile-gift-send-action { width: 100%; justify-content: center; margin-top: 10px; }
+.profile-view-notice { margin: 9px 0 0; padding: 10px 12px; border-radius: 10px; background: rgba(34,158,217,.1); color: #1675a5; font-size: 13px; }
+html[data-theme="dark"] .system-channel-edit-form { border-color: #333; }
+html[data-theme="dark"] .system-channel-edit-form input,
+html[data-theme="dark"] .system-channel-edit-form textarea { border-color: #444; }
+html[data-theme="dark"] .profile-view-notice { color: #8bc8e8; background: rgba(34,158,217,.13); }

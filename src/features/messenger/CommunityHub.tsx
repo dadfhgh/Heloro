@@ -18,6 +18,7 @@ type Room = {
   is_public: boolean;
   updated_at: string;
   badge_type?: "blue" | "gold" | "creator" | null;
+  discussion_room_id?: string | null;
 };
 type RoomMessage = {
   id: string;
@@ -50,6 +51,7 @@ async function hydrateRoomMessage(client: SupabaseClient, message: RoomMessage):
     return { ...message, body: "Не удалось открыть фотографию.", media: null };
   }
 }
+type RoomMessageComment = { id: string; room_id: string; message_id: string; user_id: string; body: string; created_at: string };
 type RoomAdminEntry = {
   user_id: string;
   role: "owner" | "admin";
@@ -60,7 +62,7 @@ type RoomAdminEntry = {
   profile: PublicProfile | null;
   promoter: PublicProfile | null;
 };
-type Props = { client: SupabaseClient; user: User; locale: Locale; contacts?: PublicProfile[]; initialRoomId?: string | null; initialCreateKind?: "group" | "channel" | null; onRoomsChanged?: () => void; onClose: () => void };
+type Props = { client: SupabaseClient; user: User; locale: Locale; roles?: string[]; contacts?: PublicProfile[]; initialRoomId?: string | null; initialCreateKind?: "group" | "channel" | null; onRoomsChanged?: () => void; onOpenDiscussionRoom?: (channelId: string) => void; onClose: () => void };
 
 function RoomVerificationMark({ type }: { type?: "blue" | "gold" | "creator" | null }) {
   if (!type) return null;
@@ -82,7 +84,7 @@ function roomMemberLabel(kind: Room["kind"], count: number | null, ru: boolean) 
   return `${count} ${noun}`;
 }
 
-export default function CommunityHub({ client, user, locale, contacts = [], initialRoomId = null, initialCreateKind = null, onRoomsChanged, onClose }: Props) {
+export default function CommunityHub({ client, user, locale, roles = [], contacts = [], initialRoomId = null, initialCreateKind = null, onRoomsChanged, onOpenDiscussionRoom, onClose }: Props) {
   const ru = locale === "ru";
   const [room, setRoom] = useState<Room | null>(null);
   const [memberRole, setMemberRole] = useState<string | null>(null);
@@ -97,6 +99,12 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
   const [showRoomInfo, setShowRoomInfo] = useState(false);
   const [memberCount, setMemberCount] = useState<number | null>(null);
   const [messages, setMessages] = useState<RoomMessage[]>([]);
+  const [discussionRooms, setDiscussionRooms] = useState<Array<{ id: string; name: string }>>([]);
+  const [discussionRoomDraft, setDiscussionRoomDraft] = useState("");
+  const [commentTargetId, setCommentTargetId] = useState<string | null>(null);
+  const [postComments, setPostComments] = useState<RoomMessageComment[]>([]);
+  const [postCommentDraft, setPostCommentDraft] = useState("");
+  const [commentBusy, setCommentBusy] = useState(false);
   const [draft, setDraft] = useState("");
   const [channelPhotoFile, setChannelPhotoFile] = useState<File | null>(null);
   const [channelPhotoPreview, setChannelPhotoPreview] = useState<string | null>(null);
@@ -122,9 +130,11 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
   const avatarInput = useRef<HTMLInputElement>(null);
   const channelPhotoInput = useRef<HTMLInputElement>(null);
   const messagesEnd = useRef<HTMLDivElement>(null);
-  const canChangeRoomInfo = hasCommunityPermission(memberRole, myAdminPermissions, "change_info");
-  const canManageRoomAdmins = hasCommunityPermission(memberRole, myAdminPermissions, "manage_admins");
-  const canPostChannelMessages = hasCommunityPermission(memberRole, myAdminPermissions, "post_messages");
+  const isGlobalOwner = roles.includes("owner");
+  const isGlobalAdmin = roles.includes("admin");
+  const canChangeRoomInfo = isGlobalOwner || isGlobalAdmin || hasCommunityPermission(memberRole, myAdminPermissions, "change_info");
+  const canManageRoomAdmins = isGlobalOwner || isGlobalAdmin || hasCommunityPermission(memberRole, myAdminPermissions, "manage_admins");
+  const canPostChannelMessages = isGlobalOwner || isGlobalAdmin || hasCommunityPermission(memberRole, myAdminPermissions, "post_messages");
 
   async function loadRooms() {
     const { data, error: loadError } = await client.from("community_rooms")
@@ -330,6 +340,27 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
 
   useEffect(() => { messagesEnd.current?.scrollIntoView({ behavior: "smooth", block: "end" }); }, [messages]);
 
+  useEffect(() => {
+    if (!room || room.kind !== "channel" || !commentTargetId || !memberRole) { setPostComments([]); return; }
+    let active = true;
+    const load = async () => {
+      const { data, error: loadError } = await client.from("community_message_comments")
+        .select("id, room_id, message_id, user_id, body, created_at")
+        .eq("message_id", commentTargetId).order("created_at", { ascending: true }).limit(100);
+      if (loadError) throw loadError;
+      if (active) setPostComments((data ?? []) as RoomMessageComment[]);
+    };
+    void load().catch((cause: unknown) => { if (active) setError(cause instanceof Error ? cause.message : (ru ? "Не удалось загрузить комментарии." : "Could not load comments.")); });
+    const channel = client.channel("community-post-comments-" + commentTargetId)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "community_message_comments", filter: "message_id=eq." + commentTargetId }, (payload) => {
+        const item = payload.new as RoomMessageComment;
+        setPostComments((current) => current.some((row) => row.id === item.id) ? current : [...current, item]);
+      })
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "community_message_comments", filter: "message_id=eq." + commentTargetId }, () => { void load().catch(() => undefined); })
+      .subscribe();
+    return () => { active = false; void client.removeChannel(channel); };
+  }, [client, room?.id, room?.kind, commentTargetId, memberRole, ru]);
+
   async function openRoom(nextRoom: Room) {
     setError("");
     setRoomEditing(false);
@@ -337,7 +368,21 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
     setRoomUsernameDraft(nextRoom.username);
     setRoomNameDraft(nextRoom.name);
     setRoomDescriptionDraft(nextRoom.description);
-    setRoom(nextRoom);
+    setDiscussionRoomDraft(nextRoom.discussion_room_id ?? "");
+    setDiscussionRooms([]);
+    setCommentTargetId(null);
+    setPostComments([]);
+    let nextDiscussionRoomId = nextRoom.discussion_room_id ?? null;
+    if (nextRoom.kind === "channel") {
+      const { data: groups, error: groupError } = await client.from("community_rooms")
+        .select("id, name").eq("kind", "group").order("updated_at", { ascending: false }).limit(100);
+      if (!groupError) setDiscussionRooms((groups ?? []) as Array<{ id: string; name: string }>);
+      const { data: discussionData, error: discussionError } = await client.from("community_rooms")
+        .select("discussion_room_id").eq("id", nextRoom.id).maybeSingle();
+      if (!discussionError) nextDiscussionRoomId = discussionData?.discussion_room_id ?? null;
+    }
+    setDiscussionRoomDraft(nextDiscussionRoomId ?? "");
+    setRoom({ ...nextRoom, discussion_room_id: nextDiscussionRoomId });
     void client.from("community_verification_badges").select("badge_type").eq("room_id", nextRoom.id).maybeSingle()
       .then(({ data, error: badgeError }) => {
         if (badgeError) { console.warn("HELORO community badge lookup failed:", badgeError.message); return; }
@@ -353,7 +398,7 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
     const { data, error: membershipError } = await client.from("community_room_members")
       .select("role, admin_permissions").eq("room_id", nextRoom.id).eq("user_id", user.id).maybeSingle();
     if (membershipError) { setError(membershipError.message); return; }
-    setMemberRole((data?.role as string | undefined) ?? null);
+    setMemberRole((data?.role as string | undefined) ?? (roles.includes("owner") ? "owner" : roles.includes("admin") ? "admin" : null));
     setMyAdminPermissions((data?.admin_permissions as Partial<CommunityAdminPermissions> | null) ?? EMPTY_COMMUNITY_ADMIN_PERMISSIONS);
   }
 
@@ -597,7 +642,8 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
   }
 
   async function deleteRoom() {
-    if (!room || room.created_by !== user.id || memberRole !== "owner") return;
+    const canDelete = Boolean(room && ((room.created_by === user.id && memberRole === "owner") || isGlobalOwner || isGlobalAdmin));
+    if (!room || !canDelete) return;
     const roomLabel = room.kind === "channel" ? (ru ? "канал" : "channel") : (ru ? "группу" : "group");
     const confirmed = window.confirm(ru
       ? `Удалить ${roomLabel} «${room.name}»? Все сообщения, участники и ссылка сообщества будут удалены. Это действие нельзя отменить.`
@@ -607,14 +653,8 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
     setBusy(true);
     setError("");
     try {
-      const { data, error: deleteError } = await client.from("community_rooms")
-        .delete()
-        .eq("id", room.id)
-        .eq("created_by", user.id)
-        .select("id")
-        .maybeSingle();
+      const { error: deleteError } = await client.rpc("delete_community_room", { p_room_id: room.id });
       if (deleteError) throw deleteError;
-      if (!data) throw new Error(ru ? "Удаление запрещено: проверь, что ты владелец сообщества." : "Delete was not allowed. Check that you own this community.");
       setShowRoomInfo(false);
       setRoom(null);
       setMemberRole(null);
@@ -626,6 +666,58 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
     } finally {
       setBusy(false);
     }
+  }
+
+  async function saveDiscussionLink() {
+    if (!room || room.kind !== "channel" || !canChangeRoomInfo) return;
+    setBusy(true);
+    setError("");
+    try {
+      const nextId = discussionRoomDraft || null;
+      const { data, error: linkError } = await client.from("community_rooms")
+        .update({ discussion_room_id: nextId, updated_at: new Date().toISOString() })
+        .eq("id", room.id)
+        .select("id, discussion_room_id")
+        .single();
+      if (linkError) throw linkError;
+      setRoom({ ...room, discussion_room_id: data.discussion_room_id });
+      setRoomEditing(false);
+      onRoomsChanged?.();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : (ru ? "Не удалось сохранить привязку обсуждения." : "Could not save the discussion link."));
+    } finally { setBusy(false); }
+  }
+
+  async function sendPostComment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!room || room.kind !== "channel" || !commentTargetId || !postCommentDraft.trim() || commentBusy) return;
+    setCommentBusy(true);
+    setError("");
+    try {
+      const { data, error: insertError } = await client.from("community_message_comments")
+        .insert({ room_id: room.id, message_id: commentTargetId, user_id: user.id, body: postCommentDraft.trim() })
+        .select("id, room_id, message_id, user_id, body, created_at")
+        .single();
+      if (insertError) throw insertError;
+      setPostComments((current) => current.some((item) => item.id === data.id) ? current : [...current, data as RoomMessageComment]);
+      setPostCommentDraft("");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : (ru ? "Не удалось отправить комментарий." : "Could not send the comment."));
+    } finally { setCommentBusy(false); }
+  }
+
+  async function deletePostComment(commentId: string) {
+    if (!window.confirm(ru ? "Удалить комментарий?" : "Delete this comment?")) return;
+    setCommentBusy(true);
+    try {
+      const { data, error: deleteError } = await client.from("community_message_comments")
+        .delete().eq("id", commentId).select("id").maybeSingle();
+      if (deleteError) throw deleteError;
+      if (!data) throw new Error(ru ? "Комментарий не найден или удаление запрещено." : "Comment not found or deletion is not allowed.");
+      setPostComments((current) => current.filter((item) => item.id !== commentId));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : (ru ? "Не удалось удалить комментарий." : "Could not delete the comment."));
+    } finally { setCommentBusy(false); }
   }
 
   async function deleteMessage(item: RoomMessage) {
@@ -916,7 +1008,25 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
                       {item.sender_id !== user.id && <small>{ru ? "Участник" : "Member"}</small>}
                       {item.media?.url && <img className="community-message-photo" src={item.media.url} alt={ru ? "Фотография в сообществе" : "Community photo"} loading="lazy" />}
                       {item.body && <p>{item.body}</p>}<footer><time>{new Date(item.created_at).toLocaleTimeString(ru ? "ru-RU" : "en-US", { hour: "2-digit", minute: "2-digit" })}</time>
-                      {canDeleteCommunityMessage(memberRole, myAdminPermissions, item.sender_id, user.id) && <button type="button" onClick={() => void deleteMessage(item)}>{ru ? "Удалить" : "Delete"}</button>}</footer>
+                      {(isGlobalOwner || isGlobalAdmin || canDeleteCommunityMessage(memberRole, myAdminPermissions, item.sender_id, user.id)) && <button type="button" onClick={() => void deleteMessage(item)}>{ru ? "Удалить" : "Delete"}</button>}
+                    {room.kind === "channel" && <button type="button" onClick={() => { setCommentTargetId((current) => current === item.id ? null : item.id); setPostCommentDraft(""); }}><MessageCircle size={14} />{ru ? "Комментарии" : "Comments"}</button>}
+                    </footer>
+                    {room.kind === "channel" && commentTargetId === item.id && (
+                      <section className="community-post-comments">
+                        {postComments.length === 0 ? <p className="community-muted">{ru ? "Комментариев пока нет." : "No comments yet."}</p> : postComments.map((comment) => (
+                          <article className="community-post-comment" key={comment.id}>
+                            <p>{comment.body}</p>
+                            <footer><time>{new Date(comment.created_at).toLocaleTimeString(ru ? "ru-RU" : "en-US", { hour: "2-digit", minute: "2-digit" })}</time>
+                              {(comment.user_id === user.id || isGlobalOwner || isGlobalAdmin) && <button type="button" onClick={() => void deletePostComment(comment.id)} disabled={commentBusy}>{ru ? "Удалить" : "Delete"}</button>}
+                            </footer>
+                          </article>
+                        ))}
+                        <form className="community-post-comment-form" onSubmit={sendPostComment}>
+                          <input value={postCommentDraft} onChange={(event) => setPostCommentDraft(event.target.value)} maxLength={2000} placeholder={ru ? "Написать комментарий…" : "Write a comment…"} />
+                          <button type="submit" disabled={commentBusy || !postCommentDraft.trim()} aria-label={ru ? "Отправить комментарий" : "Send comment"}><Send size={15} /></button>
+                        </form>
+                      </section>
+                    )}
                     </article>
                   ))}
                   <div ref={messagesEnd} />
@@ -1002,6 +1112,22 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
                   <div className="community-info-detail"><p>{room.description}</p></div>
                 </div>
               )}
+              {room.kind === "channel" && room.discussion_room_id && onOpenDiscussionRoom && (
+                <button className="community-primary community-info-discussion" type="button" onClick={() => onOpenDiscussionRoom(room.id)}>
+                  <MessageCircle size={17} />{ru ? "Обсуждение" : "Discussion"}
+                </button>
+              )}
+              {room.kind === "channel" && canChangeRoomInfo && discussionRooms.length > 0 && (
+                <div className="community-info-discussion-link">
+                  <label>{ru ? "Группа обсуждения" : "Discussion group"}
+                    <select value={discussionRoomDraft} onChange={(event) => setDiscussionRoomDraft(event.target.value)}>
+                      <option value="">{ru ? "Не привязана" : "Not linked"}</option>
+                      {discussionRooms.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}
+                    </select>
+                  </label>
+                  <button className="community-primary" type="button" onClick={() => void saveDiscussionLink()} disabled={busy || discussionRoomDraft === (room.discussion_room_id ?? "")}>{ru ? "Сохранить обсуждение" : "Save discussion"}</button>
+                </div>
+              )}
               {roomEditing && canChangeRoomInfo && (
                 <form className="community-room-edit community-info-edit community-details-edit" onSubmit={saveRoomDetails}>
                   <label>{ru ? "Название" : "Name"}
@@ -1029,7 +1155,7 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
                   {canManageRoomAdmins && (
                     <button type="button" onClick={() => void loadAdminManagement()} disabled={adminBusy}><ShieldCheck size={17} />{ru ? "Администраторы и права" : "Administrators and permissions"}</button>
                   )}
-                  {room.created_by === user.id && memberRole === "owner" && (
+                  {((room.created_by === user.id && memberRole === "owner") || isGlobalOwner || isGlobalAdmin) && (
                     <button className="danger" type="button" onClick={() => void deleteRoom()} disabled={busy}>
                       <Trash2 size={17} />{busy ? (ru ? "Удаление…" : "Deleting…") : (room.kind === "channel" ? (ru ? "Удалить канал" : "Delete channel") : (ru ? "Удалить группу" : "Delete group"))}
                     </button>
@@ -1037,7 +1163,7 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
                 </div>
               )}
               {!memberRole && room.is_public && (
-                <button className="community-primary community-info-join" type="button" onClick={() => void joinPublicRoom()} disabled={busy}>{room.kind === "channel" ? (ru ? "Подписаться" : "Subscribe") : (ru ? "Вступить в группу" : "Join group")}</button>
+                <button className="community-primary community-info-join" type="button" onClick={() => void joinPublicRoom()} disabled={busy}>{room.kind === "channel" ? (ru ? "Вступить" : "Join") : (ru ? "Вступить в группу" : "Join group")}</button>
               )}
             </div>
           </section>

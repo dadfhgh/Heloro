@@ -8,6 +8,7 @@ import {
   ImagePlus,
   MessageCircle,
   Megaphone,
+  PencilLine,
   Send,
   ShieldCheck,
   Trash2,
@@ -91,11 +92,16 @@ function NewsChannel({
   canPublish,
   canDeletePosts,
   canModerate,
+  canEditChannelInfo,
   onOpenDiscussion,
-}: Omit<Props, "view" | "roles"> & { canPublish: boolean; canDeletePosts: boolean; canModerate: boolean }) {
+}: Omit<Props, "view" | "roles"> & { canPublish: boolean; canDeletePosts: boolean; canModerate: boolean; canEditChannelInfo: boolean }) {
   const ru = locale === "ru";
   const [channelId, setChannelId] = useState("");
   const [channelName, setChannelName] = useState("News");
+  const [channelDescription, setChannelDescription] = useState("");
+  const [channelEditing, setChannelEditing] = useState(false);
+  const [channelNameDraft, setChannelNameDraft] = useState("News");
+  const [channelDescriptionDraft, setChannelDescriptionDraft] = useState("");
   const [posts, setPosts] = useState<ChannelPost[]>([]);
   const [postPhoto, setPostPhoto] = useState<File | null>(null);
   const [postPhotoPreview, setPostPhotoPreview] = useState<string | null>(null);
@@ -136,6 +142,9 @@ function NewsChannel({
         if (!active) return;
         setChannelId(channel.id);
         setChannelName(channel.name);
+        setChannelDescription(channel.description);
+        setChannelNameDraft(channel.name);
+        setChannelDescriptionDraft(channel.description);
         const items = await getChannelPosts(client, channel.id);
         if (active) setPosts(items);
       })
@@ -188,6 +197,26 @@ function NewsChannel({
       void client.removeChannel(channel);
     };
   }, [client, expandedPost]);
+
+  async function saveChannelInfo(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!channelId || !canEditChannelInfo || channelNameDraft.trim().length < 2) return;
+    setBusy(true);
+    setError("");
+    try {
+      const { data, error: updateError } = await client.from("heloro_channels")
+        .update({ name: channelNameDraft.trim(), description: channelDescriptionDraft.trim() })
+        .eq("id", channelId)
+        .select("name, description")
+        .single();
+      if (updateError) throw updateError;
+      setChannelName(data.name);
+      setChannelDescription(data.description);
+      setChannelEditing(false);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : (ru ? "Не удалось изменить информацию News." : "Could not update News information."));
+    } finally { setBusy(false); }
+  }
 
   async function reportChannelContent(targetId: string) {
     const details = window.prompt(ru ? "Опишите причину жалобы (необязательно)." : "Describe the reason for this report (optional).");
@@ -275,13 +304,21 @@ function NewsChannel({
           <small>{ru ? "Официальный канал HELORO" : "Official HELORO channel"}</small>
         </div>
         <div className="chat-header-actions">
+          {canEditChannelInfo && <button className="icon-button" onClick={() => { setChannelNameDraft(channelName); setChannelDescriptionDraft(channelDescription); setChannelEditing((current) => !current); }} title={ru ? "Изменить News" : "Edit News"} aria-label={ru ? "Изменить News" : "Edit News"}><PencilLine size={18} /></button>}
           <button className="icon-button" onClick={onOpenDiscussion} title={ru ? "Обсуждение" : "Discussion"} aria-label={ru ? "Обсуждение" : "Discussion"}>
             <MessageCircle size={19} />
           </button>
         </div>
       </header>
       <div className="special-stream">
-        <div className="system-description">{ru ? "Новости, обновления и важные объявления." : "News, updates and important announcements."}</div>
+        <div className="system-description">{channelDescription || (ru ? "Новости, обновления и важные объявления." : "News, updates and important announcements.")}</div>
+        {channelEditing && canEditChannelInfo && (
+          <form className="system-channel-edit-form" onSubmit={saveChannelInfo}>
+            <label>{ru ? "Название канала" : "Channel name"}<input value={channelNameDraft} onChange={(event) => setChannelNameDraft(event.target.value)} maxLength={64} minLength={2} required /></label>
+            <label>{ru ? "Описание" : "Description"}<textarea value={channelDescriptionDraft} onChange={(event) => setChannelDescriptionDraft(event.target.value)} maxLength={500} /></label>
+            <div><button type="button" onClick={() => setChannelEditing(false)} disabled={busy}>{ru ? "Отмена" : "Cancel"}</button><button className="primary-button" type="submit" disabled={busy || channelNameDraft.trim().length < 2}>{busy ? (ru ? "Сохранение…" : "Saving…") : (ru ? "Сохранить" : "Save")}</button></div>
+          </form>
+        )}
         {canPublish && (
           <form className="system-publish-form" onSubmit={publish}>
             <textarea value={postDraft} onChange={(event) => setPostDraft(event.target.value)} placeholder={ru ? "Новая публикация или фото…" : "Write a post or add a photo…"} maxLength={3500} />
@@ -566,11 +603,15 @@ export default function OfficialPanels(props: Props) {
         canPublish={roles.includes("owner") || roles.includes("admin")}
         canDeletePosts={roles.includes("owner") || roles.includes("admin")}
         canModerate={roles.some((role) => role === "owner" || role === "admin" || role === "moderator")}
+        canEditChannelInfo={roles.includes("owner")}
       />
     );
   }
   if (props.view === "discussion") {
     return <DiscussionChat {...props} />;
+  }
+  if (props.view === "support" && roles.some((role) => role === "owner" || role === "admin" || role === "moderator")) {
+    return <HeloroSPanel client={props.client} user={props.user} locale={props.locale} roles={roles} onOpenNews={props.onOpenNews} onOpenDiscussion={props.onOpenDiscussion} initialTab="support" />;
   }
   if (props.view === "support") {
     return <SupportChat {...props} />;

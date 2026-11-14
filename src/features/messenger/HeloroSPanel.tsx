@@ -21,6 +21,7 @@ type Props = {
   roles: string[];
   onOpenNews: () => void;
   onOpenDiscussion: () => void;
+  initialTab?: TabId;
 };
 
 type TabId = "overview" | "users" | "moderation" | "reports" | "support" | "audit" | "settings" | "security" | "verification" | "channels" | "roles" | "groups";
@@ -85,14 +86,14 @@ function shortId(value: string | null | undefined) {
 }
 
 export default function HeloroSPanel({
-  client, user, locale, roles, onOpenNews, onOpenDiscussion,
+  client, user, locale, roles, onOpenNews, onOpenDiscussion, initialTab = "overview",
 }: Props) {
   const ru = locale === "ru";
   const isOwner = roles.includes("owner");
   const isAdmin = roles.includes("admin");
   const staff = isOwner || isAdmin || roles.includes("moderator");
   const canManageBadges = isOwner || isAdmin;
-  const [tab, setTab] = useState<TabId>("overview");
+  const [tab, setTab] = useState<TabId>(initialTab);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
