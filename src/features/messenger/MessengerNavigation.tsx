@@ -382,7 +382,7 @@ export function MessengerSettings({
             )}
             {activeSection === "privacy" && (
               <div className="settings-section-content">
-                <p className="settings-description">{ru ? "Предпочтения сохраняются в аккаунте. Отображение статуса «в сети» и разграничение контактов будут включены после внедрения presence и системы контактов." : "Preferences are saved to your account. Online status and contact-based visibility will apply after presence and contacts are implemented."}</p>
+                <p className="settings-description">{ru ? "Настройка применяется к статусам «в сети» и времени последней активности. «Контакты» — пользователи, с которыми у вас есть личный чат." : "This setting controls both online status and last seen. “Contacts” means people you have a direct chat with."}</p>
                 <label className="settings-select-row">{ru ? "Кто видит время последней активности" : "Who can see last seen"}
                   <select value={preferences.last_seen_visibility} onChange={(event) => void updatePreference("last_seen_visibility", event.target.value as UserPreferences["last_seen_visibility"])} disabled={preferencesLoading || savingPreference}>
                     <option value="everyone">{ru ? "Все" : "Everybody"}</option><option value="contacts">{ru ? "Контакты" : "Contacts"}</option><option value="nobody">{ru ? "Никто" : "Nobody"}</option>
