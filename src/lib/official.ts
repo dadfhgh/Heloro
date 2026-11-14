@@ -391,3 +391,47 @@ export function subscribeToOfficialInserts<T>(
   if (onDelete) channel.on("postgres_changes", deleteConfig, () => onDelete());
   return channel.subscribe();
 }
+
+
+export type OfficialBrandingKind = "news" | "support";
+
+export async function getOfficialBrandingAvatar(client: SupabaseClient, kind: OfficialBrandingKind): Promise<string | null> {
+  const { data, error } = await client.from("official_branding").select("avatar_path").eq("kind", kind).maybeSingle();
+  if (error) throw error;
+  if (!data?.avatar_path) return null;
+  const { data: signed, error: signError } = await client.storage.from("channel-media").createSignedUrl(data.avatar_path, 3600);
+  if (signError) throw signError;
+  return signed?.signedUrl ?? null;
+}
+
+export async function uploadOfficialBrandingAvatar(
+  client: SupabaseClient,
+  userId: string,
+  kind: OfficialBrandingKind,
+  file: File,
+): Promise<string> {
+  const extensions: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" };
+  const extension = extensions[file.type];
+  if (!extension) throw new Error("Choose a PNG, JPEG or WebP image.");
+  if (file.size < 1 || file.size > 5 * 1024 * 1024) throw new Error("Avatar images must be 5 MB or smaller.");
+  const { data: current, error: currentError } = await client.from("official_branding")
+    .select("avatar_path").eq("kind", kind).maybeSingle();
+  if (currentError) throw currentError;
+  const path = "branding/" + userId + "/" + kind + "/" + crypto.randomUUID() + "." + extension;
+  const storage = client.storage.from("channel-media");
+  const { error: uploadError } = await storage.upload(path, file, { contentType: file.type, cacheControl: "3600", upsert: false });
+  if (uploadError) throw uploadError;
+  const { error: updateError } = await client.from("official_branding")
+    .update({ avatar_path: path, updated_by: userId, updated_at: new Date().toISOString() }).eq("kind", kind);
+  if (updateError) {
+    await storage.remove([path]);
+    throw updateError;
+  }
+  if (current?.avatar_path && current.avatar_path !== path) {
+    const { error: cleanupError } = await storage.remove([current.avatar_path]);
+    if (cleanupError) console.warn("Official avatar updated, but old media cleanup failed.", cleanupError);
+  }
+  const { data: signed, error: signError } = await storage.createSignedUrl(path, 3600);
+  if (signError) throw signError;
+  return signed.signedUrl;
+}
