@@ -41,3 +41,44 @@ export function formatInboxTime(value: string | null): string {
     ? formatMessageTime(value)
     : new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short" }).format(date);
 }
+
+function localDateKey(date: Date): string {
+  return String(date.getFullYear()) + "-" + String(date.getMonth()) + "-" + String(date.getDate());
+}
+
+export function formatMessageDayLabel(value: string, locale: "ru" | "en"): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const now = new Date();
+  if (localDateKey(date) === localDateKey(now)) return locale === "ru" ? "Сегодня" : "Today";
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (localDateKey(date) === localDateKey(yesterday)) return locale === "ru" ? "Вчера" : "Yesterday";
+  const dayStart = (item: Date) => Date.UTC(item.getFullYear(), item.getMonth(), item.getDate());
+  const daysAgo = Math.floor((dayStart(now) - dayStart(date)) / 86400000);
+  if (daysAgo >= 0 && daysAgo < 7) return new Intl.DateTimeFormat(locale === "ru" ? "ru-RU" : "en-US", { weekday: "long" }).format(date);
+  return new Intl.DateTimeFormat(locale === "ru" ? "ru-RU" : "en-US", { day: "numeric", month: "long", ...(date.getFullYear() !== now.getFullYear() ? { year: "numeric" } : {}) }).format(date);
+}
+
+export function formatLastSeen(value: string | null | undefined, locale: "ru" | "en", hidden = false): string {
+  const ru = locale === "ru";
+  if (hidden) return ru ? "был(а) недавно" : "last seen recently";
+  if (!value) return ru ? "был(а) давно" : "last seen a long time ago";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return ru ? "был(а) давно" : "last seen a long time ago";
+  const now = new Date();
+  const time = formatMessageTime(value);
+  const dayStart = (item: Date) => Date.UTC(item.getFullYear(), item.getMonth(), item.getDate());
+  const daysAgo = Math.floor((dayStart(now) - dayStart(date)) / 86400000);
+  if (daysAgo <= 0) return ru ? "был(а) сегодня в " + time : "last seen today at " + time;
+  if (daysAgo === 1) return ru ? "был(а) вчера в " + time : "last seen yesterday at " + time;
+  if (daysAgo < 7) {
+    const weekday = new Intl.DateTimeFormat(ru ? "ru-RU" : "en-US", { weekday: "long" }).format(date);
+    return ru ? "был(а) " + weekday + " в " + time : "last seen " + weekday + " at " + time;
+  }
+  if (daysAgo < 30) {
+    const shortDate = new Intl.DateTimeFormat(ru ? "ru-RU" : "en-US", { day: "numeric", month: "short" }).format(date);
+    return ru ? "был(а) " + shortDate + " в " + time : "last seen " + shortDate + " at " + time;
+  }
+  return ru ? "был(а) давно" : "last seen a long time ago";
+}
