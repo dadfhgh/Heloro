@@ -100,7 +100,11 @@ function VerificationMark({ type, title }: { type?: BadgeType | null; title: str
   if (type === "epic_sans") {
     return <BadgeCheck size={14} className="epic-sans-verified-mark" aria-label="Epic Sans" role="img" />;
   }
-  const label = type === "blue" ? "blue" : type === "gold" ? "gold" : "creator";
+  if (type === "creator") {
+    const creatorTitle = title === "Verified by HELORO" ? "Verified HELORO creator" : "Проверенный автор HELORO";
+    return <BadgeCheck size={14} className="creator-verified-mark" title={creatorTitle} aria-label={creatorTitle} role="img" />;
+  }
+  const label = type === "blue" ? "blue" : "gold";
   return (
     <span className={`verification-mark verification-${label}`} title={title} aria-label={title}>
       <BadgeCheck size={14} strokeWidth={2.8} />
@@ -1429,7 +1433,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                 <button type="button" className="chat-profile-trigger" onClick={() => void openUserProfile(activeConversation.other_user_id)} aria-label={t(locale, "profileViewTitle")}>
                   <Avatar label={activeConversation.display_name || activeConversation.username} className="chat-header-avatar" src={activeConversation.avatar_url} crown={Boolean(crownMap[activeConversation.other_user_id])} />
                   <span className="chat-person">
-                    <strong>{activeConversation.display_name || activeConversation.username}<VerificationMark type={badgeMap[activeConversation.other_user_id]} title={locale === "ru" ? "Аккаунт подтверждён HELORO" : "Verified by HELORO"} /></strong>
+                    <strong><span className="chat-display-name">{activeConversation.display_name || activeConversation.username}</span><PurpleCrownNameMark active={Boolean(crownMap[activeConversation.other_user_id])} /><VerificationMark type={badgeMap[activeConversation.other_user_id]} title={locale === "ru" ? "Аккаунт подтверждён HELORO" : "Verified by HELORO"} /></strong>
                     <small className={`chat-presence-status ${onlineMap[activeConversation.other_user_id] ? "is-online" : ""}`}>{isTyping ? (locale === "ru" ? "печатает…" : "typing…") : onlineMap[activeConversation.other_user_id] ? (locale === "ru" ? "в сети" : "online") : formatLastSeen(lastSeenMap[activeConversation.other_user_id] ?? null, locale, !lastSeenMap[activeConversation.other_user_id])}</small>
                   </span>
                 </button>
@@ -1624,8 +1628,8 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                 <div className="profile-view-cover" />
                 <div className="profile-view-hero">
                   <Avatar label={viewedProfile.display_name || viewedProfile.username} className="profile-view-avatar" src={viewedProfile.avatar_url} crown={Boolean(crownMap[viewedProfile.id])} />
-                  <h2 id="profile-view-title">{viewedProfile.display_name || viewedProfile.username}<VerificationMark type={viewedProfile.badge_type} title={locale === "ru" ? "Аккаунт подтверждён HELORO" : "Verified by HELORO"} /></h2>
-                  <p className="profile-view-username">@{viewedProfile.username}<PurpleCrownNameMark active={Boolean(crownMap[viewedProfile.id])} /></p>
+                  <h2 id="profile-view-title"><span className="profile-display-name">{viewedProfile.display_name || viewedProfile.username}</span><PurpleCrownNameMark active={Boolean(crownMap[viewedProfile.id])} /><VerificationMark type={viewedProfile.badge_type} title={locale === "ru" ? "Аккаунт подтверждён HELORO" : "Verified by HELORO"} /></h2>
+                  <p className="profile-view-username">@{viewedProfile.username}</p>
                 </div>
                 <div className="profile-info-card">
                   <div className="profile-info-row">
