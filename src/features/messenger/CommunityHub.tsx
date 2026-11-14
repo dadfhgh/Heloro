@@ -18,7 +18,37 @@ type Room = {
   is_public: boolean;
   updated_at: string;
 };
-type RoomMessage = { id: string; room_id: string; sender_id: string; body: string; created_at: string };
+type RoomMessage = {
+  id: string;
+  room_id: string;
+  sender_id: string;
+  body: string;
+  created_at: string;
+  media?: { kind: "photo"; path: string; url: string } | null;
+};
+const CHANNEL_MEDIA_PREFIX = "HELORO_CHANNEL_MEDIA:";
+type ChannelPhotoPayload = { scope: "official" | "community"; path: string; caption?: string };
+
+async function hydrateRoomMessage(client: SupabaseClient, message: RoomMessage): Promise<RoomMessage> {
+  if (!message.body.startsWith(CHANNEL_MEDIA_PREFIX)) return { ...message, media: null };
+  try {
+    const payload = JSON.parse(message.body.slice(CHANNEL_MEDIA_PREFIX.length)) as Partial<ChannelPhotoPayload>;
+    if (payload.scope !== "community" || typeof payload.path !== "string") {
+      return { ...message, body: "", media: null };
+    }
+    const { data, error } = await client.storage.from("channel-media").createSignedUrl(payload.path, 3600);
+    if (error || !data?.signedUrl) {
+      return { ...message, body: payload.caption || "Не удалось загрузить фотографию.", media: null };
+    }
+    return {
+      ...message,
+      body: payload.caption ?? "",
+      media: { kind: "photo", path: payload.path, url: data.signedUrl },
+    };
+  } catch {
+    return { ...message, body: "Не удалось открыть фотографию.", media: null };
+  }
+}
 type RoomAdminEntry = {
   user_id: string;
   role: "owner" | "admin";
@@ -62,6 +92,8 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
   const [memberCount, setMemberCount] = useState<number | null>(null);
   const [messages, setMessages] = useState<RoomMessage[]>([]);
   const [draft, setDraft] = useState("");
+  const [channelPhotoFile, setChannelPhotoFile] = useState<File | null>(null);
+  const [channelPhotoPreview, setChannelPhotoPreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -82,6 +114,7 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
   const [createAvatarPreview, setCreateAvatarPreview] = useState<string | null>(null);
   const createAvatarInput = useRef<HTMLInputElement>(null);
   const avatarInput = useRef<HTMLInputElement>(null);
+  const channelPhotoInput = useRef<HTMLInputElement>(null);
   const messagesEnd = useRef<HTMLDivElement>(null);
   const canChangeRoomInfo = hasCommunityPermission(memberRole, myAdminPermissions, "change_info");
   const canManageRoomAdmins = hasCommunityPermission(memberRole, myAdminPermissions, "manage_admins");
@@ -101,9 +134,31 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
       .select("id, room_id, sender_id, body, created_at")
       .eq("room_id", roomId).order("created_at", { ascending: true }).limit(100);
     if (loadError) throw loadError;
-    setMessages((data ?? []) as RoomMessage[]);
+    const hydrated = await Promise.all(((data ?? []) as RoomMessage[]).map((item) => hydrateRoomMessage(client, item)));
+    setMessages(hydrated);
   }
 
+  useEffect(() => {
+    if (!channelPhotoFile) {
+      setChannelPhotoPreview(null);
+      return;
+    }
+    const previewUrl = URL.createObjectURL(channelPhotoFile);
+    setChannelPhotoPreview(previewUrl);
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [channelPhotoFile]);
+
+  function chooseChannelPhoto(file?: File) {
+    if (!file || !room || room.kind !== "channel" || !canPostChannelMessages) return;
+    const supported = ["image/png", "image/jpeg", "image/webp"];
+    if (!supported.includes(file.type) || file.size < 1 || file.size > 5 * 1024 * 1024) {
+      setError(ru ? "Выбери PNG, JPEG или WebP размером до 5 МБ." : "Choose a PNG, JPEG or WebP photo up to 5 MB.");
+      if (channelPhotoInput.current) channelPhotoInput.current.value = "";
+      return;
+    }
+    setChannelPhotoFile(file);
+    setError("");
+  }
 
   useEffect(() => {
     if (!createAvatarFile) {
@@ -254,8 +309,12 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
     loadMessages(room.id).catch((cause: unknown) => { if (active) setError(cause instanceof Error ? cause.message : "Could not load messages."); });
     const channel = client.channel("community-room-" + room.id)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "community_room_messages", filter: "room_id=eq." + room.id }, (payload) => {
-        const item = payload.new as RoomMessage;
-        setMessages((current) => current.some((row) => row.id === item.id) ? current : [...current, item]);
+        const rawItem = payload.new as RoomMessage;
+        void hydrateRoomMessage(client, rawItem).then((item) => {
+          setMessages((current) => current.some((row) => row.id === item.id) ? current : [...current, item]);
+        }).catch((cause: unknown) => {
+          setError(cause instanceof Error ? cause.message : (ru ? "Не удалось загрузить фотографию." : "Could not load the photo."));
+        });
       })
       .on("postgres_changes", { event: "DELETE", schema: "public", table: "community_room_messages" }, () => {
         void loadMessages(room.id);
@@ -278,6 +337,8 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
     setAdminManagementOpen(false);
     setEditingAdminId(null);
     setMessages([]);
+    setChannelPhotoFile(null);
+    if (channelPhotoInput.current) channelPhotoInput.current.value = "";
     const { data, error: membershipError } = await client.from("community_room_members")
       .select("role, admin_permissions").eq("room_id", nextRoom.id).eq("user_id", user.id).maybeSingle();
     if (membershipError) { setError(membershipError.message); return; }
@@ -404,17 +465,50 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
   }
   async function sendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!room || !memberRole || !draft.trim()) return;
-    setBusy(true); setError("");
+    if (!room || !memberRole) return;
+    const caption = draft.trim();
+    const photo = room.kind === "channel" ? channelPhotoFile : null;
+    if (!caption && !photo) return;
+    if (photo && !canPostChannelMessages) return;
+    setBusy(true);
+    setError("");
+    let uploadedPath: string | null = null;
+    let messageCreated = false;
     try {
+      let body = caption;
+      if (photo) {
+        const extensions: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" };
+        const extension = extensions[photo.type];
+        if (!extension || photo.size < 1 || photo.size > 5 * 1024 * 1024) {
+          throw new Error(ru ? "Фото должно быть PNG, JPEG или WebP и не больше 5 МБ." : "Photo must be PNG, JPEG or WebP and no larger than 5 MB.");
+        }
+        uploadedPath = `community/${room.id}/${user.id}/${crypto.randomUUID()}.${extension}`;
+        const { error: uploadError } = await client.storage.from("channel-media").upload(uploadedPath, photo, {
+          contentType: photo.type,
+          cacheControl: "3600",
+          upsert: false,
+        });
+        if (uploadError) throw uploadError;
+        body = CHANNEL_MEDIA_PREFIX + JSON.stringify({ scope: "community", path: uploadedPath, caption });
+        if (body.length > 4000) throw new Error(ru ? "Подпись к фото слишком длинная." : "Photo caption is too long.");
+      }
+
       const { data, error: sendError } = await client.from("community_room_messages")
-        .insert({ room_id: room.id, sender_id: user.id, body: draft.trim() })
+        .insert({ room_id: room.id, sender_id: user.id, body })
         .select("id, room_id, sender_id, body, created_at").single();
       if (sendError) throw sendError;
-      setMessages((current) => current.some((item) => item.id === data.id) ? current : [...current, data as RoomMessage]);
+      messageCreated = true;
+      const hydrated = await hydrateRoomMessage(client, data as RoomMessage);
+      setMessages((current) => current.some((item) => item.id === hydrated.id) ? current : [...current, hydrated]);
       setDraft("");
+      setChannelPhotoFile(null);
+      if (channelPhotoInput.current) channelPhotoInput.current.value = "";
       await loadRooms();
     } catch (cause) {
+      if (uploadedPath && !messageCreated) {
+        const { error: cleanupError } = await client.storage.from("channel-media").remove([uploadedPath]);
+        if (cleanupError) console.warn("Unsent channel photo could not be cleaned up.", cleanupError);
+      }
       setError(cause instanceof Error ? cause.message : (ru ? "Не удалось отправить сообщение." : "Could not send message."));
     } finally { setBusy(false); }
   }
@@ -535,6 +629,10 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
       if (deleteError) throw deleteError;
       if (!data) throw new Error(ru ? "Сообщение не найдено или удаление запрещено." : "Message not found or delete not allowed.");
       setMessages((current) => current.filter((message) => message.id !== item.id));
+      if (item.media?.path) {
+        const { error: mediaError } = await client.storage.from("channel-media").remove([item.media.path]);
+        if (mediaError) console.warn("Channel message was deleted, but its photo cleanup failed.", mediaError);
+      }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : (ru ? "Не удалось удалить сообщение." : "Could not delete the message."));
     } finally {
@@ -805,14 +903,33 @@ export default function CommunityHub({ client, user, locale, contacts = [], init
                   {messages.length === 0 ? <div className="community-empty"><MessageCircle size={24} /><span>{ru ? "Пока нет сообщений" : "No messages yet"}</span></div> : messages.map((item) => (
                     <article className={"community-message " + (item.sender_id === user.id ? "mine" : "")} key={item.id}>
                       {item.sender_id !== user.id && <small>{ru ? "Участник" : "Member"}</small>}
-                      <p>{item.body}</p><footer><time>{new Date(item.created_at).toLocaleTimeString(ru ? "ru-RU" : "en-US", { hour: "2-digit", minute: "2-digit" })}</time>
+                      {item.media?.url && <img className="community-message-photo" src={item.media.url} alt={ru ? "Фотография в канале" : "Channel photo"} loading="lazy" />}
+                      {item.body && <p>{item.body}</p>}<footer><time>{new Date(item.created_at).toLocaleTimeString(ru ? "ru-RU" : "en-US", { hour: "2-digit", minute: "2-digit" })}</time>
                       {canDeleteCommunityMessage(memberRole, myAdminPermissions, item.sender_id, user.id) && <button type="button" onClick={() => void deleteMessage(item)}>{ru ? "Удалить" : "Delete"}</button>}</footer>
                     </article>
                   ))}
                   <div ref={messagesEnd} />
                 </div>
                 {(room.kind === "group" || canPostChannelMessages) ? (
-                  <form className="community-composer" onSubmit={sendMessage}><input value={draft} onChange={(event) => setDraft(event.target.value)} maxLength={4000} placeholder={ru ? "Сообщение…" : "Message…"} /><button type="submit" disabled={busy || !draft.trim()} aria-label={ru ? "Отправить" : "Send"}><Send size={18} /></button></form>
+                  <>
+                    {room.kind === "channel" && channelPhotoPreview && (
+                      <div className="community-channel-photo-preview">
+                        <img src={channelPhotoPreview} alt={ru ? "Выбранное фото" : "Selected photo"} />
+                        <span>{channelPhotoFile?.name}</span>
+                        <button type="button" onClick={() => { setChannelPhotoFile(null); if (channelPhotoInput.current) channelPhotoInput.current.value = ""; }}>{ru ? "Убрать" : "Remove"}</button>
+                      </div>
+                    )}
+                    <form className="community-composer" onSubmit={sendMessage}>
+                      {room.kind === "channel" && (
+                        <>
+                          <input ref={channelPhotoInput} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(event) => chooseChannelPhoto(event.target.files?.[0])} />
+                          <button className="community-attach-photo" type="button" onClick={() => channelPhotoInput.current?.click()} disabled={busy} aria-label={ru ? "Прикрепить фото" : "Attach photo"} title={ru ? "Прикрепить фото" : "Attach photo"}><ImagePlus size={18} /></button>
+                        </>
+                      )}
+                      <input value={draft} onChange={(event) => setDraft(event.target.value)} maxLength={3500} placeholder={room.kind === "channel" ? (ru ? "Новая публикация…" : "New channel post…") : (ru ? "Сообщение…" : "Message…")} />
+                      <button type="submit" disabled={busy || (!draft.trim() && !channelPhotoFile)} aria-label={ru ? "Отправить" : "Send"}><Send size={18} /></button>
+                    </form>
+                  </>
                 ) : <p className="community-muted community-readonly">{ru ? "Публиковать в этом канале может только администрация." : "Only channel admins can publish here."}</p>}
               </>
             )}
