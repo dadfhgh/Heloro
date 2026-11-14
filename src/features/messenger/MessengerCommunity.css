@@ -1296,3 +1296,36 @@ html[data-theme="dark"] .purple-crown-name-mark {
 .official-branding-settings-error { display: block; margin-top: 10px !important; color: #dc4545 !important; font-size: 12px; }
 .support-welcome-brand-avatar { width: 44px; height: 44px; }
 @media (max-width: 560px) { .official-branding-settings-grid { grid-template-columns: 1fr; } }
+
+/* Keep the gifted purple crown next to the display name in both chat and profile headings. */
+.chat-person strong {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.chat-display-name,
+.profile-display-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.profile-view-hero h2 {
+  max-width: 100%;
+}
+
+/* Creator verification: same BadgeCheck silhouette as Support, in YouTube red and white. */
+.creator-verified-mark {
+  display: inline-block;
+  flex: 0 0 auto;
+  vertical-align: -2px;
+  color: #e62117 !important;
+  fill: #fff;
+}
+.community-verification-creator {
+  color: #e62117;
+}
+.community-verification-creator svg {
+  fill: #fff;
+}
