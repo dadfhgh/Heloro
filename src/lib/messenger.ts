@@ -148,9 +148,16 @@ export async function createDirectConversation(username: string): Promise<string
 }
 
 export async function getInbox(): Promise<InboxConversation[]> {
-  const { data, error } = await client().rpc("get_inbox");
-  if (error) throw error;
-  return (data ?? []) as InboxConversation[];
+  const presenceResult = await client().rpc("get_inbox_with_presence");
+  if (!presenceResult.error) return (presenceResult.data ?? []) as InboxConversation[];
+  if (presenceResult.error.code !== "PGRST202" && presenceResult.error.code !== "42883") throw presenceResult.error;
+  const legacyResult = await client().rpc("get_inbox");
+  if (legacyResult.error) throw legacyResult.error;
+  return ((legacyResult.data ?? []) as InboxConversation[]).map((item) => ({
+    ...item,
+    other_last_seen_at: null,
+    other_last_seen_hidden: false,
+  }));
 }
 
 export async function getMessages(
@@ -293,4 +300,43 @@ export function subscribeToMessages(
     )
     .on("postgres_changes", { event: "DELETE", schema: "public", table: "messages" }, () => onDelete?.())
     .subscribe();
+}
+
+export async function subscribeToUserPresence(
+  targetUserId: string,
+  currentUserId: string,
+  onChange: (online: boolean) => void,
+): Promise<RealtimeChannel> {
+  const presenceChannel = client().channel("heloro:user-presence:" + targetUserId, {
+    config: { private: true, presence: { key: currentUserId } },
+  });
+  presenceChannel.on("presence", { event: "sync" }, () => {
+    const state = presenceChannel.presenceState<{ user_id: string }>();
+    onChange(Object.values(state).some((entries) => entries.some((entry) => entry.user_id === targetUserId)));
+  });
+  presenceChannel.subscribe(async (status) => {
+    if (status === "SUBSCRIBED" && targetUserId === currentUserId) {
+      const { error } = await presenceChannel.track({ user_id: currentUserId, online_at: new Date().toISOString() });
+      if (error) console.warn("HELORO presence tracking failed:", error.message);
+    }
+  });
+  return presenceChannel;
+}
+
+export function subscribeToConversationTyping(
+  conversationId: string,
+  currentUserId: string,
+  onTyping: (typing: boolean) => void,
+): RealtimeChannel {
+  return client()
+    .channel("heloro:dm:" + conversationId, { config: { private: true } })
+    .on("broadcast", { event: "typing" }, ({ payload }) => {
+      const state = payload as { user_id?: string; is_typing?: boolean };
+      if (state.user_id && state.user_id !== currentUserId) onTyping(Boolean(state.is_typing));
+    })
+    .subscribe();
+}
+
+export function sendTypingIndicator(channel: RealtimeChannel, userId: string, isTyping: boolean): void {
+  void channel.send({ type: "broadcast", event: "typing", payload: { user_id: userId, is_typing: isTyping } });
 }
