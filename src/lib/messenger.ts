@@ -314,6 +314,8 @@ export async function subscribeToUserPresence(
     if (status === "SUBSCRIBED" && targetUserId === currentUserId) {
       const trackStatus = await presenceChannel.track({ user_id: currentUserId, online_at: new Date().toISOString() });
       if (trackStatus !== "ok") console.warn("HELORO presence tracking status:", trackStatus);
+    } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+      onChange(false);
     }
   });
   return presenceChannel;
