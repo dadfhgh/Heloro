@@ -2236,3 +2236,28 @@ html[data-theme="dark"] .profile-gift-card span { color: #b9aa8d; }
 .community-verification-blue { color: #229ED9; }
 .community-verification-gold { color: #d3a335; }
 .community-verification-creator { color: #d74e66; }
+
+
+/* HELORO Gold verification: metallic finish on the active presence/chat branch. */
+.verification-mark.verification-gold {
+  color: #fffdf2 !important;
+  background: linear-gradient(135deg,#fff4bd 0%,#f7d978 14%,#d99b24 31%,#ffed9b 47%,#b97812 64%,#e9b943 82%,#fff0a6 100%) !important;
+  border: 1px solid #b77a12;
+  box-shadow: inset 0 1px 1px rgba(255,255,255,.92), inset 0 -1px 2px rgba(105,63,0,.42), 0 1px 3px rgba(145,91,8,.42), 0 0 5px rgba(230,177,54,.2) !important;
+  text-shadow: 0 1px 1px rgba(104,65,0,.35);
+}
+.verification-mark.verification-gold svg {
+  color: #fffdf2 !important;
+  stroke: currentColor;
+  filter: drop-shadow(0 1px 1px rgba(104,65,0,.38));
+}
+html[data-theme="dark"] .verification-mark.verification-gold,
+html[data-theme="light"] .verification-mark.verification-gold {
+  color: #fffdf2 !important;
+  background: linear-gradient(135deg,#fff4bd 0%,#f7d978 14%,#d99b24 31%,#ffed9b 47%,#b97812 64%,#e9b943 82%,#fff0a6 100%) !important;
+  border-color: #c28a24;
+}
+.community-verification-gold {
+  color: #d99b24 !important;
+  filter: drop-shadow(0 1px 1px rgba(145,91,8,.28));
+}
