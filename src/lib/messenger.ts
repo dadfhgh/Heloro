@@ -54,10 +54,7 @@ export async function uploadAvatar(userId: string, file: File): Promise<Profile>
   const path = `${userId}/${crypto.randomUUID()}.${extension}`;
   const storage = client().storage.from("profile-avatars");
   const { error: uploadError } = await storage.upload(path, file, { contentType: file.type, cacheControl: "3600", upsert: false });
-  if (uploadError) {
-    trackAnalyticsEvent("message_send_failed", { failure_category: "upload" });
-    throw uploadError;
-  }
+  if (uploadError) throw uploadError;
   const avatarUrl = storage.getPublicUrl(path).data.publicUrl;
   const { data, error } = await client().from("profiles").update({ avatar_url: avatarUrl })
     .eq("id", userId).select("id, username, display_name, avatar_url").single();
@@ -251,7 +248,10 @@ export async function sendMediaMessage(
     cacheControl: "3600",
     upsert: false,
   });
-  if (uploadError) throw uploadError;
+  if (uploadError) {
+    trackAnalyticsEvent("message_send_failed", { failure_category: "upload" });
+    throw uploadError;
+  }
 
   const { error: messageError } = await client().from("messages").insert({
     conversation_id: conversationId,
