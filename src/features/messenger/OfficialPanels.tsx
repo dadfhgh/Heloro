@@ -237,7 +237,7 @@ function NewsChannel({
       <header className="chat-header">
         <Avatar label="Heloro New" />
         <div className="chat-person">
-          <strong>Heloro New <BadgeCheck className="system-verified-mark" size={15} /></strong>
+          <strong>Heloro New <BadgeCheck className="system-verified-mark" size={15} style={{ color: "#229ED9", background: "transparent", boxShadow: "none" }} /></strong>
           <small>{ru ? "Официальный канал HELORO" : "Official HELORO channel"}</small>
         </div>
         <div className="chat-header-actions">
