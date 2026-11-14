@@ -20,51 +20,34 @@ jobs:
     name: Typecheck, tests, dependency audit and production build
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    permissions:
-      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          persist-credentials: true
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
 
-      # This one-time bootstrap runs only for same-repository PRs. It writes the
-      # resolved dependency graph to the task branch, then all later installs use npm ci.
-      - name: Create and commit npm lockfile when missing
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-        env:
-          HEAD_BRANCH: ${{ github.head_ref }}
+      - name: Pin npm CLI
         run: |
-          if [ -f package-lock.json ]; then
-            echo "package-lock.json already exists."
-            exit 0
-          fi
+          npm install --global npm@11.21.2
+          npm --version
 
+      # Create the reproducible lockfile without attempting to push to the PR branch.
+      # The artifact can be committed to this feature branch after it is reviewed.
+      - name: Generate npm lockfile
+        run: |
           npm install --package-lock-only --ignore-scripts --no-audit --no-fund
           test -s package-lock.json
 
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package-lock.json
-          if git diff --cached --quiet; then
-            echo "::error::Lockfile generation produced no package-lock.json changes."
-            exit 1
-          fi
-          git commit -m "chore(deps): add reproducible npm lockfile"
-          git push origin "HEAD:${HEAD_BRANCH}"
-
-      - name: Require lockfile
-        run: |
-          if [ ! -s package-lock.json ]; then
-            echo "::error::package-lock.json is missing. Open a same-repository PR to bootstrap the lockfile."
-            exit 1
-          fi
+      - name: Upload generated lockfile for review
+        uses: actions/upload-artifact@v4
+        with:
+          name: heloro-package-lock
+          path: package-lock.json
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Install exact locked dependencies
         run: npm ci --no-audit --no-fund
