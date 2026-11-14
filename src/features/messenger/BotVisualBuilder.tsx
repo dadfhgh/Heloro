@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Plus, Trash2, WandSparkles } from "lucide-react";
 import type { Locale } from "../../lib/i18n";
 import "./BotVisualBuilder.css";
@@ -78,7 +79,7 @@ export function generateLuaFromRules(rules: BotVisualRule[]): string {
 
   if (messageRules.length) {
     lines.push('bot.on("message", function(message)');
-    lines.push("  local text = message.text or \"\"");
+    lines.push('  local text = message.text or ""');
     for (const rule of messageRules) {
       let condition = "true";
       if (rule.match === "equals") condition = `text == ${luaString(rule.value)}`;
@@ -107,17 +108,26 @@ export function generateLuaFromRules(rules: BotVisualRule[]): string {
 
 export default function BotVisualBuilder({ locale, rules, onChange, onApply }: Props) {
   const ru = locale === "ru";
-  const addRule = () => onChange([...rules, starterRule()]);
+  const [error, setError] = useState("");
+  const addRule = () => {
+    setError("");
+    onChange([...rules, starterRule()]);
+  };
   const updateRule = (index: number, patch: Partial<BotVisualRule>) => {
+    setError("");
     onChange(rules.map((rule, i) => i === index ? { ...rule, ...patch } : rule));
   };
-  const removeRule = (index: number) => onChange(rules.filter((_, i) => i !== index));
+  const removeRule = (index: number) => {
+    setError("");
+    onChange(rules.filter((_, i) => i !== index));
+  };
 
   function apply() {
     try {
       onApply(generateLuaFromRules(rules));
-    } catch (error) {
-      window.alert(error instanceof Error ? error.message : (ru ? "Не удалось собрать Lua-скрипт." : "Could not generate the Lua script."));
+      setError("");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : (ru ? "Не удалось собрать Lua-скрипт." : "Could not generate the Lua script."));
     }
   }
 
@@ -180,6 +190,7 @@ export default function BotVisualBuilder({ locale, rules, onChange, onApply }: P
 
       <button type="button" className="bot-visual-add" onClick={addRule}><Plus size={16} />{ru ? "Добавить правило" : "Add rule"}</button>
       <button type="button" className="bot-visual-apply" onClick={apply} disabled={rules.length === 0}><WandSparkles size={16} />{ru ? "Собрать Lua-код" : "Generate Lua code"}</button>
+      {error && <div className="bot-visual-error" role="alert">{error}</div>}
       <p className="bot-visual-footnote">{ru ? "Блоки создают обычный Lua-скрипт. Перед публикацией проверь его в тестовом запуске." : "Blocks generate a regular Lua script. Test it before publishing."}</p>
     </section>
   );
