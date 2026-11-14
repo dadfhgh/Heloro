@@ -156,6 +156,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const [profileBusy, setProfileBusy] = useState(false);
   const [avatarBusy, setAvatarBusy] = useState(false);
   const [profileError, setProfileError] = useState("");
+  const [profileNotice, setProfileNotice] = useState("");
   const [profileEditing, setProfileEditing] = useState(false);
   const [profileNameDraft, setProfileNameDraft] = useState("");
   const [profileUsernameDraft, setProfileUsernameDraft] = useState("");
@@ -274,6 +275,28 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
     setActiveCommunityRoomId(null);
     setCommunityCreateKind(null);
     void refreshCommunityRooms().catch(() => undefined);
+  }
+
+  async function openChannelDiscussion(channelId: string) {
+    setError("");
+    try {
+      const { data, error: joinError } = await client.rpc("join_channel_discussion", { p_channel_id: channelId });
+      if (joinError) throw joinError;
+      if (typeof data !== "string" || !data) throw new Error(locale === "ru" ? "Обсуждение канала не найдено." : "The channel discussion was not found.");
+      openCommunity(data);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : (locale === "ru" ? "Не удалось открыть обсуждение." : "Could not open the discussion."));
+    }
+  }
+
+  async function openNewsDiscussion() {
+    const { data, error: channelError } = await client.from("heloro_channels")
+      .select("id").eq("slug", "heloro-new").single();
+    if (channelError || !data) {
+      setError(channelError?.message || (locale === "ru" ? "Канал News не найден." : "News channel was not found."));
+      return;
+    }
+    await openChannelDiscussion(data.id);
   }
 
   useEffect(() => {
@@ -501,6 +524,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
     setViewedProfile(null);
     setProfileLoading(true);
     setProfileError("");
+    setProfileNotice("");
     try {
       const target = await getPublicProfile(userId);
       if (!target) throw new Error("Profile not found.");
@@ -513,6 +537,27 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
       setProfileError(t(locale, "profileLoadError"));
     } finally {
       setProfileLoading(false);
+    }
+  }
+
+  async function giftFatEpicSans(target: PublicProfile) {
+    if (!roles.includes("owner") || target.id === user.id || profileBusy) return;
+    setProfileBusy(true);
+    setProfileError("");
+    setProfileNotice("");
+    try {
+      const { error: giftError } = await client.from("profile_gifts").insert({
+        user_id: target.id,
+        gift_type: "fat_epic_sans",
+        granted_by: user.id,
+      });
+      if (giftError) throw giftError;
+      setGiftMap((current) => ({ ...current, [target.id]: true }));
+      setProfileNotice(locale === "ru" ? "Жирный Эпик Санс подарен пользователю @" + target.username + "." : "Fat Epic Sans gifted to @" + target.username + ".");
+    } catch (cause) {
+      setProfileError(cause instanceof Error ? cause.message : (locale === "ru" ? "Не удалось отправить подарок." : "Could not send the gift."));
+    } finally {
+      setProfileBusy(false);
     }
   }
 
@@ -1212,7 +1257,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                 user={user}
                 locale={locale}
                 roles={roles}
-                onOpenDiscussion={() => openSystemView("discussion")}
+                onOpenDiscussion={() => void openNewsDiscussion()}
                 onOpenNews={() => openSystemView("news")}
               />
             </div>
@@ -1222,6 +1267,8 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
               client={client}
               user={user}
               locale={locale}
+              roles={roles}
+              onOpenDiscussionRoom={(channelId) => void openChannelDiscussion(channelId)}
               contacts={inbox.map((item) => ({
                 id: item.other_user_id,
                 username: item.username,
@@ -1473,6 +1520,12 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                     </button>
                   </div>
                 )}
+                {viewedProfile.id !== user.id && roles.includes("owner") && (
+                  <button className="profile-view-action profile-gift-send-action" type="button" disabled={profileBusy} onClick={() => void giftFatEpicSans(viewedProfile)}>
+                    <Gift size={17} />{profileBusy ? (locale === "ru" ? "Отправка подарка…" : "Sending gift…") : (locale === "ru" ? "Подарить Жирного Эпик Санса" : "Gift Fat Epic Sans")}
+                  </button>
+                )}
+                {profileNotice && <p className="profile-view-notice" role="status">{profileNotice}</p>}
                 {canManageBadges && viewedProfile.badge_type && <button className="profile-view-remove-badge" type="button" disabled={profileBusy} onClick={() => void removeProfileBadge()}><ShieldCheck size={16} />{profileBusy ? t(locale, "profileBadgeRemoving") : t(locale, "profileBadgeRemove")}</button>}
               </> : <p className="profile-view-loading">{profileError || t(locale, "profileLoadError")}</p>}
               {profileError && viewedProfile && <p className="profile-view-error" role="alert">{profileError}</p>}
