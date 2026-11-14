@@ -140,7 +140,7 @@ function inspectScript(source: string, ru: boolean): Diagnostic[] {
   if (!events.length) diagnostics.push({ kind: "warning", text: ru ? "Не найден bot.on(...). Скрипт не будет реагировать на сообщения." : "No bot.on(...) handler was found. The script will not react to messages." });
 
   const blockedApis = ["require", "io", "os", "debug", "package", "dofile", "loadfile", "collectgarbage"];
-  const blockedFound = blockedApis.find((name) => new RegExp(`\\\\b${name}\\\\b`).test(source));
+  const blockedFound = blockedApis.find((name) => new RegExp("\\\\b" + name + "\\\\b").test(source));
   if (blockedFound) diagnostics.push({ kind: "warning", text: ru ? `API «${blockedFound}» отключён в безопасной песочнице.` : `The ${blockedFound} API is disabled in the secure sandbox.` });
 
   if (!diagnostics.length) diagnostics.push({ kind: "info", text: ru ? "Базовые проверки пройдены. Полную проверку синтаксиса выполни через тестовый запуск." : "Basic checks passed. Run the test runner for full syntax validation." });
