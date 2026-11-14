@@ -1,5 +1,5 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import type { User } from "@supabase/supabase-js";
+import { Fragment, lazy, Suspense, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import type { RealtimeChannel, User } from "@supabase/supabase-js";
 import {
   ArrowLeft,
   ArrowUp,
@@ -37,9 +37,11 @@ import {
   sendMessage,
   sendMediaMessage,
   subscribeToMessages,
+  touchUserLastSeen,
+  getVisibleLastSeen,
   uploadAvatar,
 } from "../../lib/messenger";
-import { formatInboxTime, formatMessageTime, initials, messageBodySchema, usernameSchema, displayNameSchema } from "../../lib/domain";
+import { formatInboxTime, formatMessageTime, formatMessageDayLabel, formatLastSeen, initials, messageBodySchema, usernameSchema, displayNameSchema } from "../../lib/domain";
 import type { InboxConversation, Message, Profile, PublicProfile, BadgeType } from "../../lib/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { t, type Locale } from "../../lib/i18n";
@@ -66,9 +68,10 @@ type Props = {
   onThemeChange: (next: ThemePreference) => void;
 };
 
-function Avatar({ label, className = "", src, crown = false }: { label: string; className?: string; src?: string | null; crown?: boolean }) {
+function Avatar({ label, className = "", src, crown = false, online = false }: { label: string; className?: string; src?: string | null; crown?: boolean; online?: boolean }) {
   return <div className={`avatar ${crown ? "avatar-with-crown" : ""} ${className}`.trim()} aria-hidden="true">
     {src ? <img src={src} alt="" loading="lazy" /> : initials(label)}
+    {online && <span className="avatar-online-dot" aria-label="Online" />}
     {crown && (
       <>
         <svg className="avatar-crown-frame-art" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
@@ -135,6 +138,9 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const [activeId, setActiveId] = useState<string | null>(null);
   const [systemView, setSystemView] = useState<SystemView | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [onlineUsers, setOnlineUsers] = useState<Record<string, boolean>>({});
+  const [lastSeenUsers, setLastSeenUsers] = useState<Record<string, string>>({});
+  const [peerTyping, setPeerTyping] = useState(false);
   const [draft, setDraft] = useState("");
   const [search, setSearch] = useState("");
   const [results, setResults] = useState<PublicProfile[]>([]);
@@ -192,6 +198,11 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const gifInputRef = useRef<HTMLInputElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const typingChannelRef = useRef<RealtimeChannel | null>(null);
+  const typingChannelReadyRef = useRef(false);
+  const typingIdleTimerRef = useRef<number | null>(null);
+  const peerTypingTimerRef = useRef<number | null>(null);
+  const typingLastSentAtRef = useRef(0);
   const isStaff = roles.some((role) => role === "owner" || role === "admin" || role === "moderator");
   const canManageBadges = roles.includes("owner") || roles.includes("admin");
 
@@ -199,6 +210,12 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
     () => inbox.find((item) => item.conversation_id === activeId) ?? null,
     [inbox, activeId],
   );
+  const activePeerId = activeConversation?.other_user_id ?? null;
+  const directPeerIds = useMemo(
+    () => [...new Set(inbox.map((item) => item.other_user_id))].filter((id) => id !== user.id).sort(),
+    [inbox, user.id],
+  );
+  const directPeerIdsKey = directPeerIds.join(",");
 
   const visibleInbox = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();
@@ -445,6 +462,135 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   }, [activeId, client, locale]);
 
   useEffect(() => {
+    let active = true;
+    const peerIds = directPeerIdsKey ? directPeerIdsKey.split(",") : [];
+    const channels: RealtimeChannel[] = [];
+    setOnlineUsers(Object.fromEntries(peerIds.map((id) => [id, false])));
+
+    const ownPresence = client.channel(`heloro:presence:${user.id}`, {
+      config: { private: true, presence: { key: `${user.id}:${crypto.randomUUID()}` } },
+    });
+    channels.push(ownPresence);
+    ownPresence.subscribe(async (status) => {
+      if (status !== "SUBSCRIBED" || !active) return;
+      try {
+        await ownPresence.track({ user_id: user.id, online_at: new Date().toISOString() });
+      } catch (cause) {
+        console.warn("HELORO own presence tracking failed:", cause);
+      }
+    });
+
+    for (const peerId of peerIds) {
+      const channel = client.channel(`heloro:presence:${peerId}`, { config: { private: true } });
+      channels.push(channel);
+      channel.on("presence", { event: "sync" }, () => {
+        if (!active) return;
+        const state = channel.presenceState() as Record<string, Array<{ user_id?: string }>>;
+        const isOnline = Object.values(state).some((entries) => entries.some((entry) => entry.user_id === peerId));
+        setOnlineUsers((current) => ({ ...current, [peerId]: isOnline }));
+      });
+      channel.subscribe((status) => {
+        if (!active) return;
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+          setOnlineUsers((current) => ({ ...current, [peerId]: false }));
+        }
+      });
+    }
+
+    const refreshLastSeen = async () => {
+      if (peerIds.length === 0) {
+        if (active) setLastSeenUsers({});
+        return;
+      }
+      try {
+        const rows = await getVisibleLastSeen(peerIds);
+        if (!active) return;
+        setLastSeenUsers(Object.fromEntries(rows.map((row) => [row.user_id, row.last_seen_at])));
+      } catch (cause) {
+        console.warn("HELORO last-seen lookup failed:", cause);
+      }
+    };
+
+    const touchActivity = () => {
+      if (document.visibilityState !== "visible") return;
+      void touchUserLastSeen().catch((cause) => console.warn("HELORO last-seen heartbeat failed:", cause));
+      void refreshLastSeen();
+    };
+    touchActivity();
+    const heartbeat = window.setInterval(touchActivity, 60_000);
+    document.addEventListener("visibilitychange", touchActivity);
+
+    return () => {
+      active = false;
+      window.clearInterval(heartbeat);
+      document.removeEventListener("visibilitychange", touchActivity);
+      channels.forEach((channel) => { void client.removeChannel(channel); });
+    };
+  }, [client, user.id, directPeerIdsKey]);
+
+  useEffect(() => {
+    setPeerTyping(false);
+    typingChannelReadyRef.current = false;
+    if (peerTypingTimerRef.current !== null) window.clearTimeout(peerTypingTimerRef.current);
+    peerTypingTimerRef.current = null;
+    if (!activeId || !activePeerId) return;
+
+    const channel = client.channel(`heloro:typing:${activeId}`, { config: { private: true } });
+    typingChannelRef.current = channel;
+    channel.on("broadcast", { event: "typing" }, ({ payload }) => {
+      if (payload?.sender_id !== activePeerId) return;
+      const isTyping = payload?.is_typing === true;
+      setPeerTyping(isTyping);
+      if (peerTypingTimerRef.current !== null) window.clearTimeout(peerTypingTimerRef.current);
+      peerTypingTimerRef.current = isTyping
+        ? window.setTimeout(() => setPeerTyping(false), 2_500)
+        : null;
+    });
+    channel.subscribe((status) => {
+      typingChannelReadyRef.current = status === "SUBSCRIBED";
+    });
+
+    return () => {
+      typingChannelReadyRef.current = false;
+      if (typingIdleTimerRef.current !== null) window.clearTimeout(typingIdleTimerRef.current);
+      if (peerTypingTimerRef.current !== null) window.clearTimeout(peerTypingTimerRef.current);
+      typingIdleTimerRef.current = null;
+      peerTypingTimerRef.current = null;
+      if (typingChannelRef.current === channel) typingChannelRef.current = null;
+      setPeerTyping(false);
+      void client.removeChannel(channel);
+    };
+  }, [client, activeId, activePeerId]);
+
+  function sendTypingSignal(isTyping: boolean) {
+    if (!typingChannelRef.current || !typingChannelReadyRef.current) return;
+    void typingChannelRef.current.send({
+      type: "broadcast",
+      event: "typing",
+      payload: { sender_id: user.id, is_typing: isTyping },
+    });
+  }
+
+  function handleDraftChange(nextDraft: string) {
+    setDraft(nextDraft);
+    if (typingIdleTimerRef.current !== null) window.clearTimeout(typingIdleTimerRef.current);
+    typingIdleTimerRef.current = null;
+    if (!nextDraft.trim()) {
+      sendTypingSignal(false);
+      return;
+    }
+    const now = Date.now();
+    if (now - typingLastSentAtRef.current >= 900) {
+      typingLastSentAtRef.current = now;
+      sendTypingSignal(true);
+    }
+    typingIdleTimerRef.current = window.setTimeout(() => {
+      sendTypingSignal(false);
+      typingIdleTimerRef.current = null;
+    }, 1_800);
+  }
+
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages]);
 
@@ -524,6 +670,9 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
     setSending(true);
     setError("");
     const currentDraft = parsed.data;
+    if (typingIdleTimerRef.current !== null) window.clearTimeout(typingIdleTimerRef.current);
+    typingIdleTimerRef.current = null;
+    sendTypingSignal(false);
     setDraft("");
     try {
       const saved = await sendMessage(activeId, user.id, currentDraft);
@@ -1024,7 +1173,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                       key={item.conversation_id}
                       onClick={() => { setActiveCommunityRoomId(null); setCommunityCreateKind(null); setActiveId(item.conversation_id); setSystemView(null); setShowSearch(false); }}
                     >
-                      <Avatar label={label} src={item.avatar_url} crown={Boolean(crownMap[item.other_user_id])} />
+                      <Avatar label={label} src={item.avatar_url} crown={Boolean(crownMap[item.other_user_id])} online={Boolean(onlineUsers[item.other_user_id])} />
                       <span className="conversation-copy">
                         <span className="conversation-title-line">
                           <strong>{label}<PurpleCrownNameMark active={Boolean(crownMap[item.other_user_id])} /><VerificationMark type={badgeMap[item.other_user_id]} title={locale === "ru" ? "Аккаунт подтверждён HELORO" : "Verified by HELORO"} /></strong>
@@ -1287,10 +1436,17 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                   <ArrowLeft size={20} />
                 </button>
                 <button type="button" className="chat-profile-trigger" onClick={() => void openUserProfile(activeConversation.other_user_id)} aria-label={t(locale, "profileViewTitle")}>
-                  <Avatar label={activeConversation.display_name || activeConversation.username} className="chat-header-avatar" src={activeConversation.avatar_url} crown={Boolean(crownMap[activeConversation.other_user_id])} />
+                  <Avatar label={activeConversation.display_name || activeConversation.username} className="chat-header-avatar" src={activeConversation.avatar_url} crown={Boolean(crownMap[activeConversation.other_user_id])} online={Boolean(onlineUsers[activeConversation.other_user_id])} />
                   <span className="chat-person">
                     <strong>{activeConversation.display_name || activeConversation.username}<VerificationMark type={badgeMap[activeConversation.other_user_id]} title={locale === "ru" ? "Аккаунт подтверждён HELORO" : "Verified by HELORO"} /></strong>
                     <small>@{activeConversation.username}<PurpleCrownNameMark active={Boolean(crownMap[activeConversation.other_user_id])} /></small>
+                    {peerTyping ? (
+                      <small className="chat-presence-label chat-presence-typing">{t(locale, "presenceTyping")}</small>
+                    ) : onlineUsers[activeConversation.other_user_id] ? (
+                      <small className="chat-presence-label chat-presence-online">{t(locale, "presenceOnline")}</small>
+                    ) : lastSeenUsers[activeConversation.other_user_id] ? (
+                      <small className="chat-presence-label">{formatLastSeen(lastSeenUsers[activeConversation.other_user_id], locale)}</small>
+                    ) : null}
                   </span>
                 </button>
                 <div className="chat-header-actions">
@@ -1353,7 +1509,6 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                 </div>
               </header>
               <div className="message-stream">
-                <div className="chat-date-pill">{t(locale, "chatConversationLabel")}</div>
                 {loadingMessages ? (
                   <div className="message-loading">{t(locale, "chatLoading")}</div>
                 ) : messages.length === 0 ? (
@@ -1362,10 +1517,15 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                     <strong>{t(locale, "chatFirstMessageTitle")}</strong>
                     <p>{t(locale, "chatFirstMessageDescription")}</p>
                   </div>
-                ) : messages.map((message) => {
+                ) : messages.map((message, index) => {
                   const mine = message.sender_id === user.id;
+                  const messageDate = new Date(message.created_at);
+                  const previousDate = index > 0 ? new Date(messages[index - 1].created_at) : null;
+                  const startsNewDay = !previousDate || previousDate.toDateString() !== messageDate.toDateString();
                   return (
-                    <div className={`message-row ${mine ? "mine" : "theirs"}`} key={message.id}>
+                    <Fragment key={message.id}>
+                      {startsNewDay && <div className="chat-date-pill chat-day-divider">{formatMessageDayLabel(message.created_at, locale)}</div>}
+                    <div className={`message-row ${mine ? "mine" : "theirs"}`}>
                       <div className="message-bubble">
                         {message.media?.url ? (
                           <img
@@ -1382,6 +1542,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                         </div>
                       </div>
                     </div>
+                    </Fragment>
                   );
                 })}
                 <div ref={messagesEndRef} />
@@ -1398,7 +1559,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                 <input ref={gifInputRef} type="file" accept="image/gif" hidden onChange={(event) => void handleMediaSelect("gif", event.target.files?.[0])} />
                 <input
                   value={draft}
-                  onChange={(event) => setDraft(event.target.value)}
+                  onChange={(event) => handleDraftChange(event.target.value)}
                   placeholder={mediaSending ? (locale === "ru" ? "Отправка медиа…" : "Sending media…") : t(locale, "messagePlaceholder")}
                   aria-label={t(locale, "messagePlaceholder")}
                   maxLength={4000}
