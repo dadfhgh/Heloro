@@ -46,7 +46,8 @@ returns table (
   last_message text,
   last_message_at timestamptz,
   other_last_seen_at timestamptz,
-  other_last_seen_hidden boolean
+  other_last_seen_hidden boolean,
+  other_last_seen_bucket text
 )
 language sql
 stable
@@ -66,7 +67,14 @@ as $$
       when coalesce(preferences.last_seen_visibility, 'everyone') = 'nobody' then null
       else preferences.last_seen_at
     end as other_last_seen_at,
-    coalesce(preferences.last_seen_visibility, 'everyone') = 'nobody' as other_last_seen_hidden
+    coalesce(preferences.last_seen_visibility, 'everyone') = 'nobody' as other_last_seen_hidden,
+    case
+      when coalesce(preferences.last_seen_visibility, 'everyone') <> 'nobody' then null
+      when preferences.last_seen_at is null or preferences.last_seen_at <= now() - interval '30 days' then 'long_ago'
+      when preferences.last_seen_at <= now() - interval '7 days' then 'within_month'
+      when preferences.last_seen_at <= now() - interval '3 days' then 'within_week'
+      else 'recently'
+    end as other_last_seen_bucket
   from public.conversations as c
   join public.conversation_members as my_membership
     on my_membership.conversation_id = c.id
