@@ -50,4 +50,10 @@ describe("message day separators", () => {
   it("uses an approximate label when exact last-seen time is hidden", () => {
     expect(formatLastSeen(null, "ru", true)).toBe("был(а) недавно");
   });
+
+  it("keeps Telegram-style approximate privacy ranges", () => {
+    expect(formatLastSeen(null, "ru", true, "within_week")).toBe("был(а) на этой неделе");
+    expect(formatLastSeen(null, "ru", true, "within_month")).toBe("был(а) в этом месяце");
+    expect(formatLastSeen(null, "ru", true, "long_ago")).toBe("был(а) давно");
+  });
 });
