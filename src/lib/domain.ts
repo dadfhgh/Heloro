@@ -60,9 +60,14 @@ export function formatMessageDayLabel(value: string, locale: "ru" | "en"): strin
   return new Intl.DateTimeFormat(locale === "ru" ? "ru-RU" : "en-US", { day: "numeric", month: "long", ...(date.getFullYear() !== now.getFullYear() ? { year: "numeric" } : {}) }).format(date);
 }
 
-export function formatLastSeen(value: string | null | undefined, locale: "ru" | "en", hidden = false): string {
+export function formatLastSeen(value: string | null | undefined, locale: "ru" | "en", hidden = false, hiddenBucket?: "recently" | "within_week" | "within_month" | "long_ago" | null): string {
   const ru = locale === "ru";
-  if (hidden) return ru ? "был(а) недавно" : "last seen recently";
+  if (hidden) {
+    if (hiddenBucket === "within_week") return ru ? "был(а) на этой неделе" : "last seen within a week";
+    if (hiddenBucket === "within_month") return ru ? "был(а) в этом месяце" : "last seen within a month";
+    if (hiddenBucket === "long_ago") return ru ? "был(а) давно" : "last seen a long time ago";
+    return ru ? "был(а) недавно" : "last seen recently";
+  }
   if (!value) return ru ? "был(а) давно" : "last seen a long time ago";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return ru ? "был(а) давно" : "last seen a long time ago";
