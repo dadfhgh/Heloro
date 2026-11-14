@@ -148,16 +148,9 @@ export async function createDirectConversation(username: string): Promise<string
 }
 
 export async function getInbox(): Promise<InboxConversation[]> {
-  const presenceResult = await client().rpc("get_inbox_with_presence");
-  if (!presenceResult.error) return (presenceResult.data ?? []) as InboxConversation[];
-  if (presenceResult.error.code !== "PGRST202" && presenceResult.error.code !== "42883") throw presenceResult.error;
-  const legacyResult = await client().rpc("get_inbox");
-  if (legacyResult.error) throw legacyResult.error;
-  return ((legacyResult.data ?? []) as InboxConversation[]).map((item) => ({
-    ...item,
-    other_last_seen_at: null,
-    other_last_seen_hidden: false,
-  }));
+  const { data, error } = await client().rpc("get_inbox");
+  if (error) throw error;
+  return (data ?? []) as InboxConversation[];
 }
 
 export async function getMessages(
@@ -307,11 +300,14 @@ export async function subscribeToUserPresence(
   currentUserId: string,
   onChange: (online: boolean) => void,
 ): Promise<RealtimeChannel> {
-  const presenceChannel = client().channel("heloro:user-presence:" + targetUserId, {
-    config: { private: true, presence: { key: currentUserId } },
+  const presenceKey = targetUserId === currentUserId
+    ? currentUserId + ":" + crypto.randomUUID()
+    : currentUserId;
+  const presenceChannel = client().channel("heloro:presence:" + targetUserId, {
+    config: { private: true, presence: { key: presenceKey } },
   });
   presenceChannel.on("presence", { event: "sync" }, () => {
-    const state = presenceChannel.presenceState<{ user_id: string }>();
+    const state = presenceChannel.presenceState<{ user_id?: string }>();
     onChange(Object.values(state).some((entries) => entries.some((entry) => entry.user_id === targetUserId)));
   });
   presenceChannel.subscribe(async (status) => {
@@ -327,16 +323,32 @@ export function subscribeToConversationTyping(
   conversationId: string,
   currentUserId: string,
   onTyping: (typing: boolean) => void,
+  onReady?: (ready: boolean) => void,
 ): RealtimeChannel {
   return client()
-    .channel("heloro:dm:" + conversationId, { config: { private: true } })
+    .channel("heloro:typing:" + conversationId, { config: { private: true } })
     .on("broadcast", { event: "typing" }, ({ payload }) => {
-      const state = payload as { user_id?: string; is_typing?: boolean };
-      if (state.user_id && state.user_id !== currentUserId) onTyping(Boolean(state.is_typing));
+      const state = payload as { sender_id?: string; is_typing?: boolean };
+      if (state.sender_id && state.sender_id !== currentUserId) onTyping(Boolean(state.is_typing));
     })
-    .subscribe();
+    .subscribe((status) => onReady?.(status === "SUBSCRIBED"));
 }
 
 export function sendTypingIndicator(channel: RealtimeChannel, userId: string, isTyping: boolean): void {
-  void channel.send({ type: "broadcast", event: "typing", payload: { user_id: userId, is_typing: isTyping } });
+  void channel.send({ type: "broadcast", event: "typing", payload: { sender_id: userId, is_typing: isTyping } });
+}
+
+export type VisibleLastSeen = { user_id: string; last_seen_at: string };
+
+export async function touchUserLastSeen(): Promise<void> {
+  const { error } = await client().rpc("touch_user_last_seen");
+  if (error) throw error;
+}
+
+export async function getVisibleLastSeen(userIds: string[]): Promise<VisibleLastSeen[]> {
+  const uniqueIds = [...new Set(userIds)].filter(Boolean).slice(0, 100);
+  if (uniqueIds.length === 0) return [];
+  const { data, error } = await client().rpc("get_visible_last_seen", { target_user_ids: uniqueIds });
+  if (error) throw error;
+  return (data ?? []) as VisibleLastSeen[];
 }
