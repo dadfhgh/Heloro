@@ -1191,8 +1191,17 @@ html[data-theme="dark"] .system-channel-edit-form textarea { border-color: #444;
 .avatar.avatar-with-crown {
   position: relative;
   overflow: visible;
-  border: 2.5px solid #8b5cf6;
-  box-shadow: 0 0 0 2px rgba(139,92,246,.2), 0 0 12px rgba(139,92,246,.22);
+  box-sizing: border-box;
+  border: 2px solid #9569e8;
+  box-shadow: 0 0 0 2px rgba(139,92,246,.14), 0 2px 7px rgba(91,33,182,.16);
+}
+.avatar.avatar-with-crown::after {
+  position: absolute;
+  inset: 2px;
+  content: "";
+  border: 1px solid rgba(255,255,255,.72);
+  border-radius: inherit;
+  pointer-events: none;
 }
 .avatar.avatar-with-crown > img {
   width: 100%;
@@ -1200,23 +1209,30 @@ html[data-theme="dark"] .system-channel-edit-form textarea { border-color: #444;
   border-radius: 50%;
   object-fit: cover;
 }
-.avatar-crown-token {
-  position: absolute;
-  z-index: 3;
-  top: -11px;
-  left: 50%;
-  display: grid;
-  width: 25px;
-  height: 22px;
-  place-items: center;
-  transform: translateX(-50%);
-  border: 1.5px solid #e8d9ff;
-  border-radius: 8px 8px 6px 6px;
-  color: #fff;
-  background: linear-gradient(145deg, #b78aff 0%, #7c3aed 58%, #5b21b6 100%);
-  box-shadow: 0 2px 7px rgba(91,33,182,.38);
+.purple-crown-name-mark {
+  display: inline-flex;
+  width: 17px;
+  height: 17px;
+  margin-left: 5px;
+  align-items: center;
+  justify-content: center;
+  vertical-align: -3px;
+  border-radius: 5px;
+  color: #8152d4;
+  background: rgba(139,92,246,.12);
+  line-height: 1;
 }
-html[data-theme="dark"] .avatar-crown-token { border-color: #38215d; }
+html[data-theme="dark"] .avatar.avatar-with-crown {
+  border-color: #ad8af5;
+  box-shadow: 0 0 0 2px rgba(167,139,250,.18), 0 2px 8px rgba(0,0,0,.28);
+}
+html[data-theme="dark"] .avatar.avatar-with-crown::after {
+  border-color: rgba(255,255,255,.25);
+}
+html[data-theme="dark"] .purple-crown-name-mark {
+  color: #c6aaff;
+  background: rgba(167,139,250,.16);
+}
 .profile-crown-gift-action { width: 100%; justify-content: center; margin-top: 10px; border-color: rgba(139,92,246,.5); color: #7541c8; }
 .profile-crown-card {
   display: flex;
