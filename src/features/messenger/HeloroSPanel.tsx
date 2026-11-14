@@ -120,6 +120,7 @@ export default function HeloroSPanel({
   const [communitySearch, setCommunitySearch] = useState("");
   const [communityBadgeDraft, setCommunityBadgeDraft] = useState<Record<string, string>>({});
   const [selectedUserHasFatGift, setSelectedUserHasFatGift] = useState(false);
+  const [selectedUserHasPurpleFrame, setSelectedUserHasPurpleFrame] = useState(false);
   const [giftLoading, setGiftLoading] = useState(false);
 
   function clearMessages() {
@@ -251,12 +252,19 @@ export default function HeloroSPanel({
   useEffect(() => {
     let active = true;
     setSelectedUserHasFatGift(false);
+    setSelectedUserHasPurpleFrame(false);
     if (!isOwner || tab !== "users" || !selectedUser) return () => { active = false; };
-    void client.from("profile_gifts").select("id").eq("user_id", selectedUser.id).eq("gift_type", "fat_epic_sans").maybeSingle()
+    void client.from("profile_gifts").select("gift_type").eq("user_id", selectedUser.id)
+      .in("gift_type", ["fat_epic_sans", "purple_crown"])
       .then(({ data, error: giftError }) => {
         if (!active) return;
-        if (giftError) setError(errorText(giftError, ru ? "Не удалось загрузить подарок." : "Could not load the gift."));
-        else setSelectedUserHasFatGift(Boolean(data));
+        if (giftError) {
+          setError(errorText(giftError, ru ? "Не удалось загрузить подарки." : "Could not load gifts."));
+          return;
+        }
+        const giftTypes = new Set((data ?? []).map((item) => item.gift_type));
+        setSelectedUserHasFatGift(giftTypes.has("fat_epic_sans"));
+        setSelectedUserHasPurpleFrame(giftTypes.has("purple_crown"));
       });
     return () => { active = false; };
   }, [client, isOwner, selectedUser?.id, tab, ru]);
@@ -470,6 +478,30 @@ export default function HeloroSPanel({
     } finally { setGiftLoading(false); }
   }
 
+  async function togglePurpleFrame(target: AdminUser) {
+    if (!isOwner || giftLoading) return;
+    setGiftLoading(true); clearMessages();
+    try {
+      if (selectedUserHasPurpleFrame) {
+        const { error: deleteError } = await client.from("profile_gifts").delete()
+          .eq("user_id", target.id).eq("gift_type", "purple_crown");
+        if (deleteError) throw deleteError;
+        setSelectedUserHasPurpleFrame(false);
+        setNotice(ru ? "Фиолетовая рамка снята с аккаунта." : "Purple frame removed from the account.");
+      } else {
+        const { error: insertError } = await client.from("profile_gifts").upsert({
+          user_id: target.id, gift_type: "purple_crown", granted_by: user.id,
+        }, { onConflict: "user_id,gift_type" });
+        if (insertError) throw insertError;
+        setSelectedUserHasPurpleFrame(true);
+        setNotice(ru ? "Фиолетовая рамка выдана аккаунту." : "Purple frame granted to the account.");
+      }
+      await loadAudit();
+    } catch (cause) {
+      setError(errorText(cause, ru ? "Не удалось изменить фиолетовую рамку." : "Could not update the purple frame."));
+    } finally { setGiftLoading(false); }
+  }
+
   async function saveCommunityBadge(target: CommunityEntry) {
     if (!isOwner || busy) return;
     const raw = communityBadgeDraft[target.id] ?? target.badge_type ?? "";
@@ -586,6 +618,12 @@ export default function HeloroSPanel({
                     <span><Gift size={16} /> {ru ? "Жирный Эпик Санс" : "Fat Epic Sans"}</span>
                     <button type="button" className={selectedUserHasFatGift ? "admin-secondary-action" : ""} disabled={giftLoading} onClick={() => void toggleFatEpicSansGift(selectedUser)}>
                       {giftLoading ? (ru ? "Сохранение…" : "Saving…") : selectedUserHasFatGift ? (ru ? "Забрать подарок" : "Remove gift") : (ru ? "Выдать подарок" : "Grant gift")}
+                    </button>
+                  </div>}
+                  {isOwner && <div className="admin-role-editor">
+                    <span><Gift size={16} /> {ru ? "Фиолетовая рамка" : "Purple frame"}</span>
+                    <button type="button" className={selectedUserHasPurpleFrame ? "admin-secondary-action" : ""} disabled={giftLoading} onClick={() => void togglePurpleFrame(selectedUser)}>
+                      {giftLoading ? (ru ? "Сохранение…" : "Saving…") : selectedUserHasPurpleFrame ? (ru ? "Снять рамку" : "Remove frame") : (ru ? "Выдать рамку" : "Grant frame")}
                     </button>
                   </div>}
                   <p className="admin-muted">{ru ? "Доступны только публичные данные профиля. Личные переписки и пароли здесь не отображаются." : "Only public profile information is shown. Private chats and passwords are never displayed here."}</p>
