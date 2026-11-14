@@ -18,7 +18,7 @@ as $$
     or exists (
       select 1 from public.user_preferences as target_preferences
       where target_preferences.user_id = target_user_id
-        and target_preferences.last_seen_visibility = 'everyone'
+        and coalesce(target_preferences.last_seen_visibility, 'everyone') = 'everyone'
     )
     or exists (
       select 1
@@ -28,7 +28,7 @@ as $$
       join public.conversation_members as viewer_member
         on viewer_member.conversation_id = target_member.conversation_id
       where target_preferences.user_id = target_user_id
-        and target_preferences.last_seen_visibility = 'contacts'
+        and coalesce(target_preferences.last_seen_visibility, 'everyone') = 'contacts'
         and viewer_member.user_id = (select auth.uid())
     );
 $$;
