@@ -274,6 +274,23 @@ export async function deleteDirectMessage(message: Message, currentUserId: strin
   }
 }
 
+export type VisibleLastSeen = { user_id: string; last_seen_at: string };
+
+export async function touchUserLastSeen(): Promise<void> {
+  const { error } = await client().rpc("touch_user_last_seen");
+  if (error) throw error;
+}
+
+export async function getVisibleLastSeen(userIds: string[]): Promise<VisibleLastSeen[]> {
+  const uniqueIds = [...new Set(userIds)].filter(Boolean).slice(0, 100);
+  if (uniqueIds.length === 0) return [];
+  const { data, error } = await client().rpc("get_visible_last_seen", {
+    target_user_ids: uniqueIds,
+  });
+  if (error) throw error;
+  return (data ?? []) as VisibleLastSeen[];
+}
+
 export function subscribeToMessages(
   conversationId: string,
   onInsert: (message: Message) => void,
