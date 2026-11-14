@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main, feat/heloro-lua-bot-studio, feat/heloro-delete-communities-messages, feat/heloro-admin-permissions, feat/heloro-channel-photo-posts]
+    branches: [main, feat/heloro-lua-bot-studio, feat/heloro-delete-communities-messages, feat/heloro-admin-permissions, feat/heloro-channel-photo-posts, feat/heloro-presence-chat-dates-avatars]
 
 permissions:
   contents: read
