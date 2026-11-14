@@ -1223,8 +1223,8 @@ html[data-theme="dark"] .system-channel-edit-form textarea { border-color: #444;
 .avatar.avatar-with-crown .avatar-crown-frame-crown {
   position: absolute;
   z-index: 4;
-  top: -2%;
-  right: -1%;
+  top: 4%;
+  right: 5%;
   display: inline-flex;
   width: 22%;
   height: 22%;
@@ -1233,6 +1233,8 @@ html[data-theme="dark"] .system-channel-edit-form textarea { border-color: #444;
   color: #8752df;
   line-height: 1;
   pointer-events: none;
+  transform: rotate(55deg);
+  transform-origin: center;
 }
 .avatar.avatar-with-crown .avatar-crown-frame-crown svg {
   display: block;
