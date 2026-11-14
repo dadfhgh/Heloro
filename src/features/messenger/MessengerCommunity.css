@@ -1172,3 +1172,19 @@ html[data-theme="dark"] .community-info-discussion-link select,
 html[data-theme="dark"] .community-post-comment-form input { border-color: #444; background: #181818; color: #eee; }
 html[data-theme="dark"] .community-post-comment { background: #202020; }
 html[data-theme="dark"] .community-post-comments { border-color: #333; background: #171717; }
+
+
+/* Owner-only editing for official HELORO channels and gift dispatch */
+.system-channel-edit-form { display: grid; gap: 11px; padding: 14px; margin: 10px 0 14px; border: 1px solid var(--border, #e5e5e5); border-radius: 14px; }
+.system-channel-edit-form label { display: grid; gap: 6px; color: #777; font-size: 12px; font-weight: 600; }
+.system-channel-edit-form input,
+.system-channel-edit-form textarea { width: 100%; min-height: 40px; border: 1px solid var(--border, #ddd); border-radius: 9px; padding: 9px 11px; color: inherit; background: transparent; font: inherit; }
+.system-channel-edit-form textarea { min-height: 76px; resize: vertical; }
+.system-channel-edit-form > div { display: flex; justify-content: flex-end; gap: 8px; }
+.system-channel-edit-form > div button { min-height: 38px; padding: 0 12px; border: 1px solid var(--border, #ddd); border-radius: 9px; background: transparent; color: inherit; }
+.profile-gift-send-action { width: 100%; justify-content: center; margin-top: 10px; }
+.profile-view-notice { margin: 9px 0 0; padding: 10px 12px; border-radius: 10px; background: rgba(34,158,217,.1); color: #1675a5; font-size: 13px; }
+html[data-theme="dark"] .system-channel-edit-form { border-color: #333; }
+html[data-theme="dark"] .system-channel-edit-form input,
+html[data-theme="dark"] .system-channel-edit-form textarea { border-color: #444; }
+html[data-theme="dark"] .profile-view-notice { color: #8bc8e8; background: rgba(34,158,217,.13); }
