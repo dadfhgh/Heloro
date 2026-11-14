@@ -1187,12 +1187,13 @@ html[data-theme="dark"] .system-channel-edit-form input,
 html[data-theme="dark"] .system-channel-edit-form textarea { border-color: #444; }
 
 
-/* Purple avatar frame: hand-drawn open ring, angular crown and inner curve. */
+/* Purple avatar frame: balanced monoline crown integrated into an open circular frame. */
 .avatar.avatar-with-crown {
   position: relative;
   overflow: visible;
   border-color: transparent !important;
   box-shadow: none !important;
+  isolation: isolate;
 }
 .avatar.avatar-with-crown > img {
   width: 100%;
@@ -1203,20 +1204,33 @@ html[data-theme="dark"] .system-channel-edit-form textarea { border-color: #444;
 .avatar.avatar-with-crown .avatar-crown-frame-art {
   position: absolute;
   z-index: 3;
-  top: -33%;
-  left: 0;
+  top: -15%;
+  left: -15%;
   width: 130%;
-  height: 133%;
+  height: 130%;
   overflow: visible;
   fill: none;
-  stroke: #ad50df;
-  stroke-width: 29;
+  stroke: #a855f7;
+  stroke-width: 2.9;
   stroke-linecap: round;
   stroke-linejoin: round;
   pointer-events: none;
 }
+.avatar.avatar-with-crown .avatar-crown-frame-ring {
+  stroke-width: 2.85;
+}
+.avatar.avatar-with-crown .avatar-crown-frame-crown {
+  stroke-width: 2.9;
+}
+.avatar.avatar-with-crown .avatar-crown-frame-detail {
+  stroke-width: 2.15;
+  opacity: .86;
+}
 html[data-theme="dark"] .avatar.avatar-with-crown .avatar-crown-frame-art {
-  stroke: #ad50df;
+  stroke: #b978f4;
+}
+html[data-theme="dark"] .avatar.avatar-with-crown .avatar-crown-frame-detail {
+  opacity: .92;
 }
 
 /* Username mark remains the same existing small crown until the user reviews it. */
@@ -1237,7 +1251,6 @@ html[data-theme="dark"] .avatar.avatar-with-crown .avatar-crown-frame-art {
   fill: rgba(135,82,223,.16);
   filter: drop-shadow(0 1px 1px rgba(91,33,182,.18));
 }
-html[data-theme="dark"] .avatar.avatar-with-crown .avatar-crown-gap-mark,
 html[data-theme="dark"] .purple-crown-name-mark {
   color: #c6aaff;
 }
