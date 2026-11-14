@@ -316,8 +316,8 @@ export async function subscribeToUserPresence(
   });
   presenceChannel.subscribe(async (status) => {
     if (status === "SUBSCRIBED" && targetUserId === currentUserId) {
-      const { error } = await presenceChannel.track({ user_id: currentUserId, online_at: new Date().toISOString() });
-      if (error) console.warn("HELORO presence tracking failed:", error.message);
+      const trackStatus = await presenceChannel.track({ user_id: currentUserId, online_at: new Date().toISOString() });
+      if (trackStatus !== "ok") console.warn("HELORO presence tracking status:", trackStatus);
     }
   });
   return presenceChannel;
