@@ -1418,7 +1418,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                   <span className="chat-person">
                     <strong>{activeConversation.display_name || activeConversation.username}<VerificationMark type={badgeMap[activeConversation.other_user_id]} title={locale === "ru" ? "Аккаунт подтверждён HELORO" : "Verified by HELORO"} /></strong>
                     <small>@{activeConversation.username}<PurpleCrownNameMark active={Boolean(crownMap[activeConversation.other_user_id])} /></small>
-                    <small className={`chat-presence-status ${onlineMap[activeConversation.other_user_id] ? "is-online" : ""}`}>{isTyping ? (locale === "ru" ? "печатает…" : "typing…") : onlineMap[activeConversation.other_user_id] ? (locale === "ru" ? "в сети" : "online") : formatLastSeen(activeConversation.other_last_seen_at, locale, Boolean(activeConversation.other_last_seen_hidden))}</small>
+                    <small className={`chat-presence-status ${onlineMap[activeConversation.other_user_id] ? "is-online" : ""}`}>{isTyping ? (locale === "ru" ? "печатает…" : "typing…") : onlineMap[activeConversation.other_user_id] ? (locale === "ru" ? "в сети" : "online") : formatLastSeen(activeConversation.other_last_seen_at, locale, Boolean(activeConversation.other_last_seen_hidden), activeConversation.other_last_seen_bucket)}</small>
                   </span>
                 </button>
                 <div className="chat-header-actions">
