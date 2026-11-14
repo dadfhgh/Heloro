@@ -9,6 +9,7 @@ export interface ChannelPost {
   body: string;
   is_pinned: boolean;
   created_at: string;
+  media?: { kind: "photo"; path: string; url: string } | null;
 }
 
 export interface ChannelComment {
@@ -51,6 +52,35 @@ export interface UserReport {
   created_at: string;
 }
 
+const CHANNEL_MEDIA_PREFIX = "HELORO_CHANNEL_MEDIA:";
+const CHANNEL_PHOTO_TYPES: Record<string, string> = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/webp": "webp",
+};
+type ChannelPhotoPayload = { scope: "official" | "community"; path: string; caption?: string };
+
+async function hydrateChannelPost(client: SupabaseClient, post: ChannelPost): Promise<ChannelPost> {
+  if (!post.body.startsWith(CHANNEL_MEDIA_PREFIX)) return { ...post, media: null };
+  try {
+    const payload = JSON.parse(post.body.slice(CHANNEL_MEDIA_PREFIX.length)) as Partial<ChannelPhotoPayload>;
+    if (payload.scope !== "official" || typeof payload.path !== "string") {
+      return { ...post, body: "", media: null };
+    }
+    const { data, error } = await client.storage.from("channel-media").createSignedUrl(payload.path, 3600);
+    if (error || !data?.signedUrl) {
+      return { ...post, body: payload.caption ?? "", media: null };
+    }
+    return {
+      ...post,
+      body: payload.caption ?? "",
+      media: { kind: "photo", path: payload.path, url: data.signedUrl },
+    };
+  } catch {
+    return { ...post, body: "", media: null };
+  }
+}
+
 export async function getNewsChannel(client: SupabaseClient) {
   const { data, error } = await client
     .from("heloro_channels")
@@ -70,25 +100,72 @@ export async function getChannelPosts(client: SupabaseClient, channelId: string)
     .order("created_at", { ascending: false })
     .limit(50);
   if (error) throw error;
-  return (data ?? []) as ChannelPost[];
+  return Promise.all(((data ?? []) as ChannelPost[]).map((post) => hydrateChannelPost(client, post)));
 }
 
 export async function deleteChannelPost(client: SupabaseClient, postId: string) {
+  const existing = await client.from("channel_posts").select("body").eq("id", postId).maybeSingle();
+  if (existing.error) throw existing.error;
+  if (!existing.data) throw new Error("Публикация не найдена или у вас нет прав на её удаление.");
+
   const { data, error } = await client.from("channel_posts").delete().eq("id", postId).select("id").maybeSingle();
   if (error) throw error;
   if (!data) throw new Error("Публикация не найдена или у вас нет прав на её удаление.");
+
+  if (existing.data.body.startsWith(CHANNEL_MEDIA_PREFIX)) {
+    try {
+      const payload = JSON.parse(existing.data.body.slice(CHANNEL_MEDIA_PREFIX.length)) as Partial<ChannelPhotoPayload>;
+      if (payload.scope === "official" && typeof payload.path === "string") {
+        const { error: cleanupError } = await client.storage.from("channel-media").remove([payload.path]);
+        if (cleanupError) console.warn("Channel post was deleted, but its photo cleanup failed.", cleanupError);
+      }
+    } catch (cause) {
+      console.warn("Channel post was deleted, but its photo path could not be parsed.", cause);
+    }
+  }
 }
 
-export async function createChannelPost(client: SupabaseClient, channelId: string, authorId: string, body: string) {
+export async function createChannelPost(
+  client: SupabaseClient,
+  channelId: string,
+  authorId: string,
+  body: string,
+  photo?: File | null,
+) {
   const text = body.trim();
-  if (!text || text.length > 4000) throw new Error("Post must contain 1–4000 characters.");
+  if (text.length > 3500) throw new Error("Caption can contain up to 3,500 characters.");
+  if (!text && !photo) throw new Error("Add text or choose a photo.");
+
+  let mediaPath: string | null = null;
+  let storedBody = text;
+  if (photo) {
+    const extension = CHANNEL_PHOTO_TYPES[photo.type];
+    if (!extension) throw new Error("Choose a PNG, JPEG or WebP photo.");
+    if (photo.size < 1 || photo.size > 5 * 1024 * 1024) throw new Error("Photos must be 5 MB or smaller.");
+    mediaPath = `official/${channelId}/${authorId}/${crypto.randomUUID()}.${extension}`;
+    const { error: uploadError } = await client.storage.from("channel-media").upload(mediaPath, photo, {
+      contentType: photo.type,
+      cacheControl: "3600",
+      upsert: false,
+    });
+    if (uploadError) throw uploadError;
+    storedBody = CHANNEL_MEDIA_PREFIX + JSON.stringify({ scope: "official", path: mediaPath, caption: text });
+    if (storedBody.length > 4000) {
+      await client.storage.from("channel-media").remove([mediaPath]);
+      throw new Error("Photo caption is too long.");
+    }
+  }
+
   const { data, error } = await client
     .from("channel_posts")
-    .insert({ channel_id: channelId, author_id: authorId, body: text })
+    .insert({ channel_id: channelId, author_id: authorId, body: storedBody })
     .select("id, channel_id, author_id, body, is_pinned, created_at")
     .single();
-  if (error) throw error;
-  return data as ChannelPost;
+  if (error) {
+    if (mediaPath) await client.storage.from("channel-media").remove([mediaPath]);
+    throw error;
+  }
+  return hydrateChannelPost(client, data as ChannelPost);
 }
 
 export async function getChannelComments(client: SupabaseClient, postId: string) {

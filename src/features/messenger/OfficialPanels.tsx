@@ -1,10 +1,11 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { User } from "@supabase/supabase-js";
 import {
   BadgeCheck,
   ChevronRight,
   Flag,
   Headphones,
+  ImagePlus,
   MessageCircle,
   Megaphone,
   Send,
@@ -94,7 +95,11 @@ function NewsChannel({
 }: Omit<Props, "view" | "roles"> & { canPublish: boolean; canDeletePosts: boolean; canModerate: boolean }) {
   const ru = locale === "ru";
   const [channelId, setChannelId] = useState("");
+  const [channelName, setChannelName] = useState("News");
   const [posts, setPosts] = useState<ChannelPost[]>([]);
+  const [postPhoto, setPostPhoto] = useState<File | null>(null);
+  const [postPhotoPreview, setPostPhotoPreview] = useState<string | null>(null);
+  const postPhotoInput = useRef<HTMLInputElement>(null);
   const [expandedPost, setExpandedPost] = useState<string | null>(null);
   const [comments, setComments] = useState<ChannelComment[]>([]);
   const [postDraft, setPostDraft] = useState("");
@@ -103,11 +108,34 @@ function NewsChannel({
   const [error, setError] = useState("");
 
   useEffect(() => {
+    if (!postPhoto) {
+      setPostPhotoPreview(null);
+      return;
+    }
+    const previewUrl = URL.createObjectURL(postPhoto);
+    setPostPhotoPreview(previewUrl);
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [postPhoto]);
+
+  function choosePostPhoto(file?: File) {
+    if (!file) return;
+    const supported = ["image/png", "image/jpeg", "image/webp"];
+    if (!supported.includes(file.type) || file.size < 1 || file.size > 5 * 1024 * 1024) {
+      setError(ru ? "Выбери PNG, JPEG или WebP размером до 5 МБ." : "Choose a PNG, JPEG or WebP photo up to 5 MB.");
+      if (postPhotoInput.current) postPhotoInput.current.value = "";
+      return;
+    }
+    setPostPhoto(file);
+    setError("");
+  }
+
+  useEffect(() => {
     let active = true;
     getNewsChannel(client)
       .then(async (channel) => {
         if (!active) return;
         setChannelId(channel.id);
+        setChannelName(channel.name);
         const items = await getChannelPosts(client, channel.id);
         if (active) setPosts(items);
       })
@@ -121,7 +149,11 @@ function NewsChannel({
       client,
       "channel_posts",
       `channel_id=eq.${channelId}`,
-      (post) => setPosts((current) => current.some((item) => item.id === post.id) ? current : [post, ...current]),
+      () => {
+        void getChannelPosts(client, channelId).then(setPosts).catch((cause: unknown) => {
+          setError(cause instanceof Error ? cause.message : (ru ? "Не удалось обновить канал." : "Could not refresh the channel."));
+        });
+      },
       () => {
         void getChannelPosts(client, channelId).then(setPosts).catch((cause: unknown) => {
           setError(cause instanceof Error ? cause.message : (ru ? "Не удалось обновить канал." : "Could not refresh the channel."));
@@ -173,13 +205,15 @@ function NewsChannel({
   }
   async function publish(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!channelId || !postDraft.trim()) return;
+    if (!channelId || (!postDraft.trim() && !postPhoto)) return;
     setBusy(true);
     setError("");
     try {
-      const post = await createChannelPost(client, channelId, user.id, postDraft);
+      const post = await createChannelPost(client, channelId, user.id, postDraft, postPhoto);
       setPosts((current) => current.some((item) => item.id === post.id) ? current : [post, ...current]);
       setPostDraft("");
+      setPostPhoto(null);
+      if (postPhotoInput.current) postPhotoInput.current.value = "";
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : (ru ? "Не удалось опубликовать новость." : "Could not publish the post."));
     } finally {
@@ -235,9 +269,9 @@ function NewsChannel({
   return (
     <div className="special-panel">
       <header className="chat-header">
-        <Avatar label="Heloro New" />
+        <Avatar label={channelName} />
         <div className="chat-person">
-          <strong>Heloro New <BadgeCheck className="system-verified-mark" size={15} style={{ color: "#229ED9", background: "transparent", boxShadow: "none" }} /></strong>
+          <strong>{channelName} <BadgeCheck className="system-verified-mark" size={15} style={{ color: "#229ED9", background: "transparent", boxShadow: "none" }} /></strong>
           <small>{ru ? "Официальный канал HELORO" : "Official HELORO channel"}</small>
         </div>
         <div className="chat-header-actions">
@@ -250,8 +284,19 @@ function NewsChannel({
         <div className="system-description">{ru ? "Новости, обновления и важные объявления." : "News, updates and important announcements."}</div>
         {canPublish && (
           <form className="system-publish-form" onSubmit={publish}>
-            <textarea value={postDraft} onChange={(event) => setPostDraft(event.target.value)} placeholder={ru ? "Новая публикация…" : "Write a new post…"} maxLength={4000} />
-            <button className="primary-button" type="submit" disabled={busy || !postDraft.trim()}>{ru ? "Опубликовать" : "Publish"}</button>
+            <textarea value={postDraft} onChange={(event) => setPostDraft(event.target.value)} placeholder={ru ? "Новая публикация или фото…" : "Write a post or add a photo…"} maxLength={3500} />
+            <input ref={postPhotoInput} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(event) => choosePostPhoto(event.target.files?.[0])} />
+            <div className="system-publish-controls">
+              <button className="system-photo-button" type="button" onClick={() => postPhotoInput.current?.click()} disabled={busy} aria-label={ru ? "Добавить фото" : "Add photo"} title={ru ? "Добавить фото" : "Add photo"}><ImagePlus size={17} />{ru ? "Фото" : "Photo"}</button>
+              <button className="primary-button" type="submit" disabled={busy || (!postDraft.trim() && !postPhoto)}>{ru ? "Опубликовать" : "Publish"}</button>
+            </div>
+            {postPhotoPreview && (
+              <div className="system-publish-preview">
+                <img src={postPhotoPreview} alt={ru ? "Предпросмотр фото" : "Photo preview"} />
+                <span>{postPhoto?.name}</span>
+                <button type="button" onClick={() => { setPostPhoto(null); if (postPhotoInput.current) postPhotoInput.current.value = ""; }}>{ru ? "Убрать" : "Remove"}</button>
+              </div>
+            )}
           </form>
         )}
         {error && <p className="system-error" role="alert">{error}</p>}
@@ -260,7 +305,8 @@ function NewsChannel({
         ) : posts.map((post) => (
           <article className="system-post-card" key={post.id}>
             {post.is_pinned && <span className="system-pinned">{ru ? "Закреплено" : "Pinned"}</span>}
-            <p>{post.body}</p>
+            {post.media?.url && <img className="system-post-image" src={post.media.url} alt={ru ? "Фотография в публикации" : "Photo in post"} loading="lazy" />}
+            {post.body && <p>{post.body}</p>}
             <div className="system-post-meta">
               <time>{formatMessageTime(post.created_at)}</time>
               <button onClick={() => setExpandedPost((current) => current === post.id ? null : post.id)}>

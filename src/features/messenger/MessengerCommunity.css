@@ -1083,3 +1083,69 @@ html[data-theme="dark"] .community-admin-permission input { accent-color: #ddd; 
   .community-admin-person-copy { padding-top: 2px; }
   .community-admin-person-actions { width: 100%; justify-content: flex-end; }
 }
+
+
+/* Channel photo attachments */
+.community-message-photo {
+  display: block;
+  width: 100%;
+  max-width: 420px;
+  max-height: 480px;
+  margin: 4px 0 7px;
+  border-radius: 9px;
+  object-fit: contain;
+  background: #f2f2f2;
+}
+.community-channel-photo-preview {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  max-width: 100%;
+  padding: 7px 10px;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  color: #555;
+  background: #fff;
+  font-size: 11px;
+}
+.community-channel-photo-preview img {
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+  border-radius: 7px;
+  object-fit: cover;
+}
+.community-channel-photo-preview span {
+  min-width: 0;
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+.community-channel-photo-preview button {
+  padding: 6px 8px;
+  border: 1px solid #ddd;
+  border-radius: 7px;
+  color: #555;
+  background: #f7f7f7;
+  font: inherit;
+  font-size: 10px;
+}
+.community-composer .community-attach-photo {
+  flex: 0 0 38px;
+  color: #555;
+  background: #ededed;
+}
+html[data-theme="dark"] .community-message-photo { background: #222; }
+html[data-theme="dark"] .community-channel-photo-preview {
+  border-color: #414141;
+  color: #ccc;
+  background: #1d1d1d;
+}
+html[data-theme="dark"] .community-channel-photo-preview button {
+  border-color: #484848;
+  color: #ddd;
+  background: #292929;
+}
+html[data-theme="dark"] .community-composer .community-attach-photo {
+  color: #ddd;
+  background: #333;
+}
