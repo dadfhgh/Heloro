@@ -1187,7 +1187,7 @@ html[data-theme="dark"] .system-channel-edit-form input,
 html[data-theme="dark"] .system-channel-edit-form textarea { border-color: #444; }
 
 
-/* Purple avatar frame: balanced monoline crown integrated into an open circular frame. */
+/* Purple avatar frame: use the exact Crown glyph shown beside the username. */
 .avatar.avatar-with-crown {
   position: relative;
   overflow: visible;
@@ -1210,27 +1210,45 @@ html[data-theme="dark"] .system-channel-edit-form textarea { border-color: #444;
   height: 130%;
   overflow: visible;
   fill: none;
-  stroke: #a855f7;
-  stroke-width: 2.9;
+  color: #8752df;
+  stroke: currentColor;
+  stroke-width: 2.85;
   stroke-linecap: round;
   stroke-linejoin: round;
   pointer-events: none;
 }
 .avatar.avatar-with-crown .avatar-crown-frame-ring {
-  stroke-width: 2.85;
+  stroke: currentColor;
 }
 .avatar.avatar-with-crown .avatar-crown-frame-crown {
-  stroke-width: 2.9;
+  position: absolute;
+  z-index: 4;
+  top: -2%;
+  right: -1%;
+  display: inline-flex;
+  width: 22%;
+  height: 22%;
+  align-items: center;
+  justify-content: center;
+  color: #8752df;
+  line-height: 1;
+  pointer-events: none;
 }
-.avatar.avatar-with-crown .avatar-crown-frame-detail {
-  stroke-width: 2.15;
-  opacity: .86;
+.avatar.avatar-with-crown .avatar-crown-frame-crown svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  stroke: currentColor;
+  fill: rgba(135,82,223,.16);
+  filter: drop-shadow(0 1px 1px rgba(91,33,182,.18));
 }
-html[data-theme="dark"] .avatar.avatar-with-crown .avatar-crown-frame-art {
-  stroke: #b978f4;
+html[data-theme="dark"] .avatar.avatar-with-crown .avatar-crown-frame-art,
+html[data-theme="dark"] .avatar.avatar-with-crown .avatar-crown-frame-crown {
+  color: #c6aaff;
 }
-html[data-theme="dark"] .avatar.avatar-with-crown .avatar-crown-frame-detail {
-  opacity: .92;
+html[data-theme="dark"] .avatar.avatar-with-crown .avatar-crown-frame-crown svg {
+  fill: rgba(198,170,255,.16);
+  filter: drop-shadow(0 1px 1px rgba(91,33,182,.18));
 }
 
 /* Username mark remains the same existing small crown until the user reviews it. */
