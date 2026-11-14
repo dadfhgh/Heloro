@@ -102,7 +102,7 @@ function VerificationMark({ type, title }: { type?: BadgeType | null; title: str
   }
   if (type === "creator") {
     const creatorTitle = title === "Verified by HELORO" ? "Verified HELORO creator" : "Проверенный автор HELORO";
-    return <BadgeCheck size={14} className="creator-verified-mark" title={creatorTitle} aria-label={creatorTitle} role="img" />;
+    return <BadgeCheck size={14} className="creator-verified-mark" aria-label={creatorTitle} role="img" />;
   }
   const label = type === "blue" ? "blue" : "gold";
   return (
