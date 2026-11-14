@@ -922,7 +922,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                     <button className={`conversation-item pinned-system-item ${systemView === "news" || systemView === "discussion" ? "selected" : ""}`} onClick={() => openSystemView("news")}>
                       <div className="system-avatar system-news-avatar"><Megaphone size={19} /></div>
                       <span className="conversation-copy">
-                        <span className="conversation-title-line"><strong>News <BadgeCheck size={14} className="system-verified-mark" /></strong><time>{locale === "ru" ? "Канал" : "Channel"}</time></span>
+                        <span className="conversation-title-line"><strong>News <BadgeCheck size={14} className="system-verified-mark" style={{ color: "#229ED9", background: "transparent", boxShadow: "none" }} /></strong><time>{locale === "ru" ? "Канал" : "Channel"}</time></span>
                         <span className="conversation-preview-line"><small>{locale === "ru" ? "Новости и обновления" : "News and updates"}</small></span>
                       </span>
                     </button>
