@@ -1185,3 +1185,93 @@ html[data-theme="dark"] .community-post-comments { border-color: #333; backgroun
 html[data-theme="dark"] .system-channel-edit-form { border-color: #333; }
 html[data-theme="dark"] .system-channel-edit-form input,
 html[data-theme="dark"] .system-channel-edit-form textarea { border-color: #444; }
+
+
+/* Purple avatar frame: use the exact Crown glyph shown beside the username. */
+.avatar.avatar-with-crown {
+  position: relative;
+  overflow: visible;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  isolation: isolate;
+}
+.avatar.avatar-with-crown > img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.avatar.avatar-with-crown .avatar-crown-frame-art {
+  position: absolute;
+  z-index: 3;
+  top: -15%;
+  left: -15%;
+  width: 130%;
+  height: 130%;
+  overflow: visible;
+  fill: none;
+  color: #8752df;
+  stroke: currentColor;
+  stroke-width: 2.85;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+.avatar.avatar-with-crown .avatar-crown-frame-ring {
+  stroke: currentColor;
+}
+.avatar.avatar-with-crown .avatar-crown-frame-crown {
+  position: absolute;
+  z-index: 4;
+  top: -7%;
+  right: -18.5%;
+  display: inline-flex;
+  width: 32%;
+  height: 32%;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: center;
+  color: #8752df;
+  line-height: 1;
+  pointer-events: none;
+  transform: rotate(55deg);
+  transform-origin: center;
+}
+.avatar.avatar-with-crown .avatar-crown-frame-crown svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  stroke: currentColor;
+  fill: rgba(135,82,223,.16);
+  filter: drop-shadow(0 1px 1px rgba(91,33,182,.18));
+}
+html[data-theme="dark"] .avatar.avatar-with-crown .avatar-crown-frame-art,
+html[data-theme="dark"] .avatar.avatar-with-crown .avatar-crown-frame-crown {
+  color: #c6aaff;
+}
+html[data-theme="dark"] .avatar.avatar-with-crown .avatar-crown-frame-crown svg {
+  fill: rgba(198,170,255,.16);
+  filter: drop-shadow(0 1px 1px rgba(91,33,182,.18));
+}
+
+/* Username mark remains the same existing small crown until the user reviews it. */
+.purple-crown-name-mark {
+  display: inline-flex;
+  width: 17px;
+  height: 17px;
+  margin-left: 5px;
+  align-items: center;
+  justify-content: center;
+  vertical-align: -3px;
+  color: #8752df;
+  background: transparent;
+  line-height: 1;
+  pointer-events: none;
+}
+.purple-crown-name-mark svg {
+  fill: rgba(135,82,223,.16);
+  filter: drop-shadow(0 1px 1px rgba(91,33,182,.18));
+}
+html[data-theme="dark"] .purple-crown-name-mark {
+  color: #c6aaff;
+}

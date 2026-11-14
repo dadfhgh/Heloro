@@ -5,6 +5,7 @@ import {
   ArrowUp,
   BadgeCheck,
   CheckCheck,
+  Crown,
   Flag,
   Headphones,
   ImagePlus,
@@ -65,10 +66,27 @@ type Props = {
   onThemeChange: (next: ThemePreference) => void;
 };
 
-function Avatar({ label, className = "", src }: { label: string; className?: string; src?: string | null }) {
-  return <div className={`avatar ${className}`.trim()} aria-hidden="true">
+function Avatar({ label, className = "", src, crown = false }: { label: string; className?: string; src?: string | null; crown?: boolean }) {
+  return <div className={`avatar ${crown ? "avatar-with-crown" : ""} ${className}`.trim()} aria-hidden="true">
     {src ? <img src={src} alt="" loading="lazy" /> : initials(label)}
+    {crown && (
+      <>
+        <svg className="avatar-crown-frame-art" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+          <path className="avatar-crown-frame-ring" d="M 46.2 10.9 A 25.4 25.4 0 1 0 56.4 24.8" />
+        </svg>
+        <span className="avatar-crown-frame-crown" aria-hidden="true"><Crown size={17} strokeWidth={2.5} /></span>
+      </>
+    )}
   </div>;
+}
+
+function PurpleCrownNameMark({ active }: { active: boolean }) {
+  if (!active) return null;
+  return (
+    <span className="purple-crown-name-mark" title="Фиолетовая корона HELORO" aria-label="Фиолетовая корона HELORO">
+      <Crown size={13} strokeWidth={2.5} />
+    </span>
+  );
 }
 
 function VerificationMark({ type, title }: { type?: BadgeType | null; title: string }) {
@@ -121,6 +139,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const [search, setSearch] = useState("");
   const [results, setResults] = useState<PublicProfile[]>([]);
   const [badgeMap, setBadgeMap] = useState<Record<string, BadgeType>>({});
+  const [crownMap, setCrownMap] = useState<Record<string, boolean>>({});
   const [searching, setSearching] = useState(false);
   const [loadingInbox, setLoadingInbox] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
@@ -153,6 +172,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const [profileBusy, setProfileBusy] = useState(false);
   const [avatarBusy, setAvatarBusy] = useState(false);
   const [profileError, setProfileError] = useState("");
+  const [profileNotice, setProfileNotice] = useState("");
   const [profileEditing, setProfileEditing] = useState(false);
   const [profileNameDraft, setProfileNameDraft] = useState("");
   const [profileUsernameDraft, setProfileUsernameDraft] = useState("");
@@ -356,14 +376,16 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   }, [client, search, showSearch]);
 
   useEffect(() => {
-    if (inbox.length === 0) {
+    const ids = [...new Set([user.id, ...inbox.map((item) => item.other_user_id), ...results.map((item) => item.id), ...directoryUsers.map((item) => item.id), ...(viewedProfile ? [viewedProfile.id] : [])])];
+    if (ids.length === 0) {
       setBadgeMap({});
+      setCrownMap({});
       return;
     }
     let active = true;
     client.from("verification_badges")
       .select("user_id, badge_type")
-      .in("user_id", inbox.map((item) => item.other_user_id))
+      .in("user_id", ids)
       .then(({ data, error: badgeError }) => {
         if (!active) return;
         if (badgeError) {
@@ -378,8 +400,17 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
         }
         setBadgeMap(next);
       });
+    void client.from("profile_gifts").select("user_id").eq("gift_type", "purple_crown").in("user_id", ids)
+      .then(({ data, error: giftError }) => {
+        if (!active) return;
+        if (giftError) {
+          console.warn("HELORO purple crown lookup failed:", giftError.message);
+          return;
+        }
+        setCrownMap(Object.fromEntries((data ?? []).map((item) => [item.user_id as string, true])));
+      });
     return () => { active = false; };
-  }, [client, inbox]);
+  }, [client, inbox, results, directoryUsers, viewedProfile?.id, user.id]);
 
 
   useEffect(() => {
@@ -512,6 +543,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
     setViewedProfile(null);
     setProfileLoading(true);
     setProfileError("");
+    setProfileNotice("");
     try {
       const target = await getPublicProfile(userId);
       if (!target) throw new Error("Profile not found.");
@@ -918,8 +950,8 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                   <p className="muted small-copy">{t(locale, "inboxNoResults")}</p>
                 ) : results.map((person) => (
                   <button className="person-result" key={person.id} onClick={() => void startConversation(person)}>
-                    <Avatar label={person.display_name || person.username} src={person.avatar_url} />
-                    <span><strong>{person.display_name || person.username}<VerificationMark type={person.badge_type} title={locale === "ru" ? "Аккаунт подтверждён HELORO" : "Verified by HELORO"} /></strong><small>@{person.username}</small></span>
+                    <Avatar label={person.display_name || person.username} src={person.avatar_url} crown={Boolean(crownMap[person.id])} />
+                    <span><strong>{person.display_name || person.username}<VerificationMark type={person.badge_type} title={locale === "ru" ? "Аккаунт подтверждён HELORO" : "Verified by HELORO"} /></strong><small>@{person.username}<PurpleCrownNameMark active={Boolean(crownMap[person.id])} /></small></span>
                     <MessageCircle size={17} />
                   </button>
                 ))}
@@ -992,10 +1024,10 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                       key={item.conversation_id}
                       onClick={() => { setActiveCommunityRoomId(null); setCommunityCreateKind(null); setActiveId(item.conversation_id); setSystemView(null); setShowSearch(false); }}
                     >
-                      <Avatar label={label} src={item.avatar_url} />
+                      <Avatar label={label} src={item.avatar_url} crown={Boolean(crownMap[item.other_user_id])} />
                       <span className="conversation-copy">
                         <span className="conversation-title-line">
-                          <strong>{label}<VerificationMark type={badgeMap[item.other_user_id]} title={locale === "ru" ? "Аккаунт подтверждён HELORO" : "Verified by HELORO"} /></strong>
+                          <strong>{label}<PurpleCrownNameMark active={Boolean(crownMap[item.other_user_id])} /><VerificationMark type={badgeMap[item.other_user_id]} title={locale === "ru" ? "Аккаунт подтверждён HELORO" : "Verified by HELORO"} /></strong>
                           <time>{formatInboxTime(item.last_message_at)}</time>
                         </span>
                         <span className="conversation-preview-line">
@@ -1012,8 +1044,8 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
 
           <footer className="inbox-profile">
             <button className="inbox-own-profile" type="button" onClick={() => void openUserProfile(user.id)} aria-label={t(locale, "profileViewTitle")}>
-              <Avatar label={ownProfile.display_name} className="profile-avatar" src={ownProfile.avatar_url} />
-              <span className="profile-summary"><strong>{ownProfile.display_name}</strong><small>@{ownProfile.username}</small></span>
+              <Avatar label={ownProfile.display_name} className="profile-avatar" src={ownProfile.avatar_url} crown={Boolean(crownMap[user.id])} />
+              <span className="profile-summary"><strong>{ownProfile.display_name}</strong><small>@{ownProfile.username}<PurpleCrownNameMark active={Boolean(crownMap[user.id])} /></small></span>
             </button>
             {roles.includes("owner") && <span className="owner-mini-mark" title={t(locale, "ownerRole")}><ShieldCheck size={15} /></span>}
             <button className="icon-button profile-menu-button" title={t(locale, "settings")} aria-label={t(locale, "settings")} onClick={() => openSettings("account")}><Settings2 size={18} /></button>
@@ -1058,10 +1090,10 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                     <div className="new-message-empty"><UserRound size={25} /><strong>{locale === "ru" ? "Пока нет пользователей" : "No users yet"}</strong></div>
                   ) : directoryUsers.map((person) => (
                     <button className="new-message-person" type="button" key={person.id} onClick={() => void startConversation(person)}>
-                      <Avatar label={person.display_name || person.username} src={person.avatar_url} />
+                      <Avatar label={person.display_name || person.username} src={person.avatar_url} crown={Boolean(crownMap[person.id])} />
                       <span className="new-message-person-copy">
                         <strong>{person.display_name || person.username}<VerificationMark type={person.badge_type} title={locale === "ru" ? "Аккаунт подтверждён HELORO" : "Verified by HELORO"} /></strong>
-                        <small>@{person.username}</small>
+                        <small>@{person.username}<PurpleCrownNameMark active={Boolean(crownMap[person.id])} /></small>
                       </span>
                       <MessageCircle size={18} />
                     </button>
@@ -1164,10 +1196,10 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                       <p className="new-message-empty">{t(locale, "inboxNoResults")}</p>
                     ) : results.map((person) => (
                       <button className="new-message-person" type="button" key={person.id} onClick={() => void startConversation(person)}>
-                        <Avatar label={person.display_name || person.username} src={person.avatar_url} />
+                        <Avatar label={person.display_name || person.username} src={person.avatar_url} crown={Boolean(crownMap[person.id])} />
                         <span className="new-message-person-copy">
                           <strong>{person.display_name || person.username}<VerificationMark type={person.badge_type} title={locale === "ru" ? "Аккаунт подтверждён HELORO" : "Verified by HELORO"} /></strong>
-                          <small>@{person.username}</small>
+                          <small>@{person.username}<PurpleCrownNameMark active={Boolean(crownMap[person.id])} /></small>
                         </span>
                         <MessageCircle size={18} />
                       </button>
@@ -1195,10 +1227,10 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                           badge_type: badgeMap[item.other_user_id] ?? null,
                         })}
                       >
-                        <Avatar label={item.display_name || item.username} src={item.avatar_url} />
+                        <Avatar label={item.display_name || item.username} src={item.avatar_url} crown={Boolean(crownMap[item.other_user_id])} />
                         <span className="new-message-person-copy">
                           <strong>{item.display_name || item.username}<VerificationMark type={badgeMap[item.other_user_id]} title={locale === "ru" ? "Аккаунт подтверждён HELORO" : "Verified by HELORO"} /></strong>
-                          <small>@{item.username}</small>
+                          <small>@{item.username}<PurpleCrownNameMark active={Boolean(crownMap[item.other_user_id])} /></small>
                         </span>
                         {item.last_message_at && (
                           <time title={locale === "ru" ? "Время последнего сообщения в чате" : "Time of the latest chat message"}>
@@ -1255,10 +1287,10 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                   <ArrowLeft size={20} />
                 </button>
                 <button type="button" className="chat-profile-trigger" onClick={() => void openUserProfile(activeConversation.other_user_id)} aria-label={t(locale, "profileViewTitle")}>
-                  <Avatar label={activeConversation.display_name || activeConversation.username} className="chat-header-avatar" src={activeConversation.avatar_url} />
+                  <Avatar label={activeConversation.display_name || activeConversation.username} className="chat-header-avatar" src={activeConversation.avatar_url} crown={Boolean(crownMap[activeConversation.other_user_id])} />
                   <span className="chat-person">
                     <strong>{activeConversation.display_name || activeConversation.username}<VerificationMark type={badgeMap[activeConversation.other_user_id]} title={locale === "ru" ? "Аккаунт подтверждён HELORO" : "Verified by HELORO"} /></strong>
-                    <small>@{activeConversation.username}</small>
+                    <small>@{activeConversation.username}<PurpleCrownNameMark active={Boolean(crownMap[activeConversation.other_user_id])} /></small>
                   </span>
                 </button>
                 <div className="chat-header-actions">
@@ -1446,9 +1478,9 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
               {profileLoading ? <p className="profile-view-loading">{t(locale, "appLoading")}</p> : viewedProfile ? <>
                 <div className="profile-view-cover" />
                 <div className="profile-view-hero">
-                  <Avatar label={viewedProfile.display_name || viewedProfile.username} className="profile-view-avatar" src={viewedProfile.avatar_url} />
+                  <Avatar label={viewedProfile.display_name || viewedProfile.username} className="profile-view-avatar" src={viewedProfile.avatar_url} crown={Boolean(crownMap[viewedProfile.id])} />
                   <h2 id="profile-view-title">{viewedProfile.display_name || viewedProfile.username}<VerificationMark type={viewedProfile.badge_type} title={locale === "ru" ? "Аккаунт подтверждён HELORO" : "Verified by HELORO"} /></h2>
-                  <p className="profile-view-username">@{viewedProfile.username}</p>
+                  <p className="profile-view-username">@{viewedProfile.username}<PurpleCrownNameMark active={Boolean(crownMap[viewedProfile.id])} /></p>
                 </div>
                 <div className="profile-info-card">
                   <div className="profile-info-row">
@@ -1483,6 +1515,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                     </button>
                   </div>
                 )}
+                {profileNotice && <p className="profile-crown-notice" role="status">{profileNotice}</p>}
                 {canManageBadges && viewedProfile.badge_type && <button className="profile-view-remove-badge" type="button" disabled={profileBusy} onClick={() => void removeProfileBadge()}><ShieldCheck size={16} />{profileBusy ? t(locale, "profileBadgeRemoving") : t(locale, "profileBadgeRemove")}</button>}
               </> : <p className="profile-view-loading">{profileError || t(locale, "profileLoadError")}</p>}
               {profileError && viewedProfile && <p className="profile-view-error" role="alert">{profileError}</p>}
