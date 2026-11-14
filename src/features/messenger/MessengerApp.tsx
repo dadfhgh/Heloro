@@ -894,7 +894,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                     {visibleCommunityRooms.map((room) => (
                       <button className="person-result community-search-result" type="button" key={room.id} onClick={() => openCommunity(room.id)}>
                         <div className="community-inbox-avatar">{room.avatar_url ? <img src={room.avatar_url} alt="" /> : room.kind === "channel" ? <Megaphone size={18} /> : <Users size={18} />}</div>
-                        <span><strong>{room.name}</strong><small>@{room.username} · {room.kind === "channel" ? (locale === "ru" ? "Канал" : "Channel") : (locale === "ru" ? "Группа" : "Group")}</small></span>
+                        <span><strong>{room.name}<VerificationMark type={room.badge_type ?? null} title={locale === "ru" ? "Сообщество подтверждено HELORO" : "Community verified by HELORO"} /></strong><small>@{room.username} · {room.kind === "channel" ? (locale === "ru" ? "Канал" : "Channel") : (locale === "ru" ? "Группа" : "Group")}</small></span>
                       </button>
                     ))}
                   </>
@@ -906,7 +906,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                   <p className="muted small-copy">{t(locale, "inboxNoResults")}</p>
                 ) : results.map((person) => (
                   <button className="person-result" key={person.id} onClick={() => void startConversation(person)}>
-                    <Avatar label={person.display_name || person.username} src={person.avatar_url} />
+                    <Avatar label={person.display_name || person.username} src={person.avatar_url} gift={Boolean(giftMap[person.id])} />
                     <span><strong>{person.display_name || person.username}<VerificationMark type={person.badge_type} title={locale === "ru" ? "Аккаунт подтверждён HELORO" : "Verified by HELORO"} /></strong><small>@{person.username}</small></span>
                     <MessageCircle size={17} />
                   </button>
@@ -1077,7 +1077,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                     <button className="new-message-person" type="button" key={room.id} onClick={() => openCommunity(room.id)}>
                       <Avatar label={room.name} src={room.avatar_url} />
                       <span className="new-message-person-copy">
-                        <strong>{room.name}</strong>
+                        <strong>{room.name}<VerificationMark type={room.badge_type ?? null} title={locale === "ru" ? "Сообщество подтверждено HELORO" : "Community verified by HELORO"} /></strong>
                         <small>{room.username ? "@" + room.username : (room.kind === "group" ? (locale === "ru" ? "Группа" : "Group") : (locale === "ru" ? "Канал" : "Channel"))}</small>
                       </span>
                       {room.kind === "channel" ? <Megaphone size={18} /> : <Users size={18} />}
