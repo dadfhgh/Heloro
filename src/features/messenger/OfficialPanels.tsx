@@ -611,9 +611,6 @@ export default function OfficialPanels(props: Props) {
   if (props.view === "discussion") {
     return <DiscussionChat {...props} />;
   }
-  if (props.view === "support" && roles.some((role) => role === "owner" || role === "admin" || role === "moderator")) {
-    return <HeloroSPanel client={props.client} user={props.user} locale={props.locale} roles={roles} onOpenNews={props.onOpenNews} onOpenDiscussion={props.onOpenDiscussion} initialTab="support" />;
-  }
   if (props.view === "support") {
     return <SupportChat {...props} />;
   }
