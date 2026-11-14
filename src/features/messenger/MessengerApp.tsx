@@ -69,7 +69,13 @@ type Props = {
 function Avatar({ label, className = "", src, crown = false }: { label: string; className?: string; src?: string | null; crown?: boolean }) {
   return <div className={`avatar ${crown ? "avatar-with-crown" : ""} ${className}`.trim()} aria-hidden="true">
     {src ? <img src={src} alt="" loading="lazy" /> : initials(label)}
-    {crown && <span className="avatar-crown-gap-mark"><Crown size={13} strokeWidth={2.5} /></span>}
+    {crown && (
+      <svg className="avatar-crown-frame-art" viewBox="0 0 503 516" aria-hidden="true" focusable="false">
+        <path d="M 196 132 A 194 194 0 1 1 382 276" />
+        <path d="M 252 140 C 253 108 292 45 317 16 C 328 3 334 12 331 39 L 324 91 C 323 103 332 102 345 95 L 422 35 C 439 22 442 35 430 51 L 365 129 C 354 143 363 142 381 136 L 480 105 C 502 98 506 111 489 128 L 364 216" />
+        <path d="M 235 184 C 264 184 296 193 312 213 C 320 224 324 232 333 239" />
+      </svg>
+    )}
   </div>;
 }
 
