@@ -34,20 +34,12 @@ jobs:
           npm install --global npm@11.21.2
           npm --version
 
-      # Create the reproducible lockfile without attempting to push to the PR branch.
-      # The artifact can be committed to this feature branch after it is reviewed.
-      - name: Generate npm lockfile
+      - name: Require committed npm lockfile
         run: |
-          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
-          test -s package-lock.json
-
-      - name: Upload generated lockfile for review
-        uses: actions/upload-artifact@v4
-        with:
-          name: heloro-package-lock
-          path: package-lock.json
-          if-no-files-found: error
-          retention-days: 7
+          if [ ! -s package-lock.json ]; then
+            echo "::error::package-lock.json is required for reproducible builds."
+            exit 1
+          fi
 
       - name: Install exact locked dependencies
         run: npm ci --no-audit --no-fund
