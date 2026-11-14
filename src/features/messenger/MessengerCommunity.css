@@ -1233,7 +1233,6 @@ html[data-theme="dark"] .avatar.avatar-with-crown .avatar-crown-frame-art {
   line-height: 1;
   pointer-events: none;
 }
-.avatar-crown-gap-mark svg,
 .purple-crown-name-mark svg {
   fill: rgba(135,82,223,.16);
   filter: drop-shadow(0 1px 1px rgba(91,33,182,.18));
