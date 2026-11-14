@@ -138,7 +138,7 @@ export default function CommunityHub({ client, user, locale, roles = [], contact
 
   async function loadRooms() {
     const { data, error: loadError } = await client.from("community_rooms")
-      .select("id, kind, name, username, description, avatar_url, created_by, is_public, updated_at, discussion_room_id")
+      .select("id, kind, name, username, description, avatar_url, created_by, is_public, updated_at")
       .order("updated_at", { ascending: false });
     if (loadError) throw loadError;
     const next = (data ?? []) as Room[];
@@ -372,12 +372,17 @@ export default function CommunityHub({ client, user, locale, roles = [], contact
     setDiscussionRooms([]);
     setCommentTargetId(null);
     setPostComments([]);
+    let nextDiscussionRoomId = nextRoom.discussion_room_id ?? null;
     if (nextRoom.kind === "channel") {
       const { data: groups, error: groupError } = await client.from("community_rooms")
         .select("id, name").eq("kind", "group").order("updated_at", { ascending: false }).limit(100);
       if (!groupError) setDiscussionRooms((groups ?? []) as Array<{ id: string; name: string }>);
+      const { data: discussionData, error: discussionError } = await client.from("community_rooms")
+        .select("discussion_room_id").eq("id", nextRoom.id).maybeSingle();
+      if (!discussionError) nextDiscussionRoomId = discussionData?.discussion_room_id ?? null;
     }
-    setRoom(nextRoom);
+    setDiscussionRoomDraft(nextDiscussionRoomId ?? "");
+    setRoom({ ...nextRoom, discussion_room_id: nextDiscussionRoomId });
     void client.from("community_verification_badges").select("badge_type").eq("room_id", nextRoom.id).maybeSingle()
       .then(({ data, error: badgeError }) => {
         if (badgeError) { console.warn("HELORO community badge lookup failed:", badgeError.message); return; }
