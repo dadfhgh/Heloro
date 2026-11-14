@@ -1527,8 +1527,8 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                   </div>
                 )}
                 {viewedProfile.id !== user.id && roles.includes("owner") && (
-                  <button className="profile-view-action profile-gift-send-action" type="button" disabled={profileBusy} onClick={() => void giftFatEpicSans(viewedProfile)}>
-                    <Gift size={17} />{profileBusy ? (locale === "ru" ? "Отправка подарка…" : "Sending gift…") : (locale === "ru" ? "Подарить Жирного Эпик Санса" : "Gift Fat Epic Sans")}
+                  <button className="profile-view-action profile-gift-send-action" type="button" disabled={profileBusy || Boolean(giftMap[viewedProfile.id])} onClick={() => void giftFatEpicSans(viewedProfile)}>
+                    <Gift size={17} />{profileBusy ? (locale === "ru" ? "Отправка подарка…" : "Sending gift…") : giftMap[viewedProfile.id] ? (locale === "ru" ? "Уже подарено" : "Already gifted") : (locale === "ru" ? "Подарить Жирного Эпик Санса" : "Gift Fat Epic Sans")}
                   </button>
                 )}
                 {profileNotice && <p className="profile-view-notice" role="status">{profileNotice}</p>}
