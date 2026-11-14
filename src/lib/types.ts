@@ -16,9 +16,6 @@ export interface InboxConversation {
   avatar_url: string | null;
   last_message: string | null;
   last_message_at: string | null;
-  other_last_seen_at?: string | null;
-  other_last_seen_hidden?: boolean;
-  other_last_seen_bucket?: "recently" | "within_week" | "within_month" | "long_ago" | null;
 }
 
 export interface Message {
