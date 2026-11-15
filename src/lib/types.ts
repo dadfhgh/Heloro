@@ -5,6 +5,7 @@ export interface Profile {
   username: string | null;
   display_name: string;
   avatar_url: string | null;
+  created_at?: string;
 }
 
 export interface InboxConversation {
@@ -35,5 +36,6 @@ export interface PublicProfile {
   username: string;
   display_name: string;
   avatar_url: string | null;
+  created_at?: string;
   badge_type?: BadgeType | null;
 }
