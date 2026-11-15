@@ -1368,12 +1368,3 @@ html[data-theme="dark"] .message-reply-quote, html[data-theme="dark"] .reply-com
 @media (max-width: 600px) { .pinned-messages-panel { margin-bottom: 8px; } .message-meta { gap: 3px; } .message-action-button { width: 28px; height: 28px; flex-basis: 28px; } .reply-composer-preview { margin-inline: 9px; } }
 @media (prefers-reduced-motion: reduce) { .chat-presence-status.is-typing, .message-jump-highlight .message-bubble { animation: none; } .pinned-messages-toggle > svg:last-child { transition: none; } }
 
-/* Verification symbols share one silhouette while preserving badge-tier colors. */
-.heloro-verification-mark { position: relative; display: inline-flex; width: 17px; height: 17px; flex: 0 0 17px; align-items: center; justify-content: center; margin-left: 3px; vertical-align: -3px; border: 1px solid transparent; border-radius: 50%; color: #fff; box-shadow: 0 1px 3px rgba(24, 42, 58, .22), inset 0 1px 1px rgba(255, 255, 255, .32); }
-.heloro-verification-mark svg { display: block; width: 12px; height: 12px; color: #fff; stroke: currentColor; }
-.heloro-verification-blue { background: linear-gradient(145deg, #66d1ff, #168fd1 58%, #0868a7); border-color: #0879b9; }
-.heloro-verification-gold { background: linear-gradient(145deg, #fff4bd 0%, #f5d46b 19%, #d09219 45%, #ffe99a 62%, #a9650a 83%, #f2c85f 100%); border-color: #b77a12; box-shadow: 0 1px 4px rgba(166, 111, 17, .38), inset 0 1px 1px rgba(255,255,255,.92), inset 0 -1px 2px rgba(105,63,0,.35); }
-.heloro-verification-creator { background: linear-gradient(145deg, #ff5148, #e62117 62%, #b81412); border-color: #c91c16; }
-.heloro-verification-epic_sans { background: linear-gradient(145deg, #d9a5ff, #963cf0 58%, #6421bd); border-color: #7626c5; box-shadow: 0 1px 4px rgba(112, 43, 180, .34), inset 0 1px 1px rgba(255,255,255,.42); }
-.heloro-verification-mark:hover { transform: translateY(-1px) scale(1.08); }
-@media (prefers-reduced-motion: reduce) { .heloro-verification-mark:hover { transform: none; } }
