@@ -1,6 +1,6 @@
 begin;
 
-select plan(50);
+select plan(63);
 
 select has_table('public', 'profiles', 'profiles table exists');
 select has_table('public', 'conversations', 'conversations table exists');
@@ -104,6 +104,90 @@ select ok(has_function_privilege('authenticated', 'public.finish_bot_lua_message
 select ok(not has_function_privilege('anon', 'public.save_bot_script(uuid,text,boolean)', 'execute'), 'anonymous users cannot save Lua bot scripts');
 select ok(not has_function_privilege('anon', 'public.prepare_bot_lua_message(uuid,text)', 'execute'), 'anonymous users cannot prepare Lua bot messages');
 select ok(not has_function_privilege('anon', 'public.finish_bot_lua_message(uuid,uuid,jsonb)', 'execute'), 'anonymous users cannot finish Lua bot messages');
+
+
+-- Exercise privileged RPCs as a signed-in user with no HELORO staff role.
+-- This uses a synthetic JWT subject and a transaction-local role; no Auth user
+-- or persistent data is created.
+select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
+set local role authenticated;
+
+select is(auth.uid()::text, '11111111-1111-4111-8111-111111111111', 'security tests run with a non-staff authenticated identity');
+
+select extensions.throws_ok(
+  'select public.heloro_admin_apply_restriction(''22222222-2222-4222-8222-222222222222''::uuid, ''warning'', ''test'', null)',
+  '42501',
+  'Staff access required',
+  'non-staff users cannot apply account restrictions'
+);
+select extensions.throws_ok(
+  'select public.heloro_admin_delete_community(''22222222-2222-4222-8222-222222222222''::uuid)',
+  '42501',
+  'Owner or Admin access required',
+  'non-staff users cannot delete communities through HELORO S'
+);
+select extensions.throws_ok(
+  'select public.heloro_admin_list_communities()',
+  '42501',
+  'Owner or Admin access required',
+  'non-staff users cannot enumerate communities through HELORO S'
+);
+select extensions.throws_ok(
+  'select * from public.heloro_admin_list_staff()',
+  '42501',
+  'Staff access required',
+  'non-staff users cannot enumerate HELORO staff'
+);
+select extensions.throws_ok(
+  'select public.heloro_admin_overview()',
+  '42501',
+  'Staff access required',
+  'non-staff users cannot read HELORO S overview'
+);
+select extensions.throws_ok(
+  'select public.heloro_admin_revoke_restriction(''22222222-2222-4222-8222-222222222222''::uuid, ''test'')',
+  '42501',
+  'Staff access required',
+  'non-staff users cannot revoke account restrictions'
+);
+select extensions.throws_ok(
+  'select public.heloro_admin_set_role(''22222222-2222-4222-8222-222222222222''::uuid, ''admin'')',
+  '42501',
+  'Owner access required',
+  'non-owner users cannot grant HELORO staff roles'
+);
+select extensions.throws_ok(
+  'select public.heloro_admin_set_setting(''maintenance_mode'', ''true''::jsonb)',
+  '42501',
+  'Owner access required',
+  'non-owner users cannot change global HELORO settings'
+);
+select extensions.throws_ok(
+  'select public.heloro_admin_update_report(''22222222-2222-4222-8222-222222222222''::uuid, ''resolved'', ''test'')',
+  '42501',
+  'Staff access required',
+  'non-staff users cannot update user reports'
+);
+select extensions.throws_ok(
+  'select public.heloro_admin_update_support(''22222222-2222-4222-8222-222222222222''::uuid, ''closed'', null)',
+  '42501',
+  'Staff access required',
+  'non-staff users cannot update support threads'
+);
+select extensions.throws_ok(
+  'select public.remove_community_admin(''22222222-2222-4222-8222-222222222222''::uuid, ''33333333-3333-4333-8333-333333333333''::uuid)',
+  '42501',
+  'You are not a member of this community',
+  'non-members cannot remove community administrators'
+);
+select extensions.throws_ok(
+  'select public.set_community_admin_permissions(''22222222-2222-4222-8222-222222222222''::uuid, ''33333333-3333-4333-8333-333333333333''::uuid, ''{"change_info":true}''::jsonb)',
+  '42501',
+  'You are not a member of this community',
+  'non-members cannot grant community administrator permissions'
+);
+
+reset role;
 
 select * from finish();
 rollback;
