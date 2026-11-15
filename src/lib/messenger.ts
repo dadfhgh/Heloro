@@ -169,14 +169,37 @@ async function hydrateMessageRows(rows: Message[]): Promise<Message[]> {
     const prefix = 'HELORO_MEDIA:';
     if (!row.body.startsWith(prefix)) return withReply;
     try {
-      const payload = JSON.parse(row.body.slice(prefix.length)) as { kind?: string; path?: string; caption?: string };
-      if ((payload.kind !== 'photo' && payload.kind !== 'sticker' && payload.kind !== 'gif') || typeof payload.path !== 'string') return { ...withReply, body: 'Media unavailable.', media: null };
-      const { data: signed, error } = await client().storage.from('message-media').createSignedUrl(payload.path, 3600);
-      if (error || !signed?.signedUrl) return { ...withReply, body: 'Media unavailable.', media: null };
+      const payload = JSON.parse(row.body.slice(prefix.length)) as {
+        kind?: "photo" | "sticker" | "gif" | "video";
+        path?: string;
+        caption?: string;
+        emoji?: string;
+        animation?: "pop" | "float" | "pulse" | "spin";
+        trimStart?: number;
+        trimEnd?: number;
+      };
+      if ((payload.kind === "sticker" || payload.kind === "gif") && typeof payload.emoji === "string") {
+        return {
+          ...withReply,
+          body: "",
+          media: { kind: payload.kind, emoji: payload.emoji, animation: payload.animation },
+        };
+      }
+      if (!["photo", "sticker", "gif", "video"].includes(payload.kind ?? "") || typeof payload.path !== "string") {
+        return { ...withReply, body: "Media unavailable.", media: null };
+      }
+      const { data: signed, error } = await client().storage.from("message-media").createSignedUrl(payload.path, 3600);
+      if (error || !signed?.signedUrl) return { ...withReply, body: "Media unavailable.", media: null };
       return {
         ...withReply,
-        body: payload.kind === 'photo' && typeof payload.caption === 'string' ? payload.caption : '',
-        media: { kind: payload.kind, url: signed.signedUrl, path: payload.path },
+        body: typeof payload.caption === "string" ? payload.caption : "",
+        media: {
+          kind: payload.kind as NonNullable<Message["media"]>["kind"],
+          url: signed.signedUrl,
+          path: payload.path,
+          trimStart: payload.trimStart,
+          trimEnd: payload.trimEnd,
+        },
       };
     } catch { return { ...withReply, body: 'Media unavailable.', media: null }; }
   }));
@@ -267,27 +290,56 @@ export async function setDirectMessagePinned(conversationId: string, messageId: 
   if (error) throw error;
 }
 
+export async function sendBuiltInMediaMessage(
+  conversationId: string,
+  senderId: string,
+  kind: "sticker" | "gif",
+  emoji: string,
+  animation: "pop" | "float" | "pulse" | "spin",
+): Promise<void> {
+  if (!["sticker", "gif"].includes(kind) || !emoji.trim()) throw new Error("Invalid media item.");
+  const payload = { kind, emoji, animation };
+  const { error } = await client().from("messages").insert({
+    conversation_id: conversationId,
+    sender_id: senderId,
+    body: `HELORO_MEDIA:${JSON.stringify(payload)}`,
+  });
+  if (error) throw error;
+}
+
 export async function sendMediaMessage(
   conversationId: string,
   senderId: string,
   file: File,
-  kind: "photo" | "sticker" | "gif",
+  kind: "photo" | "sticker" | "gif" | "video",
   caption = "",
+  trimStart = 0,
+  trimEnd = 0,
 ): Promise<void> {
-  const allowed = kind === "gif"
-    ? ["image/gif"]
-    : ["image/png", "image/jpeg", "image/webp"];
-  if (!allowed.includes(file.type)) {
-    throw new Error(kind === "gif" ? "Choose a GIF file." : "Choose a PNG, JPEG or WebP image.");
+  const allowed: Record<typeof kind, string[]> = {
+    photo: ["image/png", "image/jpeg", "image/webp"],
+    sticker: ["image/png", "image/jpeg", "image/webp"],
+    gif: ["image/gif"],
+    video: ["video/mp4", "video/webm"],
+  };
+  if (!allowed[kind].includes(file.type)) {
+    throw new Error(kind === "video"
+      ? "Choose an MP4 or WebM video."
+      : kind === "gif" ? "Choose a GIF file." : "Choose a PNG, JPEG or WebP image.");
   }
-  if (file.size < 1 || file.size > 5 * 1024 * 1024) {
-    throw new Error("Media must be smaller than 5 MB.");
+  const maxSize = kind === "video" ? 5 * 1024 * 1024 : 5 * 1024 * 1024;
+  if (file.size < 1 || file.size > maxSize) {
+    throw new Error(kind === "video"
+      ? "The current HELORO media bucket limit is 5 MB per video. The server limit must be raised before larger clips can be sent."
+      : "Media must be 5 MB or smaller.");
   }
   const extensionByType: Record<string, string> = {
     "image/png": "png",
     "image/jpeg": "jpg",
     "image/webp": "webp",
     "image/gif": "gif",
+    "video/mp4": "mp4",
+    "video/webm": "webm",
   };
   const path = `${conversationId}/${senderId}/${crypto.randomUUID()}.${extensionByType[file.type]}`;
   const storage = client().storage.from("message-media");
@@ -296,12 +348,21 @@ export async function sendMediaMessage(
     cacheControl: "3600",
     upsert: false,
   });
-  if (uploadError) throw uploadError;
+  if (uploadError) {
+    if (kind === "video") {
+      throw new Error("The HELORO server currently allows only images and GIFs in message-media. Video sending needs the Storage bucket to allow video/mp4 and video/webm.");
+    }
+    throw uploadError;
+  }
 
   const payload = {
     kind,
     path,
-    ...(kind === "photo" && caption.trim() ? { caption: caption.trim().slice(0, 4000) } : {}),
+    ...((kind === "photo" || kind === "video") && caption.trim() ? { caption: caption.trim().slice(0, 4000) } : {}),
+    ...(kind === "video" ? {
+      trimStart: Math.max(0, Number.isFinite(trimStart) ? trimStart : 0),
+      trimEnd: Math.max(0, Number.isFinite(trimEnd) ? trimEnd : 0),
+    } : {}),
   };
   const { error: messageError } = await client().from("messages").insert({
     conversation_id: conversationId,
@@ -351,27 +412,32 @@ export function subscribeToMessages(
       },
       (payload) => {
         const incoming = payload.new as Message;
-        if (!incoming.reply_to) {
-          onInsert(incoming);
-          return;
-        }
-        void client().from('messages')
-          .select('id, sender_id, body, created_at')
-          .eq('id', incoming.reply_to)
-          .maybeSingle()
-          .then(({ data, error }) => {
-            if (error || !data) {
-              onInsert(incoming);
+        void hydrateMessageRows([incoming])
+          .then(async ([hydrated]) => {
+            if (!incoming.reply_to) {
+              onInsert(hydrated ?? incoming);
               return;
             }
-            const original = data as NonNullable<Message['reply']>;
+            const { data, error } = await client().from("messages")
+              .select("id, sender_id, body, created_at")
+              .eq("id", incoming.reply_to)
+              .maybeSingle();
+            if (error || !data) {
+              onInsert(hydrated ?? incoming);
+              return;
+            }
+            const original = data as NonNullable<Message["reply"]>;
             onInsert({
-              ...incoming,
+              ...(hydrated ?? incoming),
               reply: {
                 ...original,
-                body: original.body.startsWith('HELORO_MEDIA:') ? 'Медиафайл' : original.body,
+                body: original.body.startsWith("HELORO_MEDIA:") ? "Медиафайл" : original.body,
               },
             });
+          })
+          .catch((cause: unknown) => {
+            console.warn("HELORO realtime media could not be hydrated:", cause);
+            onInsert(incoming);
           });
       },
     )
