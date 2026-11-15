@@ -2041,27 +2041,52 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                 </div>
               )}
               {photoDraft && photoPreviewUrl && (
-                <section className="photo-composer-preview" aria-label={locale === "ru" ? "Предпросмотр фото" : "Photo preview"}>
-                  <div className="photo-composer-image-wrap">
-                    <img src={photoPreviewUrl} alt={locale === "ru" ? "Выбранное фото" : "Selected photo"} />
-                    <button type="button" className="photo-composer-remove" onClick={clearPhotoDraft} disabled={mediaSending} aria-label={locale === "ru" ? "Убрать фото" : "Remove photo"} title={locale === "ru" ? "Убрать фото" : "Remove photo"}>
-                      <X size={17} />
-                    </button>
+                <section className="photo-composer-preview media-editor-panel" aria-label={locale === "ru" ? "Редактор фото" : "Photo editor"}>
+                  <div className="media-editor-heading">
+                    <strong>{locale === "ru" ? "Предпросмотр фото" : "Photo preview"}</strong>
+                    <button type="button" className="photo-composer-remove" onClick={clearPhotoDraft} disabled={mediaSending} aria-label={locale === "ru" ? "Убрать фото" : "Remove photo"}><X size={17} /></button>
+                  </div>
+                  <div className={"photo-composer-image-wrap crop-" + photoAspect}>
+                    <img src={photoPreviewUrl} alt={locale === "ru" ? "Выбранное фото" : "Selected photo"} style={{ transform: "rotate(" + photoRotation + "deg)" }} />
                     <span className="photo-composer-size">{(photoDraft.size / (1024 * 1024)).toFixed(1)} MB</span>
                   </div>
+                  <div className="media-editor-tools">
+                    <div className="media-editor-tool-group">
+                      <span>{locale === "ru" ? "Кадрирование" : "Crop"}</span>
+                      <div>
+                        <button type="button" className={photoAspect === "original" ? "active" : ""} onClick={() => setPhotoAspect("original")}>{locale === "ru" ? "Оригинал" : "Original"}</button>
+                        <button type="button" className={photoAspect === "square" ? "active" : ""} onClick={() => setPhotoAspect("square")}>1:1</button>
+                        <button type="button" className={photoAspect === "landscape" ? "active" : ""} onClick={() => setPhotoAspect("landscape")}>16:9</button>
+                      </div>
+                    </div>
+                    <button type="button" className="media-editor-rotate" onClick={() => setPhotoRotation((angle) => (angle + 90) % 360)}><span aria-hidden="true">↻</span>{locale === "ru" ? "Повернуть" : "Rotate"}</button>
+                  </div>
                   <div className="photo-composer-caption-row">
-                    <textarea
-                      value={photoCaption}
-                      onChange={(event) => setPhotoCaption(event.target.value.slice(0, 4000))}
-                      rows={2}
-                      maxLength={4000}
-                      placeholder={locale === "ru" ? "Добавить подпись…" : "Add a caption…"}
-                      aria-label={locale === "ru" ? "Подпись к фото" : "Photo caption"}
-                      disabled={mediaSending}
-                    />
-                    <button type="button" className="send-button photo-composer-send" onClick={() => void handleSendPhoto()} disabled={mediaSending} aria-label={locale === "ru" ? "Отправить фото" : "Send photo"} title={locale === "ru" ? "Отправить фото" : "Send photo"}>
+                    <textarea value={photoCaption} onChange={(event) => setPhotoCaption(event.target.value.slice(0, 4000))} rows={2} maxLength={4000} placeholder={locale === "ru" ? "Добавить подпись…" : "Add a caption…"} aria-label={locale === "ru" ? "Подпись к фото" : "Photo caption"} disabled={mediaSending} />
+                    <button type="button" className="send-button photo-composer-send" onClick={() => void handleSendPhoto()} disabled={mediaSending}>
                       {mediaSending ? <span className="button-spinner" /> : <ArrowUp size={20} />}
                     </button>
+                  </div>
+                </section>
+              )}
+              {videoDraft && videoPreviewUrl && (
+                <section className="photo-composer-preview media-editor-panel video-editor-panel" aria-label={locale === "ru" ? "Редактор видео" : "Video editor"}>
+                  <div className="media-editor-heading">
+                    <strong>{locale === "ru" ? "Предпросмотр видео" : "Video preview"}</strong>
+                    <button type="button" className="photo-composer-remove" onClick={clearVideoDraft} disabled={mediaSending} aria-label={locale === "ru" ? "Убрать видео" : "Remove video"}><X size={17} /></button>
+                  </div>
+                  <video className="video-editor-preview" src={videoPreviewUrl} controls playsInline preload="metadata" onLoadedMetadata={(event) => { const duration = Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : 0; setVideoDuration(duration); setVideoTrimEnd(duration); }} />
+                  <div className="video-trim-control">
+                    <label>{locale === "ru" ? "Начало" : "Start"} <strong>{videoTrimStart.toFixed(1)} c</strong></label>
+                    <input type="range" min="0" max={Math.max(videoDuration, 0.1)} step="0.1" value={Math.min(videoTrimStart, Math.max(videoDuration, 0))} onChange={(event) => setVideoTrimStart(Math.min(Number(event.target.value), Math.max(videoTrimEnd - 0.1, 0)))} disabled={!videoDuration || mediaSending} />
+                  </div>
+                  <div className="video-trim-control">
+                    <label>{locale === "ru" ? "Конец" : "End"} <strong>{(videoTrimEnd || videoDuration).toFixed(1)} c</strong></label>
+                    <input type="range" min={Math.min(videoTrimStart + 0.1, Math.max(videoDuration, 0))} max={Math.max(videoDuration, 0.1)} step="0.1" value={Math.min(videoTrimEnd || videoDuration, Math.max(videoDuration, 0.1))} onChange={(event) => setVideoTrimEnd(Number(event.target.value))} disabled={!videoDuration || mediaSending} />
+                  </div>
+                  <div className="photo-composer-caption-row">
+                    <textarea value={videoCaption} onChange={(event) => setVideoCaption(event.target.value.slice(0, 4000))} rows={2} maxLength={4000} placeholder={locale === "ru" ? "Подпись к видео…" : "Add a video caption…"} aria-label={locale === "ru" ? "Подпись к видео" : "Video caption"} disabled={mediaSending} />
+                    <button type="button" className="send-button photo-composer-send" onClick={() => void handleSendVideo()} disabled={mediaSending}><ArrowUp size={20} /></button>
                   </div>
                 </section>
               )}
@@ -2070,8 +2095,10 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                   locale={locale}
                   disabled={mediaSending || Boolean(editTarget)}
                   onEmojiSelect={(emoji) => setDraft((current) => (current + emoji).slice(0, 4000))}
-                  onStickerSelect={(file) => void handleMediaSelect("sticker", file)}
-                  onGifSelect={(file) => void handleMediaSelect("gif", file)}
+                  onStickerSelect={(emoji, motion) => void handleBuiltInMediaSelect("sticker", emoji, motion)}
+                  onGifSelect={(emoji, motion) => void handleBuiltInMediaSelect("gif", emoji, motion)}
+                  onStickerUpload={(file) => void handleMediaSelect("sticker", file)}
+                  onGifUpload={(file) => void handleMediaSelect("gif", file)}
                 />
                 <input
                   value={draft}
@@ -2081,11 +2108,20 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                   aria-label={t(locale, "messagePlaceholder")}
                   maxLength={4000}
                 />
-                <button type="button" className="icon-button composer-media-button" onClick={() => photoInputRef.current?.click()} disabled={mediaSending || Boolean(editTarget)} aria-label={locale === "ru" ? "Прикрепить фото" : "Attach a photo"} title={locale === "ru" ? "Прикрепить фото" : "Attach a photo"}>
+                <button type="button" className={"icon-button composer-media-button " + (showAttachmentMenu ? "is-open" : "")} onClick={() => setShowAttachmentMenu((value) => !value)} disabled={mediaSending || Boolean(editTarget)} aria-label={locale === "ru" ? "Прикрепить фото или видео" : "Attach photo or video"} title={locale === "ru" ? "Прикрепить фото или видео" : "Attach photo or video"}>
                   <Paperclip size={19} />
                 </button>
-                <input ref={photoInputRef} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(event) => { handlePhotoSelect(event.target.files?.[0]); event.target.value = ""; }} />
-                <button type="submit" disabled={sending || (!draft.trim() && editTarget?.media?.kind !== "photo")} aria-label={editTarget ? (locale === "ru" ? "Сохранить" : "Save") : t(locale, "messageSend")} className="send-button">
+                {showAttachmentMenu && (
+                  <div className="heloro-attachment-menu" role="dialog" aria-label={locale === "ru" ? "Выбор вложения" : "Choose attachment"}>
+                    <strong>{locale === "ru" ? "Отправить медиа" : "Send media"}</strong>
+                    <button type="button" onClick={() => photoInputRef.current?.click()}><ImagePlus size={18} />{locale === "ru" ? "Фото из галереи" : "Photo from gallery"}</button>
+                    <button type="button" onClick={() => videoInputRef.current?.click()}><Video size={18} />{locale === "ru" ? "Видео из галереи" : "Video from gallery"}</button>
+                    <button type="button" className="heloro-attachment-close" onClick={() => setShowAttachmentMenu(false)}>{locale === "ru" ? "Закрыть" : "Close"}</button>
+                  </div>
+                )}
+                <input ref={photoInputRef} type="file" accept="image/*" hidden onChange={(event) => { handlePhotoSelect(event.target.files?.[0]); event.target.value = ""; }} />
+                <input ref={videoInputRef} type="file" accept="video/mp4,video/webm" hidden onChange={(event) => { handleVideoSelect(event.target.files?.[0]); event.target.value = ""; }} />
+                <button type="submit" disabled={sending || (!draft.trim() && editTarget?.media?.kind !== "photo" && editTarget?.media?.kind !== "video")} aria-label={editTarget ? (locale === "ru" ? "Сохранить" : "Save") : t(locale, "messageSend")} className="send-button">
                   {sending ? <span className="button-spinner" /> : editTarget ? <Check size={20} /> : <ArrowUp size={20} />}
                 </button>
               </form>
@@ -2257,6 +2293,18 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
               {profileError && viewedProfile && <p className="profile-view-error" role="alert">{profileError}</p>}
             </div>
           </section>
+        </div>
+      )}
+
+      {mediaViewer && (
+        <div className="media-viewer-overlay" role="dialog" aria-modal="true" aria-label={mediaViewer.kind === "photo" ? (locale === "ru" ? "Просмотр фото" : "Photo viewer") : (locale === "ru" ? "Просмотр видео" : "Video viewer")} onClick={() => setMediaViewer(null)}>
+          <button type="button" className="media-viewer-close" onClick={() => setMediaViewer(null)} aria-label={locale === "ru" ? "Закрыть просмотр" : "Close viewer"}><X size={23} /></button>
+          {mediaViewer.kind === "photo" ? (
+            <img className="media-viewer-image" src={mediaViewer.url} alt={mediaViewer.caption || (locale === "ru" ? "Фото" : "Photo")} onClick={(event) => event.stopPropagation()} />
+          ) : (
+            <video className="media-viewer-video" src={mediaViewer.url} controls playsInline autoPlay onClick={(event) => event.stopPropagation()} />
+          )}
+          {mediaViewer.caption && <p className="media-viewer-caption">{mediaViewer.caption}</p>}
         </div>
       )}
 
