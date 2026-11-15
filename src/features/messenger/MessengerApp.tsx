@@ -1,4 +1,5 @@
 import { Fragment, lazy, Suspense, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { createPortal } from "react-dom";
 import type { RealtimeChannel, User } from "@supabase/supabase-js";
 import {
   ArrowLeft,
@@ -307,6 +308,17 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const lastTypingBroadcastRef = useRef(0);
   const isStaff = roles.some((role) => role === "owner" || role === "admin" || role === "moderator");
   const canManageBadges = roles.includes("owner") || roles.includes("admin");
+
+  // Modal layers are portalled to document.body, and the page behind them must not scroll.
+  useEffect(() => {
+    const hasModal = showProfile || Boolean(mediaViewer) || showAttachmentMenu || Boolean(photoDraft) || Boolean(videoDraft);
+    if (!hasModal) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [showProfile, mediaViewer, showAttachmentMenu, photoDraft, videoDraft]);
 
   const activeConversation = useMemo(
     () => inbox.find((item) => item.conversation_id === activeId) ?? null,
@@ -2045,8 +2057,9 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                   <button type="button" onClick={() => { setEditTarget(null); setDraft(""); }} aria-label={locale === "ru" ? "Отменить редактирование" : "Cancel editing"}><X size={16} /></button>
                 </div>
               )}
-              {photoDraft && photoPreviewUrl && (
-                <section className="photo-composer-preview media-editor-panel" aria-label={locale === "ru" ? "Редактор фото" : "Photo editor"}>
+              {photoDraft && photoPreviewUrl && createPortal(
+                <div className="media-editor-backdrop" onClick={() => { if (!mediaSending) clearPhotoDraft(); }}>
+                  <section className="photo-composer-preview media-editor-panel media-editor-sheet" onClick={(event) => event.stopPropagation()} aria-label={locale === "ru" ? "Редактор фото" : "Photo editor"}>
                   <div className="media-editor-heading">
                     <strong>{locale === "ru" ? "Предпросмотр фото" : "Photo preview"}</strong>
                     <button type="button" className="photo-composer-remove" onClick={clearPhotoDraft} disabled={mediaSending} aria-label={locale === "ru" ? "Убрать фото" : "Remove photo"}><X size={17} /></button>
@@ -2072,10 +2085,13 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                       {mediaSending ? <span className="button-spinner" /> : <ArrowUp size={20} />}
                     </button>
                   </div>
-                </section>
+                  </section>
+                </div>,
+                document.body,
               )}
-              {videoDraft && videoPreviewUrl && (
-                <section className="photo-composer-preview media-editor-panel video-editor-panel" aria-label={locale === "ru" ? "Редактор видео" : "Video editor"}>
+              {videoDraft && videoPreviewUrl && createPortal(
+                <div className="media-editor-backdrop" onClick={() => { if (!mediaSending) clearVideoDraft(); }}>
+                  <section className="photo-composer-preview media-editor-panel video-editor-panel media-editor-sheet" onClick={(event) => event.stopPropagation()} aria-label={locale === "ru" ? "Редактор видео" : "Video editor"}>
                   <div className="media-editor-heading">
                     <strong>{locale === "ru" ? "Предпросмотр видео" : "Video preview"}</strong>
                     <button type="button" className="photo-composer-remove" onClick={clearVideoDraft} disabled={mediaSending} aria-label={locale === "ru" ? "Убрать видео" : "Remove video"}><X size={17} /></button>
@@ -2093,7 +2109,9 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                     <textarea value={videoCaption} onChange={(event) => setVideoCaption(event.target.value.slice(0, 4000))} rows={2} maxLength={4000} placeholder={locale === "ru" ? "Подпись к видео…" : "Add a video caption…"} aria-label={locale === "ru" ? "Подпись к видео" : "Video caption"} disabled={mediaSending} />
                     <button type="button" className="send-button photo-composer-send" onClick={() => void handleSendVideo()} disabled={mediaSending}><ArrowUp size={20} /></button>
                   </div>
-                </section>
+                  </section>
+                </div>,
+                document.body,
               )}
               <form className="composer" onSubmit={handleSend}>
                 <ChatMediaPicker
@@ -2116,13 +2134,28 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                 <button type="button" className={"icon-button composer-media-button " + (showAttachmentMenu ? "is-open" : "")} onClick={() => setShowAttachmentMenu((value) => !value)} disabled={mediaSending || Boolean(editTarget)} aria-label={locale === "ru" ? "Прикрепить фото или видео" : "Attach photo or video"} title={locale === "ru" ? "Прикрепить фото или видео" : "Attach photo or video"}>
                   <Paperclip size={19} />
                 </button>
-                {showAttachmentMenu && (
-                  <div className="heloro-attachment-menu" role="dialog" aria-label={locale === "ru" ? "Выбор вложения" : "Choose attachment"}>
-                    <strong>{locale === "ru" ? "Отправить медиа" : "Send media"}</strong>
-                    <button type="button" onClick={() => photoInputRef.current?.click()}><ImagePlus size={18} />{locale === "ru" ? "Фото из галереи" : "Photo from gallery"}</button>
-                    <button type="button" onClick={() => videoInputRef.current?.click()}><Video size={18} />{locale === "ru" ? "Видео из галереи" : "Video from gallery"}</button>
-                    <button type="button" className="heloro-attachment-close" onClick={() => setShowAttachmentMenu(false)}>{locale === "ru" ? "Закрыть" : "Close"}</button>
-                  </div>
+                {showAttachmentMenu && createPortal(
+                  <div className="heloro-sheet-backdrop" onClick={() => setShowAttachmentMenu(false)}>
+                    <section className="heloro-attachment-menu" role="dialog" aria-modal="true" aria-label={locale === "ru" ? "Выбор вложения" : "Choose attachment"} onClick={(event) => event.stopPropagation()}>
+                      <span className="heloro-sheet-handle" aria-hidden="true" />
+                      <div className="heloro-sheet-heading">
+                        <strong>{locale === "ru" ? "Прикрепить" : "Attach"}</strong>
+                        <button type="button" onClick={() => setShowAttachmentMenu(false)} aria-label={locale === "ru" ? "Закрыть" : "Close"}><X size={19} /></button>
+                      </div>
+                      <div className="heloro-attachment-options">
+                        <button type="button" onClick={() => { setShowAttachmentMenu(false); photoInputRef.current?.click(); }}>
+                          <span className="heloro-attachment-icon"><ImagePlus size={23} /></span>
+                          <span><strong>{locale === "ru" ? "Фото" : "Photo"}</strong><small>{locale === "ru" ? "Выбрать изображение" : "Choose an image"}</small></span>
+                        </button>
+                        <button type="button" onClick={() => { setShowAttachmentMenu(false); videoInputRef.current?.click(); }}>
+                          <span className="heloro-attachment-icon"><Video size={23} /></span>
+                          <span><strong>{locale === "ru" ? "Видео" : "Video"}</strong><small>{locale === "ru" ? "Выбрать ролик" : "Choose a video"}</small></span>
+                        </button>
+                      </div>
+                      <p className="heloro-sheet-hint">{locale === "ru" ? "После выбора откроется предпросмотр и редактор." : "Preview and editor open after selection."}</p>
+                    </section>
+                  </div>,
+                  document.body,
                 )}
                 <input ref={photoInputRef} type="file" accept="image/*" hidden onChange={(event) => { handlePhotoSelect(event.target.files?.[0]); event.target.value = ""; }} />
                 <input ref={videoInputRef} type="file" accept="video/mp4,video/webm" hidden onChange={(event) => { handleVideoSelect(event.target.files?.[0]); event.target.value = ""; }} />
@@ -2190,7 +2223,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
         </Suspense>
       )}
 
-      {showProfile && (
+      {showProfile && createPortal(
         <div className="profile-view-overlay" onClick={() => { setShowProfile(false); setMobileTab("chats"); }}>
           <section className="profile-view-card" role="dialog" aria-modal="true" aria-labelledby="profile-view-title" onClick={(event) => event.stopPropagation()}>
             <header className="profile-view-topbar">
@@ -2298,10 +2331,11 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
               {profileError && viewedProfile && <p className="profile-view-error" role="alert">{profileError}</p>}
             </div>
           </section>
-        </div>
+        </div>,
+        document.body,
       )}
 
-      {mediaViewer && (
+      {mediaViewer && createPortal(
         <div className="media-viewer-overlay" role="dialog" aria-modal="true" aria-label={mediaViewer.kind === "photo" ? (locale === "ru" ? "Просмотр фото" : "Photo viewer") : (locale === "ru" ? "Просмотр видео" : "Video viewer")} onClick={() => setMediaViewer(null)}>
           <button type="button" className="media-viewer-close" onClick={() => setMediaViewer(null)} aria-label={locale === "ru" ? "Закрыть просмотр" : "Close viewer"}><X size={23} /></button>
           {mediaViewer.kind === "photo" ? (
@@ -2319,7 +2353,8 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
             <video className="media-viewer-video" src={mediaViewer.url} controls playsInline autoPlay onClick={(event) => event.stopPropagation()} />
           )}
           {mediaViewer.caption && <p className="media-viewer-caption">{mediaViewer.caption}</p>}
-        </div>
+        </div>,
+        document.body,
       )}
 
       {showReport && activeConversation && (
