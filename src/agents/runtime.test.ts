@@ -81,7 +81,7 @@ describe("local Ollama provider", () => {
     expect((init?.headers as Record<string, string>).Authorization).toBeUndefined();
     expect(init?.signal).toBeInstanceOf(AbortSignal);
     const body = JSON.parse(String(init?.body)) as { model: string; messages: Array<{ content: string }> };
-    expect(body.model).toBe("qwen2.5-coder:3b");
+    expect(body.model).toBe("qwen2.5-coder:1.5b");
     expect(body.messages.map((message) => message.content)).toEqual(["specialist", "task"]);
   });
 
