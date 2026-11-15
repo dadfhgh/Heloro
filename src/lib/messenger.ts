@@ -316,7 +316,31 @@ export function subscribeToMessages(
         table: "messages",
         filter: `conversation_id=eq.${conversationId}`,
       },
-      (payload) => onInsert(payload.new as Message),
+      (payload) => {
+        const incoming = payload.new as Message;
+        if (!incoming.reply_to) {
+          onInsert(incoming);
+          return;
+        }
+        void client().from('messages')
+          .select('id, sender_id, body, created_at')
+          .eq('id', incoming.reply_to)
+          .maybeSingle()
+          .then(({ data, error }) => {
+            if (error || !data) {
+              onInsert(incoming);
+              return;
+            }
+            const original = data as NonNullable<Message['reply']>;
+            onInsert({
+              ...incoming,
+              reply: {
+                ...original,
+                body: original.body.startsWith('HELORO_MEDIA:') ? 'Медиафайл' : original.body,
+              },
+            });
+          });
+      },
     )
     .on("postgres_changes", { event: "DELETE", schema: "public", table: "messages" }, () => onDelete?.())
     .subscribe();
