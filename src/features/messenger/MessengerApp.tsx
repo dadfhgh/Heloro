@@ -1574,7 +1574,6 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                   </div>
                 </div>
               </header>
-              <div className="message-stream">
                 {pinnedMessages.length > 0 && (
                   <div className="pinned-messages-panel">
                     <div className="pinned-message-head">
@@ -1628,6 +1627,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                     )}
                   </div>
                 )}
+              <div className="message-stream">
                 {loadingMessages ? (
                   <div className="message-loading">{t(locale, "chatLoading")}</div>
                 ) : messages.length === 0 ? (
