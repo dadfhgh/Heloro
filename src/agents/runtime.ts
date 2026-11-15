@@ -28,6 +28,61 @@ export interface OpenAICompatibleConfig {
   fetchImpl?: typeof fetch;
 }
 
+export interface OllamaProviderConfig {
+  /** Local Ollama OpenAI-compatible URL. Remote URLs are intentionally rejected. */
+  baseUrl?: string;
+  /** Must already be installed with `ollama pull`. */
+  model?: string;
+  fetchImpl?: typeof fetch;
+}
+
+interface ChatRequest {
+  baseUrl: string;
+  model: string;
+  systemPrompt: string;
+  userPrompt: string;
+  fetchImpl: typeof fetch;
+  headers: Record<string, string>;
+  timeoutMs: number;
+}
+
+async function completeChatRequest(request: ChatRequest): Promise<string> {
+  if (!request.model.trim()) throw new Error("Agent provider model is not configured.");
+
+  const response = await request.fetchImpl(
+    `${request.baseUrl.replace(/\/+$/, "")}/chat/completions`,
+    {
+      method: "POST",
+      headers: request.headers,
+      signal: AbortSignal.timeout(request.timeoutMs),
+      body: JSON.stringify({
+        model: request.model,
+        temperature: 0.2,
+        max_tokens: 1200,
+        stream: false,
+        messages: [
+          { role: "system", content: request.systemPrompt },
+          { role: "user", content: request.userPrompt },
+        ],
+      }),
+    },
+  );
+
+  if (!response.ok) throw new Error(`Agent provider returned HTTP ${response.status}.`);
+
+  const payload: unknown = await response.json();
+  if (!payload || typeof payload !== "object") throw new Error("Agent provider returned an invalid response.");
+  const choices = (payload as { choices?: unknown }).choices;
+  if (!Array.isArray(choices) || choices.length === 0) throw new Error("Agent provider response did not contain a completion.");
+  const firstChoice = choices[0];
+  if (!firstChoice || typeof firstChoice !== "object") throw new Error("Agent provider returned an invalid completion.");
+  const message = (firstChoice as { message?: unknown }).message;
+  if (!message || typeof message !== "object") throw new Error("Agent provider completion did not contain a message.");
+  const content = (message as { content?: unknown }).content;
+  if (typeof content !== "string" || !content.trim()) throw new Error("Agent provider completion was empty.");
+  return content.trim();
+}
+
 export function createOpenAICompatibleProvider(config: OpenAICompatibleConfig): AgentProvider {
   const fetchImpl = config.fetchImpl ?? fetch;
   const baseUrl = config.baseUrl.replace(/\/+$/, "");
@@ -35,35 +90,57 @@ export function createOpenAICompatibleProvider(config: OpenAICompatibleConfig): 
   return {
     async complete({ systemPrompt, userPrompt }) {
       if (!config.apiKey.trim()) throw new Error("Agent provider API key is not configured.");
-      if (!config.model.trim()) throw new Error("Agent provider model is not configured.");
-
-      const response = await fetchImpl(`${baseUrl}/chat/completions`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${config.apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: config.model,
-          temperature: 0.2,
-          max_tokens: 1200,
-          signal: AbortSignal.timeout(45_000),
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
-          ],
-        }),
+      return completeChatRequest({
+        baseUrl,
+        model: config.model,
+        systemPrompt,
+        userPrompt,
+        fetchImpl,
+        headers: {
+          Authorization: `Bearer ${config.apiKey}`,
+          "Content-Type": "application/json",
+        },
+        timeoutMs: 45_000,
       });
-      if (!response.ok) throw new Error(`Agent provider returned HTTP ${response.status}.`);
+    },
+  };
+}
 
-      const payload: unknown = await response.json();
-      if (!payload || typeof payload !== "object") throw new Error("Agent provider returned an invalid response.");
-      const choices = (payload as { choices?: unknown }).choices;
-      if (!Array.isArray(choices) || choices.length === 0) throw new Error("Agent provider response did not contain a completion.");
-      const firstChoice = choices[0];
-      if (!firstChoice || typeof firstChoice !== "object") throw new Error("Agent provider returned an invalid completion.");
-      const message = (firstChoice as { message?: unknown }).message;
-      if (!message || typeof message !== "object") throw new Error("Agent provider completion did not contain a message.");
-      const content = (message as { content?: unknown }).content;
-      if (typeof content !== "string" || !content.trim()) throw new Error("Agent provider completion was empty.");
-      return content.trim();
+function assertLoopbackUrl(baseUrl: string): string {
+  let url: URL;
+  try {
+    url = new URL(baseUrl);
+  } catch {
+    throw new Error("Ollama baseUrl must be a valid local URL.");
+  }
+
+  const loopbackHosts = new Set(["localhost", "127.0.0.1", "[::1]"]);
+  if (url.protocol !== "http:" || !loopbackHosts.has(url.hostname)) {
+    throw new Error("Ollama provider only accepts localhost URLs to keep prompts on this device.");
+  }
+  return url.toString().replace(/\/+$/, "");
+}
+
+/**
+ * Creates a no-key provider for an Ollama server running on the same device.
+ * Prompts stay on localhost; this adapter refuses remote hosts by design.
+ */
+export function createOllamaProvider(config: OllamaProviderConfig = {}): AgentProvider {
+  const baseUrl = assertLoopbackUrl(config.baseUrl ?? "http://127.0.0.1:11434/v1");
+  const fetchImpl = config.fetchImpl ?? fetch;
+  const model = config.model ?? "qwen2.5-coder:3b";
+
+  return {
+    complete({ systemPrompt, userPrompt }) {
+      return completeChatRequest({
+        baseUrl,
+        model,
+        systemPrompt,
+        userPrompt,
+        fetchImpl,
+        headers: { "Content-Type": "application/json" },
+        timeoutMs: 180_000,
+      });
     },
   };
 }
