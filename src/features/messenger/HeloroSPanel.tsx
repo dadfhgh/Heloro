@@ -28,6 +28,7 @@ type TabId = "overview" | "users" | "moderation" | "reports" | "support" | "audi
 type CommunityBadgeType = "blue" | "gold" | "creator";
 type CommunityEntry = { id: string; name: string; username: string | null; kind: "group" | "channel"; created_at: string; created_by: string; member_count: number; badge_type?: CommunityBadgeType | null };
 type AdminUser = PublicProfile & { created_at: string };
+type EarlyAccessTarget = Pick<AdminUser, "id" | "username" | "display_name">;
 type EarlyAccessEntry = { user_id: string; username: string | null; display_name: string | null; avatar_url: string | null; granted_at: string; granted_by: string };
 type AdminReport = {
   id: string; reporter_id: string; reported_user_id: string | null; reason: string;
@@ -126,6 +127,10 @@ export default function HeloroSPanel({
   const [selectedUserHasFatGift, setSelectedUserHasFatGift] = useState(false);
   const [selectedUserHasPurpleFrame, setSelectedUserHasPurpleFrame] = useState(false);
   const [giftLoading, setGiftLoading] = useState(false);
+
+  useEffect(() => {
+    if (!isOwner && tab === "early_access") setTab("overview");
+  }, [isOwner, tab]);
 
   function clearMessages() {
     setError("");
@@ -519,7 +524,7 @@ export default function HeloroSPanel({
     } finally { setGiftLoading(false); }
   }
 
-  async function updateEarlyAccess(target: AdminUser, enabled: boolean) {
+  async function updateEarlyAccess(target: EarlyAccessTarget, enabled: boolean) {
     if (!isOwner || busy) return;
     const targetName = target.display_name || target.username || "user";
     const question = enabled
@@ -805,7 +810,7 @@ export default function HeloroSPanel({
                   <article className="admin-early-access-member" key={entry.user_id}>
                     <span className="admin-user-avatar">{(entry.display_name || entry.username || "?").slice(0,1).toUpperCase()}</span>
                     <span><strong>{entry.display_name || entry.username || "—"}</strong><small>@{entry.username || "—"} · {new Date(entry.granted_at).toLocaleDateString()}</small></span>
-                    <button type="button" className="admin-secondary-action" disabled={busy} onClick={() => void updateEarlyAccess({ id: entry.user_id, username: entry.username || "", display_name: entry.display_name || "", avatar_url: entry.avatar_url } as AdminUser, false)} aria-label={ru ? "Отозвать ранний доступ" : "Revoke Early Access"} title={ru ? "Отозвать доступ" : "Revoke access"}><UserMinus size={15} /></button>
+                    <button type="button" className="admin-secondary-action" disabled={busy} onClick={() => void updateEarlyAccess({ id: entry.user_id, username: entry.username || "", display_name: entry.display_name || "" }, false)} aria-label={ru ? "Отозвать ранний доступ" : "Revoke Early Access"} title={ru ? "Отозвать доступ" : "Revoke access"}><UserMinus size={15} /></button>
                   </article>
                 ))}
               </div>
