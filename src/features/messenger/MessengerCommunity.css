@@ -2238,3 +2238,15 @@ html[data-theme="dark"] .community-message.is-pinned { border-color: #777; }
   .community-message-actions button,
   .community-composer button { transition: none !important; }
 }
+
+
+/* Edited-state labels in personal conversations. */
+.message-edited-label {
+  margin-left: 3px;
+  color: var(--muted, #858585);
+  font-size: 9px;
+  font-style: italic;
+}
+.edit-composer-preview {
+  border-left-color: #777;
+}
