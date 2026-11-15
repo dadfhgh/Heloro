@@ -710,7 +710,7 @@ export default function CommunityHub({ client, user, locale, roles = [], contact
       const insertValues = { room_id: room.id, sender_id: user.id, body, ...(replyTarget ? { reply_to: replyTarget.id } : {}) };
       const { data, error: sendError } = await client.from("community_room_messages")
         .insert(insertValues)
-        .select("id, room_id, sender_id, body, created_at, reply_to, edited_at").single();
+        .select(replyTarget ? "id, room_id, sender_id, body, created_at, reply_to, edited_at" : "id, room_id, sender_id, body, created_at").single();
       if (sendError) throw sendError;
       messageCreated = true;
       const hydrated = await hydrateRoomMessage(client, data as RoomMessage);
@@ -1028,6 +1028,7 @@ export default function CommunityHub({ client, user, locale, roles = [], contact
               <span>
                 <strong>{room.name}<RoomVerificationMark type={room.badge_type} /></strong>
                 <small>{roomMemberLabel(room.kind, memberCount, ru)}{!room.is_public ? (ru ? " · Частное" : " · Private") : ""}</small>
+                {(otherTyping || onlineMemberCount > 1) && <small className={"community-live-status" + (otherTyping ? " is-typing" : "")} aria-live="polite">{otherTyping ? (ru ? "печатает…" : "typing…") : (ru ? onlineMemberCount - 1 + " в сети" : onlineMemberCount - 1 + " online")}</small>}
               </span>
               <ChevronRight size={18} />
             </button>
@@ -1165,53 +1166,112 @@ export default function CommunityHub({ client, user, locale, roles = [], contact
               <div className="community-join"><p>{room.kind === "group" ? (ru ? "Вступи в группу, чтобы читать и отправлять сообщения." : "Join this group to read and send messages.") : (ru ? "Подпишись, чтобы читать публикации канала." : "Subscribe to read channel posts.")}</p><button className="community-primary" type="button" onClick={() => void joinPublicRoom()} disabled={busy}>{room.kind === "group" ? (ru ? "Вступить в группу" : "Join group") : (ru ? "Подписаться" : "Subscribe")}</button></div>
             ) : (
               <>
-                <div className="community-message-list">
-                  {messages.length === 0 ? <div className="community-empty"><MessageCircle size={24} /><span>{ru ? "Пока нет сообщений" : "No messages yet"}</span></div> : messages.map((item) => (
-                    <article className={"community-message " + (item.sender_id === user.id ? "mine" : "")} key={item.id}>
-                      {item.sender_id !== user.id && <small>{ru ? "Участник" : "Member"}</small>}
-                      {item.media?.url && <img className="community-message-photo" src={item.media.url} alt={ru ? "Фотография в сообществе" : "Community photo"} loading="lazy" />}
-                      {item.body && <p>{item.body}</p>}<footer><time>{new Date(item.created_at).toLocaleTimeString(ru ? "ru-RU" : "en-US", { hour: "2-digit", minute: "2-digit" })}</time>
-                      {(isGlobalOwner || isGlobalAdmin || canDeleteCommunityMessage(memberRole, myAdminPermissions, item.sender_id, user.id)) && <button type="button" onClick={() => void deleteMessage(item)}>{ru ? "Удалить" : "Delete"}</button>}
-                    {room.kind === "channel" && <button type="button" onClick={() => { setCommentTargetId((current) => current === item.id ? null : item.id); setPostCommentDraft(""); }}><MessageCircle size={14} />{ru ? "Комментарии" : "Comments"}</button>}
-                    </footer>
-                    {room.kind === "channel" && commentTargetId === item.id && (
-                      <section className="community-post-comments">
-                        {postComments.length === 0 ? <p className="community-muted">{ru ? "Комментариев пока нет." : "No comments yet."}</p> : postComments.map((comment) => (
-                          <article className="community-post-comment" key={comment.id}>
-                            <p>{comment.body}</p>
-                            <footer><time>{new Date(comment.created_at).toLocaleTimeString(ru ? "ru-RU" : "en-US", { hour: "2-digit", minute: "2-digit" })}</time>
-                              {(comment.user_id === user.id || isGlobalOwner || isGlobalAdmin) && <button type="button" onClick={() => void deletePostComment(comment.id)} disabled={commentBusy}>{ru ? "Удалить" : "Delete"}</button>}
-                            </footer>
-                          </article>
+                {pinnedMessages.length > 0 && (
+                  <section className="community-pinned-panel" aria-label={ru ? "Закреплённые сообщения" : "Pinned messages"}>
+                    <div className="community-pinned-head">
+                      <span className="community-pinned-icon"><Pin size={17} /></span>
+                      <button type="button" className="community-pinned-current" onClick={() => void jumpToRoomMessage(pinnedMessages[0].id)}>
+                        <small>{ru ? "ЗАКРЕПЛЁННОЕ СООБЩЕНИЕ" : "PINNED MESSAGE"}</small>
+                        <strong>{pinnedMessages[0].body || (pinnedMessages[0].media ? (ru ? "Фотография" : "Photo") : (ru ? "Сообщение" : "Message"))}</strong>
+                      </button>
+                      <button type="button" className="community-pinned-toggle" onClick={() => setShowPinnedList((value) => !value)} aria-expanded={showPinnedList} aria-label={ru ? "Все закрепы" : "All pinned messages"}>
+                        <span>{pinnedMessages.length}</span><ChevronDown size={16} className={showPinnedList ? "is-expanded" : ""} />
+                      </button>
+                    </div>
+                    {showPinnedList && (
+                      <div className="community-pinned-list">
+                        {pinnedMessages.map((item) => (
+                          <div className="community-pinned-item" key={item.id}>
+                            <button type="button" className="community-pinned-open" onClick={() => { void jumpToRoomMessage(item.id); setShowPinnedList(false); }}>
+                              <strong>{item.body || (item.media ? (ru ? "Фотография" : "Photo") : (ru ? "Сообщение" : "Message"))}</strong>
+                              <small>{formatMessageTime(item.created_at)}</small>
+                            </button>
+                            {canPinMessages && <button type="button" className="community-pinned-unpin" disabled={pinningMessageIds.includes(item.id)} onClick={() => void toggleCommunityPin(item)} aria-label={ru ? "Открепить сообщение" : "Unpin message"}><PinOff size={15} /></button>}
+                          </div>
                         ))}
-                        <form className="community-post-comment-form" onSubmit={sendPostComment}>
-                          <input value={postCommentDraft} onChange={(event) => setPostCommentDraft(event.target.value)} maxLength={2000} placeholder={ru ? "Написать комментарий…" : "Write a comment…"} />
-                          <button type="submit" disabled={commentBusy || !postCommentDraft.trim()} aria-label={ru ? "Отправить комментарий" : "Send comment"}><Send size={15} /></button>
-                        </form>
-                      </section>
+                      </div>
                     )}
-                    </article>
-                  ))}
+                  </section>
+                )}
+                <div className="community-message-list">
+                  {messages.length === 0 ? <div className="community-empty"><MessageCircle size={24} /><span>{ru ? "Пока нет сообщений" : "No messages yet"}</span></div> : messages.map((item, index) => {
+                    const previous = messages[index - 1];
+                    const isNewDay = !previous || new Date(previous.created_at).toDateString() !== new Date(item.created_at).toDateString();
+                    const isPinned = pinnedMessages.some((entry) => entry.id === item.id);
+                    return (
+                      <div className="community-message-day-group" key={item.id}>
+                        {isNewDay && <div className="community-date-separator"><span>{formatMessageDayLabel(item.created_at, locale)}</span></div>}
+                        <article id={"community-message-" + item.id} className={"community-message " + (item.sender_id === user.id ? "mine" : "") + (isPinned ? " is-pinned" : "")}>
+                          {item.sender_id !== user.id && <small>{ru ? "Участник" : "Member"}</small>}
+                          {item.reply_to && (
+                            <button type="button" className="community-message-reply-quote" onClick={() => void jumpToRoomMessage(item.reply_to!)}>
+                              <span>{item.reply?.sender_id === user.id ? (ru ? "Вы" : "You") : (ru ? "Ответ на сообщение" : "Reply to message")}</span>
+                              <strong>{item.reply?.body || (ru ? "Исходное сообщение" : "Original message")}</strong>
+                            </button>
+                          )}
+                          {item.media?.url && <img className="community-message-photo" src={item.media.url} alt={ru ? "Фотография в сообществе" : "Community photo"} loading="lazy" />}
+                          {item.body && <p>{item.body}</p>}
+                          <footer className="community-message-actions">
+                            <time>{formatMessageTime(item.created_at)}</time>
+                            {item.edited_at && <span className="community-message-edited">{ru ? "изменено" : "edited"}</span>}
+                            <button type="button" onClick={() => beginReply(item)} title={ru ? "Ответить" : "Reply"}><MessageCircle size={14} />{ru ? "Ответить" : "Reply"}</button>
+                            {item.sender_id === user.id && <button type="button" onClick={() => beginEdit(item)} title={ru ? "Редактировать" : "Edit"}><PencilLine size={14} />{ru ? "Изменить" : "Edit"}</button>}
+                            {canPinMessages && <button type="button" className={isPinned ? "is-active" : ""} disabled={pinningMessageIds.includes(item.id)} onClick={() => void toggleCommunityPin(item)} title={isPinned ? (ru ? "Открепить" : "Unpin") : (ru ? "Закрепить" : "Pin")}>{isPinned ? <PinOff size={14} /> : <Pin size={14} />}{isPinned ? (ru ? "Открепить" : "Unpin") : (ru ? "Закрепить" : "Pin")}</button>}
+                            {(isGlobalOwner || isGlobalAdmin || canDeleteCommunityMessage(memberRole, myAdminPermissions, item.sender_id, user.id)) && <button type="button" onClick={() => void deleteMessage(item)}><Trash2 size={14} />{ru ? "Удалить" : "Delete"}</button>}
+                            {room.kind === "channel" && <button type="button" onClick={() => { setCommentTargetId((current) => current === item.id ? null : item.id); setPostCommentDraft(""); }}><MessageCircle size={14} />{ru ? "Комментарии" : "Comments"}</button>}
+                          </footer>
+                          {room.kind === "channel" && commentTargetId === item.id && (
+                            <section className="community-post-comments">
+                              {postComments.length === 0 ? <p className="community-muted">{ru ? "Комментариев пока нет." : "No comments yet."}</p> : postComments.map((comment) => (
+                                <article className="community-post-comment" key={comment.id}>
+                                  <p>{comment.body}</p>
+                                  <footer><time>{formatMessageTime(comment.created_at)}</time>
+                                    {(comment.user_id === user.id || isGlobalOwner || isGlobalAdmin) && <button type="button" onClick={() => void deletePostComment(comment.id)} disabled={commentBusy}>{ru ? "Удалить" : "Delete"}</button>}
+                                  </footer>
+                                </article>
+                              ))}
+                              <form className="community-post-comment-form" onSubmit={sendPostComment}>
+                                <input value={postCommentDraft} onChange={(event) => setPostCommentDraft(event.target.value)} maxLength={2000} placeholder={ru ? "Написать комментарий…" : "Write a comment…"} />
+                                <button type="submit" disabled={commentBusy || !postCommentDraft.trim()} aria-label={ru ? "Отправить комментарий" : "Send comment"}><Send size={15} /></button>
+                              </form>
+                            </section>
+                          )}
+                        </article>
+                      </div>
+                    );
+                  })}
                   <div ref={messagesEnd} />
                 </div>
                 {(room.kind === "group" || canPostChannelMessages) ? (
                   <>
+                    {(replyTarget || editTarget) && (
+                      <div className="community-compose-context">
+                        <span>
+                          <strong>{editTarget ? (ru ? "Редактирование сообщения" : "Editing message") : (ru ? "Ответ на сообщение" : "Replying to message")}</strong>
+                          <small>{editTarget ? (editTarget.body || (ru ? "Фотография" : "Photo")) : (replyTarget?.body || (replyTarget?.media ? (ru ? "Фотография" : "Photo") : (ru ? "Сообщение" : "Message")))}</small>
+                        </span>
+                        <button type="button" onClick={cancelMessageMode} aria-label={ru ? "Отмена" : "Cancel"}><X size={16} /></button>
+                      </div>
+                    )}
                     {channelPhotoPreview && (
                       <div className="community-channel-photo-preview">
                         <img src={channelPhotoPreview} alt={ru ? "Выбранное фото" : "Selected photo"} />
-                        <span>{channelPhotoFile?.name}</span>
-                        <button type="button" onClick={() => { setChannelPhotoFile(null); if (channelPhotoInput.current) channelPhotoInput.current.value = ""; }}>{ru ? "Убрать" : "Remove"}</button>
+                        <div className="community-photo-caption">
+                          <strong>{ru ? "Подпись к фотографии" : "Photo caption"}</strong>
+                          <textarea value={draft} onChange={(event) => updateCommunityDraft(event.target.value)} maxLength={3500} rows={2} placeholder={ru ? "Добавь подпись…" : "Add a caption…"} />
+                        </div>
+                        <button type="button" onClick={() => { setChannelPhotoFile(null); if (channelPhotoInput.current) channelPhotoInput.current.value = ""; }}>{ru ? "Убрать фото" : "Remove photo"}</button>
                       </div>
                     )}
                     <form className="community-composer" onSubmit={sendMessage}>
-                      {(room.kind === "group" || canPostChannelMessages) && (
+                      {!editTarget && (
                         <>
                           <input ref={channelPhotoInput} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(event) => chooseChannelPhoto(event.target.files?.[0])} />
                           <button className="community-attach-photo" type="button" onClick={() => channelPhotoInput.current?.click()} disabled={busy} aria-label={ru ? "Прикрепить фото" : "Attach photo"} title={ru ? "Прикрепить фото" : "Attach photo"}><ImagePlus size={18} /></button>
                         </>
                       )}
-                      <input value={draft} onChange={(event) => setDraft(event.target.value)} maxLength={3500} placeholder={room.kind === "channel" ? (ru ? "Новая публикация…" : "New channel post…") : (ru ? "Сообщение…" : "Message…")} />
-                      <button type="submit" disabled={busy || (!draft.trim() && !channelPhotoFile)} aria-label={ru ? "Отправить" : "Send"}><Send size={18} /></button>
+                      {!channelPhotoFile && <input value={draft} onChange={(event) => updateCommunityDraft(event.target.value)} maxLength={3500} placeholder={editTarget ? (ru ? "Измени сообщение…" : "Edit your message…") : room.kind === "channel" ? (ru ? "Новая публикация…" : "New channel post…") : (ru ? "Сообщение…" : "Message…")} />}
+                      <button type="submit" disabled={busy || (!draft.trim() && !channelPhotoFile && !editTarget?.media?.path)} aria-label={editTarget ? (ru ? "Сохранить" : "Save") : (ru ? "Отправить" : "Send")}>{editTarget ? <Check size={18} /> : <Send size={18} />}</button>
                     </form>
                   </>
                 ) : <p className="community-muted community-readonly">{ru ? "Публиковать в этом канале может только администрация." : "Only channel admins can publish here."}</p>}
@@ -1397,6 +1457,10 @@ export default function CommunityHub({ client, user, locale, roles = [], contact
                     <input type="checkbox" checked={permissionsDraft.delete_messages} onChange={(event) => setPermissionsDraft((current) => ({ ...current, delete_messages: event.target.checked }))} />
                     <span><strong>{ru ? "Удаление сообщений" : "Delete messages"}</strong><small>{ru ? "Удалять сообщения других участников" : "Delete messages sent by other members"}</small></span>
                   </label>
+                  <label className="community-admin-permission">
+                    <input type="checkbox" checked={permissionsDraft.pin_messages} onChange={(event) => setPermissionsDraft((current) => ({ ...current, pin_messages: event.target.checked }))} />
+                    <span><strong>{ru ? "Закрепление сообщений" : "Pin messages"}</strong><small>{ru ? "Закреплять и откреплять важные сообщения в группе или канале" : "Pin and unpin important messages in this group or channel"}</small></span>
+                  </label>
                   {room.kind === "channel" && (
                     <label className="community-admin-permission">
                       <input type="checkbox" checked={permissionsDraft.post_messages} onChange={(event) => setPermissionsDraft((current) => ({ ...current, post_messages: event.target.checked }))} />
@@ -1410,8 +1474,8 @@ export default function CommunityHub({ client, user, locale, roles = [], contact
                     </label>
                   )}
                   <p className="community-admin-hint">{ru
-                    ? "Приглашения, блокировка участников, закрепление сообщений, темы и звонки пока не поддерживаются в HELORO — эти права не отображаются как активные."
-                    : "Invites, member bans, pinned messages, topics and calls are not implemented in HELORO yet, so they are not shown as active permissions."}</p>
+                    ? "Приглашения, блокировка участников, темы и звонки пока не поддерживаются в HELORO."
+                    : "Invites, member bans, topics and calls are not implemented in HELORO yet."}</p>
                   <div className="community-admin-editor-actions">
                     <button type="button" className="community-secondary" onClick={() => { setEditingAdminId(null); setPermissionsDraft(EMPTY_COMMUNITY_ADMIN_PERMISSIONS); }} disabled={adminBusy}>{ru ? "Отмена" : "Cancel"}</button>
                     <button type="button" className="community-primary" onClick={() => void saveAdminPermissions()} disabled={adminBusy}>{adminBusy ? (ru ? "Сохранение…" : "Saving…") : (ru ? "Сохранить" : "Save")}</button>
