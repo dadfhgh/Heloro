@@ -42,22 +42,16 @@ export function formatInboxTime(value: string | null): string {
     : new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short" }).format(date);
 }
 
-function localDateKey(date: Date): string {
-  return String(date.getFullYear()) + "-" + String(date.getMonth()) + "-" + String(date.getDate());
-}
-
 export function formatMessageDayLabel(value: string, locale: "ru" | "en"): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   const now = new Date();
-  if (localDateKey(date) === localDateKey(now)) return locale === "ru" ? "Сегодня" : "Today";
-  const yesterday = new Date(now);
-  yesterday.setDate(now.getDate() - 1);
-  if (localDateKey(date) === localDateKey(yesterday)) return locale === "ru" ? "Вчера" : "Yesterday";
-  const dayStart = (item: Date) => Date.UTC(item.getFullYear(), item.getMonth(), item.getDate());
-  const daysAgo = Math.floor((dayStart(now) - dayStart(date)) / 86400000);
-  if (daysAgo >= 0 && daysAgo < 7) return new Intl.DateTimeFormat(locale === "ru" ? "ru-RU" : "en-US", { weekday: "long" }).format(date);
-  return new Intl.DateTimeFormat(locale === "ru" ? "ru-RU" : "en-US", { day: "numeric", month: "long", ...(date.getFullYear() !== now.getFullYear() ? { year: "numeric" } : {}) }).format(date);
+  const sameYear = date.getFullYear() === now.getFullYear();
+  return new Intl.DateTimeFormat(locale === "ru" ? "ru-RU" : "en-US", {
+    day: "numeric",
+    month: locale === "ru" ? "long" : "short",
+    ...(sameYear ? {} : { year: "numeric" }),
+  }).format(date);
 }
 
 export function formatLastSeen(value: string | null | undefined, locale: "ru" | "en", hidden = false, hiddenBucket?: "recently" | "within_week" | "within_month" | "long_ago" | null): string {

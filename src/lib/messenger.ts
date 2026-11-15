@@ -36,7 +36,7 @@ export async function saveProfile(
 
 export async function getPublicProfile(userId: string): Promise<PublicProfile | null> {
   const { data, error } = await client().from("profiles")
-    .select("id, username, display_name, avatar_url").eq("id", userId).maybeSingle();
+    .select("id, username, display_name, avatar_url, created_at").eq("id", userId).maybeSingle();
   if (error) throw error;
   if (!data) return null;
   const { data: badge, error: badgeError } = await client().from("verification_badges")
@@ -153,72 +153,126 @@ export async function getInbox(): Promise<InboxConversation[]> {
   return (data ?? []) as InboxConversation[];
 }
 
-export async function getMessages(
-  conversationId: string,
-  limit = 60,
-): Promise<Message[]> {
-  const { data, error } = await client()
-    .from("messages")
-    .select("id, conversation_id, sender_id, body, created_at")
-    .eq("conversation_id", conversationId)
-    .order("created_at", { ascending: false })
-    .limit(limit);
-
-  if (error) throw error;
-  const rows = ((data ?? []) as Message[]).reverse();
-  return await Promise.all(rows.map(async (row): Promise<Message> => {
-    const mediaPrefix = "HELORO_MEDIA:";
-    if (!row.body.startsWith(mediaPrefix)) {
-      return { ...row };
+async function hydrateMessageRows(rows: Message[]): Promise<Message[]> {
+  const replyIds = [...new Set(rows.map((row) => row.reply_to).filter((id): id is string => Boolean(id)))];
+  const replies = new Map<string, NonNullable<Message['reply']>>();
+  if (replyIds.length > 0) {
+    const { data, error } = await client().from('messages').select('id, sender_id, body, created_at').in('id', replyIds);
+    if (error) throw error;
+    for (const item of data ?? []) {
+      const row = item as NonNullable<Message['reply']>;
+      replies.set(row.id, { ...row, body: row.body.startsWith('HELORO_MEDIA:') ? 'Медиафайл' : row.body });
     }
+  }
+  return Promise.all(rows.map(async (row): Promise<Message> => {
+    const withReply = { ...row, reply: row.reply_to ? replies.get(row.reply_to) ?? null : null };
+    const prefix = 'HELORO_MEDIA:';
+    if (!row.body.startsWith(prefix)) return withReply;
     try {
-      const payload = JSON.parse(row.body.slice(mediaPrefix.length)) as { kind?: string; path?: string };
-      if ((payload.kind !== "sticker" && payload.kind !== "gif") || typeof payload.path !== "string") {
-        return { ...row, body: "Media unavailable.", media: null };
-      }
-      const { data: signed, error: signError } = await client()
-        .storage.from("message-media").createSignedUrl(payload.path, 3600);
-      if (signError || !signed?.signedUrl) {
-        return { ...row, body: "Media unavailable.", media: null };
-      }
+      const payload = JSON.parse(row.body.slice(prefix.length)) as { kind?: string; path?: string; caption?: string };
+      if ((payload.kind !== 'photo' && payload.kind !== 'sticker' && payload.kind !== 'gif') || typeof payload.path !== 'string') return { ...withReply, body: 'Media unavailable.', media: null };
+      const { data: signed, error } = await client().storage.from('message-media').createSignedUrl(payload.path, 3600);
+      if (error || !signed?.signedUrl) return { ...withReply, body: 'Media unavailable.', media: null };
       return {
-        ...row,
-        body: "",
+        ...withReply,
+        body: payload.kind === 'photo' && typeof payload.caption === 'string' ? payload.caption : '',
         media: { kind: payload.kind, url: signed.signedUrl, path: payload.path },
       };
-    } catch {
-      return { ...row, body: "Media unavailable.", media: null };
-    }
+    } catch { return { ...withReply, body: 'Media unavailable.', media: null }; }
   }));
 }
+export async function getMessages(conversationId: string, limit = 60): Promise<Message[]> {
+  const withEditsAndReplies = await client().from('messages')
+    .select('id, conversation_id, sender_id, body, created_at, reply_to, edited_at')
+    .eq('conversation_id', conversationId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
 
+  let rawRows: Message[];
+  if (!withEditsAndReplies.error) {
+    rawRows = (withEditsAndReplies.data ?? []) as Message[];
+  } else {
+    const withReplies = await client().from('messages')
+      .select('id, conversation_id, sender_id, body, created_at, reply_to')
+      .eq('conversation_id', conversationId)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (!withReplies.error) {
+      rawRows = (withReplies.data ?? []) as Message[];
+    } else if (/reply_to|edited_at/i.test(withReplies.error.message)) {
+      const basic = await client().from('messages')
+        .select('id, conversation_id, sender_id, body, created_at')
+        .eq('conversation_id', conversationId)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+      if (basic.error) throw basic.error;
+      rawRows = (basic.data ?? []) as Message[];
+    } else {
+      throw withReplies.error;
+    }
+  }
+  return hydrateMessageRows(rawRows.reverse());
+}
 export async function sendMessage(
   conversationId: string,
   senderId: string,
   body: string,
+  replyTo?: string | null,
 ): Promise<Message> {
   const parsed = messageBodySchema.safeParse(body);
-  if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "Invalid message.");
+  if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? 'Invalid message.');
+  const values = { conversation_id: conversationId, sender_id: senderId, body: parsed.data, ...(replyTo ? { reply_to: replyTo } : {}) };
+  const query = client().from('messages').insert(values);
+  const result = replyTo
+    ? await query.select('id, conversation_id, sender_id, body, created_at, reply_to').single()
+    : await query.select('id, conversation_id, sender_id, body, created_at').single();
+  if (result.error && replyTo && /reply_to/i.test(result.error.message)) throw new Error('Ответы в чате ещё не включены на сервере. Требуется обновление базы HELORO.');
+  if (result.error) throw result.error;
+  return { ...(result.data as Message), reply_to: replyTo ?? null };
+}
 
-  const { data, error } = await client()
-    .from("messages")
-    .insert({
-      conversation_id: conversationId,
-      sender_id: senderId,
-      body: parsed.data,
-    })
-    .select("id, conversation_id, sender_id, body, created_at")
-    .single();
+export async function getDirectMessageById(conversationId: string, messageId: string): Promise<Message | null> {
+  const withEdit = await client().from('messages').select('id, conversation_id, sender_id, body, created_at, reply_to, edited_at').eq('conversation_id', conversationId).eq('id', messageId).maybeSingle();
+  let row = withEdit;
+  if (withEdit.error && /edited_at/i.test(withEdit.error.message)) {
+    row = await client().from('messages').select('id, conversation_id, sender_id, body, created_at, reply_to').eq('conversation_id', conversationId).eq('id', messageId).maybeSingle();
+  }
+  if (row.error && /reply_to/i.test(row.error.message)) {
+    row = await client().from('messages').select('id, conversation_id, sender_id, body, created_at').eq('conversation_id', conversationId).eq('id', messageId).maybeSingle();
+  }
+  if (row.error) throw row.error;
+  if (!row.data) return null;
+  const [message] = await hydrateMessageRows([row.data as Message]);
+  return message ?? null;
+}
 
+export async function getPinnedMessages(conversationId: string): Promise<Message[]> {
+  const { data: pins, error: pinError } = await client().from('pinned_messages').select('message_id, pinned_at').eq('conversation_id', conversationId).order('pinned_at', { ascending: false }).limit(50);
+  if (pinError) throw pinError;
+  const ids = (pins ?? []).map((item) => item.message_id as string);
+  if (ids.length === 0) return [];
+  const { data, error } = await client().from('messages').select('id, conversation_id, sender_id, body, created_at, reply_to').eq('conversation_id', conversationId).in('id', ids);
   if (error) throw error;
-  return data as Message;
+  const byId = new Map((await hydrateMessageRows((data ?? []) as Message[])).map((item) => [item.id, item]));
+  return ids.map((id) => byId.get(id)).filter((item): item is Message => Boolean(item));
+}
+
+export async function setDirectMessagePinned(conversationId: string, messageId: string, userId: string, pinned: boolean): Promise<void> {
+  if (pinned) {
+    const { error } = await client().from('pinned_messages').insert({ conversation_id: conversationId, message_id: messageId, pinned_by: userId });
+    if (error && error.code !== '23505') throw error;
+    return;
+  }
+  const { error } = await client().from('pinned_messages').delete().eq('conversation_id', conversationId).eq('message_id', messageId);
+  if (error) throw error;
 }
 
 export async function sendMediaMessage(
   conversationId: string,
   senderId: string,
   file: File,
-  kind: "sticker" | "gif",
+  kind: "photo" | "sticker" | "gif",
+  caption = "",
 ): Promise<void> {
   const allowed = kind === "gif"
     ? ["image/gif"]
@@ -244,10 +298,15 @@ export async function sendMediaMessage(
   });
   if (uploadError) throw uploadError;
 
+  const payload = {
+    kind,
+    path,
+    ...(kind === "photo" && caption.trim() ? { caption: caption.trim().slice(0, 4000) } : {}),
+  };
   const { error: messageError } = await client().from("messages").insert({
     conversation_id: conversationId,
     sender_id: senderId,
-    body: `HELORO_MEDIA:${JSON.stringify({ kind, path })}`,
+    body: `HELORO_MEDIA:${JSON.stringify(payload)}`,
   });
   if (messageError) {
     await storage.remove([path]);
@@ -278,6 +337,7 @@ export function subscribeToMessages(
   conversationId: string,
   onInsert: (message: Message) => void,
   onDelete?: () => void,
+  onUpdate?: (message: Message) => void,
 ): RealtimeChannel {
   return client()
     .channel(`heloro:messages:${conversationId}`)
@@ -289,8 +349,43 @@ export function subscribeToMessages(
         table: "messages",
         filter: `conversation_id=eq.${conversationId}`,
       },
-      (payload) => onInsert(payload.new as Message),
+      (payload) => {
+        const incoming = payload.new as Message;
+        if (!incoming.reply_to) {
+          onInsert(incoming);
+          return;
+        }
+        void client().from('messages')
+          .select('id, sender_id, body, created_at')
+          .eq('id', incoming.reply_to)
+          .maybeSingle()
+          .then(({ data, error }) => {
+            if (error || !data) {
+              onInsert(incoming);
+              return;
+            }
+            const original = data as NonNullable<Message['reply']>;
+            onInsert({
+              ...incoming,
+              reply: {
+                ...original,
+                body: original.body.startsWith('HELORO_MEDIA:') ? 'Медиафайл' : original.body,
+              },
+            });
+          });
+      },
     )
+    .on("postgres_changes", {
+      event: "UPDATE",
+      schema: "public",
+      table: "messages",
+      filter: `conversation_id=eq.${conversationId}`,
+    }, (payload) => {
+      const updated = payload.new as Message;
+      void getDirectMessageById(conversationId, updated.id)
+        .then((message) => { if (message) onUpdate?.(message); })
+        .catch((cause: unknown) => console.warn("HELORO edited message could not be refreshed:", cause));
+    })
     .on("postgres_changes", { event: "DELETE", schema: "public", table: "messages" }, () => onDelete?.())
     .subscribe();
 }

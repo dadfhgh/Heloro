@@ -24,11 +24,12 @@ type NavigationProps = {
   onOpenSettings: () => void;
   onOpenBots: () => void;
   onOpenAdmin: () => void;
+  onOpenMyProfile: () => void;
 };
 
 export function MessengerNavigation({
   profile, locale, roles, onClose, onOpenInbox, onOpenContacts, onCreateGroup,
-  onCreateChannel, onOpenNews, onOpenSupport, onOpenSettings, onOpenBots, onOpenAdmin,
+  onCreateChannel, onOpenNews, onOpenSupport, onOpenSettings, onOpenBots, onOpenAdmin, onOpenMyProfile,
 }: NavigationProps) {
   const ru = locale === "ru";
   const staff = roles.some((role) => role === "owner" || role === "admin" || role === "moderator");
@@ -42,11 +43,12 @@ export function MessengerNavigation({
             <div className="brand-lockup"><div className="brand-symbol">H</div><span>HELORO</span></div>
             <button className="icon-button" type="button" onClick={onClose} aria-label={ru ? "Закрыть меню" : "Close menu"}><X size={19} /></button>
           </div>
-          <div className="navigation-user">
+          <button className="navigation-user" type="button" onClick={() => run(onOpenMyProfile)} aria-label={ru ? "Открыть мой профиль" : "Open my profile"}>
             <div className="avatar navigation-avatar">{profile.avatar_url ? <img src={profile.avatar_url} alt="" loading="lazy" /> : (profile.display_name || "H").trim().slice(0, 1).toUpperCase()}</div>
-            <div className="navigation-user-copy"><strong>{profile.display_name}</strong><small>@{profile.username}</small></div>
+            <span className="navigation-user-copy"><strong>{profile.display_name}</strong><small>@{profile.username}</small></span>
             {roles.includes("owner") && <ShieldCheck size={17} className="navigation-owner-mark" />}
-          </div>
+            <ChevronRight size={17} className="navigation-user-chevron" />
+          </button>
         </header>
         <nav className="navigation-menu" aria-label={ru ? "Разделы" : "Sections"}>
           <div className="navigation-group-label">{ru ? "МЕССЕНДЖЕР" : "MESSENGER"}</div>
