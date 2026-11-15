@@ -2250,3 +2250,56 @@ html[data-theme="dark"] .community-message.is-pinned { border-color: #777; }
 .edit-composer-preview {
   border-left-color: #777;
 }
+
+
+/* Telegram-like conversation accents for HELORO groups and channels. */
+.community-header {
+  border-bottom-color: #e2eaf1;
+  background: #fff;
+}
+.community-header .icon-button:hover { color: #3390ec; background: #eaf4ff; }
+.community-room-view { background: #f3f7fa; }
+.community-message-list { background: transparent; }
+.community-message {
+  border-color: #e2eaf1;
+  border-radius: 13px 13px 13px 4px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(22,58,84,.035);
+}
+.community-message.mine {
+  border-color: #d7e9f8;
+  border-radius: 13px 13px 4px 13px;
+  background: #e5f2ff;
+}
+.community-message.is-pinned { border-color: #8daec8; }
+.community-message-reply-quote { border-left-color: #3390ec; background: rgba(51,144,236,.08); }
+.community-message-reply-quote span { color: #2784df; }
+.community-message-actions button:hover,
+.community-message-actions button.is-active { color: #2784df; background: #eaf4ff; }
+.community-composer { border-color: #dfe8ef; box-shadow: 0 1px 3px rgba(20,53,77,.035); }
+.community-composer:focus-within { border-color: #9ac9f1; box-shadow: 0 0 0 3px rgba(51,144,236,.08); }
+.community-composer button { background: #3390ec; }
+.community-composer button:hover:not(:disabled) { background: #2784df; }
+.community-attach-photo { color: #6b8ca5 !important; background: transparent !important; }
+.community-primary { color: #fff; background: #3390ec; }
+.community-primary:hover:not(:disabled) { background: #2784df; }
+.community-secondary { border-color: #dce7ef; color: #47657c; background: #fff; }
+.community-contact-item.selected { background: #eaf4ff; }
+.community-contact-item.selected .community-contact-check { border-color: #3390ec; background: #3390ec; }
+.community-visibility-option.active { border-color: #8fc2ec; background: #f0f8ff; }
+.community-visibility-option input { accent-color: #3390ec; }
+html[data-theme="dark"] .community-header { border-color: #2a4355; background: #192d3c; }
+html[data-theme="dark"] .community-room-view { background: #152633; }
+html[data-theme="dark"] .community-message { border-color: #30495c; background: #1a3040; }
+html[data-theme="dark"] .community-message.mine { border-color: #315672; background: #203e54; }
+html[data-theme="dark"] .community-message.is-pinned { border-color: #6688a1; }
+html[data-theme="dark"] .community-message-reply-quote { background: rgba(65,151,226,.13); }
+html[data-theme="dark"] .community-message-reply-quote span { color: #8bc5f5; }
+html[data-theme="dark"] .community-message-actions button:hover,
+html[data-theme="dark"] .community-message-actions button.is-active { color: #8bc5f5; background: #1d3c54; }
+html[data-theme="dark"] .community-composer { border-color: #314c60; box-shadow: none; }
+html[data-theme="dark"] .community-composer button,
+html[data-theme="dark"] .community-primary { color: #fff; background: #2784df; }
+html[data-theme="dark"] .community-secondary { border-color: #3a576d; color: #c2d9e9; background: #1b3446; }
+html[data-theme="dark"] .community-contact-item.selected { background: #1c3850; }
+html[data-theme="dark"] .community-visibility-option.active { border-color: #4e8fbe; background: #1a354a; }
