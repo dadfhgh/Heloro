@@ -118,6 +118,24 @@ function VerificationMark({ type, title }: { type?: BadgeType | null; title: str
   return <BadgeCheck size={14} className="gold-verified-mark" aria-label={title} role="img" />;
 }
 
+function formatInboxMessagePreview(value: string | null, locale: Locale): string {
+  if (!value) return t(locale, "inboxSayHello");
+  const prefix = "HELORO_MEDIA:";
+  if (!value.startsWith(prefix)) return value;
+  try {
+    const payload = JSON.parse(value.slice(prefix.length)) as { kind?: string; caption?: string };
+    if (payload.kind === "photo") {
+      const photoLabel = locale === "ru" ? "Фото" : "Photo";
+      return payload.caption?.trim() ? `${photoLabel}: ${payload.caption.trim()}` : photoLabel;
+    }
+    if (payload.kind === "gif") return "GIF";
+    if (payload.kind === "sticker") return locale === "ru" ? "Стикер" : "Sticker";
+  } catch {
+    // Older or malformed media messages still get a safe, readable preview.
+  }
+  return locale === "ru" ? "Медиафайл" : "Media";
+}
+
 function EmptyChat({ locale }: { locale: Locale }) {
   return (
     <div className="empty-chat">
@@ -168,6 +186,9 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sending, setSending] = useState(false);
   const [mediaSending, setMediaSending] = useState(false);
+  const [photoDraft, setPhotoDraft] = useState<File | null>(null);
+  const [photoCaption, setPhotoCaption] = useState("");
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -213,6 +234,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const contactsSearchInputRef = useRef<HTMLInputElement>(null);
   const stickerInputRef = useRef<HTMLInputElement>(null);
   const gifInputRef = useRef<HTMLInputElement>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -597,6 +619,22 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   }, [messages]);
 
   useEffect(() => {
+    if (!photoDraft) {
+      setPhotoPreviewUrl(null);
+      return;
+    }
+    const previewUrl = URL.createObjectURL(photoDraft);
+    setPhotoPreviewUrl(previewUrl);
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [photoDraft]);
+
+  useEffect(() => {
+    setPhotoDraft(null);
+    setPhotoCaption("");
+    if (photoInputRef.current) photoInputRef.current.value = "";
+  }, [activeId]);
+
+  useEffect(() => {
     const normalized = search.trim();
     if (normalized.replace(/^@/, "").length < 2) {
       setResults([]);
@@ -862,6 +900,47 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
       await refreshInbox();
     } catch {
       setError(t(locale, "messageDeleteError"));
+    }
+  }
+
+  function handlePhotoSelect(file?: File) {
+    if (!file || !activeId) return;
+    setError("");
+    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+      setError(locale === "ru" ? "Выбери фото в формате PNG, JPEG или WebP." : "Choose a PNG, JPEG or WebP photo.");
+      if (photoInputRef.current) photoInputRef.current.value = "";
+      return;
+    }
+    if (file.size < 1 || file.size > 5 * 1024 * 1024) {
+      setError(locale === "ru" ? "Размер фото должен быть не больше 5 МБ." : "Photo must be 5 MB or smaller.");
+      if (photoInputRef.current) photoInputRef.current.value = "";
+      return;
+    }
+    setPhotoDraft(file);
+    setPhotoCaption("");
+  }
+
+  function clearPhotoDraft() {
+    setPhotoDraft(null);
+    setPhotoCaption("");
+    if (photoInputRef.current) photoInputRef.current.value = "";
+  }
+
+  async function handleSendPhoto() {
+    const conversationId = activeId;
+    const file = photoDraft;
+    if (!conversationId || !file || mediaSending) return;
+    setMediaSending(true);
+    setError("");
+    try {
+      await sendMediaMessage(conversationId, user.id, file, "photo", photoCaption);
+      setMessages(await getMessages(conversationId));
+      await refreshInbox();
+      clearPhotoDraft();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : t(locale, "messageSendFailed"));
+    } finally {
+      setMediaSending(false);
     }
   }
 
@@ -1253,7 +1332,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                           <time>{formatInboxTime(item.last_message_at)}</time>
                         </span>
                         <span className="conversation-preview-line">
-                          <small>{item.last_message || t(locale, "inboxSayHello")}</small>
+                          <small>{formatInboxMessagePreview(item.last_message, locale)}</small>
                           {item.last_message && <CheckCheck className="preview-check" size={15} />}
                         </span>
                       </span>
@@ -1656,12 +1735,25 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                           </button>
                         )}
                         {message.media?.url ? (
-                          <img
-                            className={message.media.kind === "gif" ? "message-media message-gif" : "message-media message-sticker"}
-                            src={message.media.url}
-                            alt={message.media.kind === "gif" ? (locale === "ru" ? "GIF" : "GIF") : (locale === "ru" ? "Стикер" : "Sticker")}
-                            loading="lazy"
-                          />
+                          <>
+                            <img
+                              className={
+                                message.media.kind === "gif"
+                                  ? "message-media message-gif"
+                                  : message.media.kind === "photo"
+                                    ? "message-media message-photo"
+                                    : "message-media message-sticker"
+                              }
+                              src={message.media.url}
+                              alt={message.media.kind === "gif"
+                                ? "GIF"
+                                : message.media.kind === "photo"
+                                  ? (locale === "ru" ? "Фото" : "Photo")
+                                  : (locale === "ru" ? "Стикер" : "Sticker")}
+                              loading="lazy"
+                            />
+                            {message.media.kind === "photo" && message.body && <p className="message-media-caption">{message.body}</p>}
+                          </>
                         ) : message.body ? <p>{message.body}</p> : null}
                         <div className="message-meta">
                           <span>{formatMessageTime(message.created_at)} {mine && <CheckCheck size={13} />}</span>
@@ -1695,13 +1787,42 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                   <button type="button" onClick={() => setReplyTarget(null)} aria-label={locale === "ru" ? "Отменить ответ" : "Cancel reply"}><X size={16} /></button>
                 </div>
               )}
+              {photoDraft && photoPreviewUrl && (
+                <section className="photo-composer-preview" aria-label={locale === "ru" ? "Предпросмотр фото" : "Photo preview"}>
+                  <div className="photo-composer-image-wrap">
+                    <img src={photoPreviewUrl} alt={locale === "ru" ? "Выбранное фото" : "Selected photo"} />
+                    <button type="button" className="photo-composer-remove" onClick={clearPhotoDraft} disabled={mediaSending} aria-label={locale === "ru" ? "Убрать фото" : "Remove photo"} title={locale === "ru" ? "Убрать фото" : "Remove photo"}>
+                      <X size={17} />
+                    </button>
+                    <span className="photo-composer-size">{(photoDraft.size / (1024 * 1024)).toFixed(1)} MB</span>
+                  </div>
+                  <div className="photo-composer-caption-row">
+                    <textarea
+                      value={photoCaption}
+                      onChange={(event) => setPhotoCaption(event.target.value.slice(0, 4000))}
+                      rows={2}
+                      maxLength={4000}
+                      placeholder={locale === "ru" ? "Добавить подпись…" : "Add a caption…"}
+                      aria-label={locale === "ru" ? "Подпись к фото" : "Photo caption"}
+                      disabled={mediaSending}
+                    />
+                    <button type="button" className="send-button photo-composer-send" onClick={() => void handleSendPhoto()} disabled={mediaSending} aria-label={locale === "ru" ? "Отправить фото" : "Send photo"} title={locale === "ru" ? "Отправить фото" : "Send photo"}>
+                      {mediaSending ? <span className="button-spinner" /> : <ArrowUp size={20} />}
+                    </button>
+                  </div>
+                </section>
+              )}
               <form className="composer" onSubmit={handleSend}>
+                <button type="button" className="icon-button composer-media-button" onClick={() => photoInputRef.current?.click()} disabled={mediaSending} aria-label={locale === "ru" ? "Выбрать фото" : "Choose photo"} title={locale === "ru" ? "Выбрать фото" : "Choose photo"}>
+                  <ImagePlus size={19} />
+                </button>
                 <button type="button" className="icon-button composer-media-button" onClick={() => stickerInputRef.current?.click()} disabled={mediaSending} aria-label={locale === "ru" ? "Отправить стикер" : "Send sticker"} title={locale === "ru" ? "Стикер из файла" : "Sticker from file"}>
                   <SmilePlus size={19} />
                 </button>
-                <button type="button" className="icon-button composer-media-button" onClick={() => gifInputRef.current?.click()} disabled={mediaSending} aria-label="GIF" title={locale === "ru" ? "Отправить GIF" : "Send GIF"}>
-                  <ImagePlus size={19} />
+                <button type="button" className="icon-button composer-media-button gif-composer-button" onClick={() => gifInputRef.current?.click()} disabled={mediaSending} aria-label="GIF" title={locale === "ru" ? "Отправить GIF" : "Send GIF"}>
+                  GIF
                 </button>
+                <input ref={photoInputRef} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(event) => { handlePhotoSelect(event.target.files?.[0]); event.target.value = ""; }} />
                 <input ref={stickerInputRef} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(event) => void handleMediaSelect("sticker", event.target.files?.[0])} />
                 <input ref={gifInputRef} type="file" accept="image/gif" hidden onChange={(event) => void handleMediaSelect("gif", event.target.files?.[0])} />
                 <input
