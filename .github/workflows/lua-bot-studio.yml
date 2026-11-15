@@ -7,11 +7,15 @@ on:
       - "supabase/migrations/*bot_lua_studio.sql"
       - ".github/workflows/lua-bot-studio.yml"
 
+permissions:
+  contents: read
+
 jobs:
   deno:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
