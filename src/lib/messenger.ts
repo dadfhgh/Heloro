@@ -36,7 +36,7 @@ export async function saveProfile(
 
 export async function getPublicProfile(userId: string): Promise<PublicProfile | null> {
   const { data, error } = await client().from("profiles")
-    .select("id, username, display_name, avatar_url").eq("id", userId).maybeSingle();
+    .select("id, username, display_name, avatar_url, created_at").eq("id", userId).maybeSingle();
   if (error) throw error;
   if (!data) return null;
   const { data: badge, error: badgeError } = await client().from("verification_badges")
