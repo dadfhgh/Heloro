@@ -8,7 +8,7 @@ if (!Number.isInteger(PORT) || PORT < 1024 || PORT > 65535) {
   throw new Error("HELORO_AGENT_PORT must be a valid port between 1024 and 65535.");
 }
 
-const MODEL = process.env.HELORO_AGENT_MODEL ?? "qwen2.5-coder:3b";
+const MODEL = process.env.HELORO_AGENT_MODEL ?? "qwen2.5-coder:1.5b";
 const OLLAMA_BASE_URL = "http://127.0.0.1:11434/v1";
 const API_TOKEN = randomBytes(32).toString("hex");
 const provider = createOllamaProvider({ baseUrl: OLLAMA_BASE_URL, model: MODEL });
