@@ -3673,3 +3673,39 @@ html[data-theme="dark"] .media-editor-sheet { border-color: #354b5b; background:
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
 }
+
+
+/* HELORO mobile bottom bar polish — visual continuity and touch feedback. */
+@media (max-width: 760px) {
+  .mobile-bottom-nav {
+    -webkit-backdrop-filter: blur(18px) saturate(1.18);
+    backdrop-filter: blur(18px) saturate(1.18);
+    box-shadow: 0 -8px 24px rgba(15, 30, 45, .055);
+  }
+  .mobile-bottom-nav button {
+    position: relative;
+    transform: translateZ(0);
+    transition:
+      color 180ms cubic-bezier(.2,.72,.2,1),
+      background-color 180ms cubic-bezier(.2,.72,.2,1),
+      transform 140ms cubic-bezier(.2,.72,.2,1);
+  }
+  .mobile-bottom-nav button svg {
+    transition: transform 180ms cubic-bezier(.2,.72,.2,1);
+  }
+  .mobile-bottom-nav button.active svg {
+    transform: translateY(-1px) scale(1.06);
+  }
+  .mobile-bottom-nav button:active {
+    transform: scale(.96);
+  }
+  .mobile-bottom-nav button:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: -2px;
+  }
+  html[data-theme="dark"] .mobile-bottom-nav {
+    -webkit-backdrop-filter: blur(18px) saturate(1.12);
+    backdrop-filter: blur(18px) saturate(1.12);
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, .2);
+  }
+}
