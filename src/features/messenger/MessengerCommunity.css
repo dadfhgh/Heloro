@@ -1382,9 +1382,11 @@ html[data-theme="dark"] .message-reply-quote, html[data-theme="dark"] .reply-com
   display: inline-block;
   flex: 0 0 auto;
   vertical-align: -2px;
-  color: #c49327 !important;
-  fill: rgba(231, 184, 72, .22);
-  filter: drop-shadow(0 0 1px rgba(255, 229, 163, .9)) drop-shadow(0 1px 1px rgba(119, 78, 10, .42));
+  color: #c99a36 !important;
+  fill: rgba(201, 154, 54, .16);
+  filter: none !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
 }
 
 /* Pinned message banner: readable preview rather than a thin blue strip. */
@@ -1636,4 +1638,196 @@ html[data-theme="dark"] .pinned-messages-list .pinned-messages-remove {
   min-width: 40px;
   max-width: max-content;
   flex: 0 0 auto;
+}
+
+
+/* Telegram-style pinned message bar: it lives outside the scrolling message list. */
+.pinned-messages-panel {
+  position: relative;
+  z-index: 8;
+  flex: 0 0 auto;
+  align-self: stretch;
+  width: min(calc(100% - 28px), 820px);
+  margin: 10px auto 0;
+  overflow: hidden;
+  border: 1px solid #d4d4d4;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .06);
+}
+.pinned-message-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 58px;
+  padding: 9px 11px;
+}
+.pinned-message-symbol {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  color: #111;
+  background: #ededed;
+}
+.pinned-message-main {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: grid;
+  gap: 3px;
+  padding: 0;
+  border: 0;
+  color: #111;
+  background: transparent;
+  text-align: left;
+}
+.pinned-message-main small {
+  color: #555;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .055em;
+}
+.pinned-message-main strong {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  color: #111;
+  font-size: 12px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pinned-message-head > .pinned-messages-toggle {
+  width: auto;
+  min-width: 40px;
+  max-width: max-content;
+  min-height: 36px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 10px;
+  border: 1px solid #d4d4d4;
+  border-radius: 9px;
+  color: #111;
+  background: #f2f2f2;
+}
+.pinned-message-head > .pinned-messages-toggle > span {
+  min-width: 17px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #111;
+  font-size: 11px;
+  font-weight: 800;
+}
+.pinned-message-head > .pinned-messages-toggle > svg:last-child { color: #111; transition: transform .18s ease; }
+.pinned-message-head > .pinned-messages-toggle > svg:last-child.is-expanded { transform: rotate(180deg); }
+.pinned-messages-list {
+  display: grid;
+  gap: 6px;
+  padding: 0 9px 9px;
+  max-height: 240px;
+  overflow-y: auto;
+  border-top: 1px solid #e2e2e2;
+}
+.pinned-message-item {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 6px;
+  border-top: 1px solid #e5e5e5;
+}
+.pinned-message-item:first-child { border-top: 0; }
+.pinned-messages-list .pinned-messages-open {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: grid;
+  gap: 3px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  color: #111;
+  background: #f3f3f3;
+  text-align: left;
+}
+.pinned-messages-list .pinned-messages-open span {
+  color: #555;
+  font-size: 10px;
+  font-weight: 700;
+}
+.pinned-messages-list .pinned-messages-open strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #111;
+  font-size: 11px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pinned-messages-list .pinned-messages-remove {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid #d6d6d6;
+  border-radius: 8px;
+  color: #111;
+  background: #f7f7f7;
+}
+.message-action-button.is-pinned,
+.message-action-button:hover {
+  color: #111;
+  border-color: #999;
+  background: #e8e8e8;
+}
+html[data-theme="dark"] .pinned-messages-panel {
+  border-color: #414141;
+  background: #171717;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .25);
+}
+html[data-theme="dark"] .pinned-message-symbol {
+  color: #fff;
+  background: #303030;
+}
+html[data-theme="dark"] .pinned-message-main,
+html[data-theme="dark"] .pinned-message-main strong { color: #fff; }
+html[data-theme="dark"] .pinned-message-main small,
+html[data-theme="dark"] .pinned-messages-list .pinned-messages-open span { color: #b8b8b8; }
+html[data-theme="dark"] .pinned-message-head > .pinned-messages-toggle {
+  color: #fff;
+  border-color: #4a4a4a;
+  background: #303030;
+}
+html[data-theme="dark"] .pinned-message-head > .pinned-messages-toggle > span,
+html[data-theme="dark"] .pinned-message-head > .pinned-messages-toggle > svg:last-child { color: #fff; }
+html[data-theme="dark"] .pinned-messages-list { border-color: #3a3a3a; }
+html[data-theme="dark"] .pinned-message-item { border-color: #3a3a3a; }
+html[data-theme="dark"] .pinned-messages-list .pinned-messages-open {
+  color: #fff;
+  background: #292929;
+}
+html[data-theme="dark"] .pinned-messages-list .pinned-messages-open span { color: #b8b8b8; }
+html[data-theme="dark"] .pinned-messages-list .pinned-messages-open strong { color: #fff; }
+html[data-theme="dark"] .pinned-messages-list .pinned-messages-remove {
+  color: #fff;
+  border-color: #494949;
+  background: #252525;
+}
+html[data-theme="dark"] .message-action-button.is-pinned,
+html[data-theme="dark"] .message-action-button:hover {
+  color: #fff;
+  border-color: #666;
+  background: #333;
+}
+@media (max-width: 600px) {
+  .pinned-messages-panel { width: calc(100% - 18px); margin-top: 8px; }
+  .pinned-message-head { min-height: 56px; gap: 8px; padding: 8px; }
+  .pinned-message-symbol { width: 34px; height: 34px; flex-basis: 34px; }
 }
