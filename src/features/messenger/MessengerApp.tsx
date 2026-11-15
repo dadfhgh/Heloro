@@ -862,12 +862,17 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
     if (!activeId) return;
     const currentDraft = draft.trim();
     if (editTarget) {
-      if (!currentDraft && editTarget.media?.kind !== "photo") return;
+      if (!currentDraft && editTarget.media?.kind !== "photo" && editTarget.media?.kind !== "video") return;
       setSending(true);
       setError("");
       try {
         const body = editTarget.media?.path
-          ? `HELORO_MEDIA:${JSON.stringify({ kind: editTarget.media.kind, path: editTarget.media.path, ...(editTarget.media.kind === "photo" ? { caption: currentDraft } : {}) })}`
+          ? "HELORO_MEDIA:" + JSON.stringify({
+              kind: editTarget.media.kind,
+              path: editTarget.media.path,
+              ...(["photo", "video"].includes(editTarget.media.kind) ? { caption: currentDraft } : {}),
+              ...(editTarget.media.kind === "video" ? { trimStart: editTarget.media.trimStart ?? 0, trimEnd: editTarget.media.trimEnd ?? 0 } : {}),
+            })
           : currentDraft;
         const editedAt = new Date().toISOString();
         const { data, error: updateError } = await client.from("messages")
@@ -1946,31 +1951,59 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                             <strong>{message.reply.body || (locale === "ru" ? "Медиафайл" : "Media")}</strong>
                           </button>
                         )}
-                        {message.media?.url ? (
+                        {message.media?.kind === "video" && message.media.url ? (
                           <>
-                            <img
-                              className={
-                                message.media.kind === "gif"
-                                  ? "message-media message-gif"
-                                  : message.media.kind === "photo"
-                                    ? "message-media message-photo"
-                                    : "message-media message-sticker"
-                              }
+                            <video
+                              className="message-media message-video"
                               src={message.media.url}
-                              alt={message.media.kind === "gif"
-                                ? "GIF"
-                                : message.media.kind === "photo"
-                                  ? (locale === "ru" ? "Фото" : "Photo")
-                                  : (locale === "ru" ? "Стикер" : "Sticker")}
-                              loading="lazy"
+                              controls
+                              playsInline
+                              preload="metadata"
+                              onLoadedMetadata={(event) => {
+                                const startAt = message.media?.trimStart ?? 0;
+                                if (startAt > 0) event.currentTarget.currentTime = startAt;
+                              }}
+                              onTimeUpdate={(event) => {
+                                const endAt = message.media?.trimEnd ?? 0;
+                                if (endAt > 0 && event.currentTarget.currentTime >= endAt) {
+                                  event.currentTarget.pause();
+                                  event.currentTarget.currentTime = endAt;
+                                }
+                              }}
                             />
+                            {message.body && <p className="message-media-caption">{message.body}</p>}
+                          </>
+                        ) : message.media?.url ? (
+                          <>
+                            {message.media.kind === "photo" ? (
+                              <button
+                                type="button"
+                                className="message-media-open"
+                                onClick={() => setMediaViewer({ kind: "photo", url: message.media!.url!, caption: message.body })}
+                                aria-label={locale === "ru" ? "Открыть фото на весь экран" : "Open photo fullscreen"}
+                              >
+                                <img className="message-media message-photo" src={message.media.url} alt={locale === "ru" ? "Фото" : "Photo"} loading="lazy" />
+                                <span>{locale === "ru" ? "Открыть фото" : "Open photo"}</span>
+                              </button>
+                            ) : (
+                              <img
+                                className={message.media.kind === "gif" ? "message-media message-gif" : "message-media message-sticker"}
+                                src={message.media.url}
+                                alt={message.media.kind === "gif" ? "GIF" : (locale === "ru" ? "Стикер" : "Sticker")}
+                                loading="lazy"
+                              />
+                            )}
                             {message.media.kind === "photo" && message.body && <p className="message-media-caption">{message.body}</p>}
                           </>
+                        ) : message.media?.emoji ? (
+                          <div className={"message-built-in-media " + message.media.kind + " motion-" + (message.media.animation ?? "pop")} role="img" aria-label={message.media.kind === "gif" ? "GIF" : (locale === "ru" ? "Стикер" : "Sticker")}>
+                            {message.media.emoji}
+                          </div>
                         ) : message.body ? <p>{message.body}</p> : null}
                         <div className="message-meta">
                           <span>{formatMessageTime(message.created_at)} {mine && <CheckCheck size={13} />} {message.edited_at && <small className="message-edited-label">{locale === "ru" ? "изменено" : "edited"}</small>}</span>
                           <button type="button" className="message-action-button" onClick={() => { setEditTarget(null); setReplyTarget(message); }} aria-label={locale === "ru" ? "Ответить" : "Reply"} title={locale === "ru" ? "Ответить" : "Reply"}><MessageSquareReply size={13} /></button>
-                          {mine && (!message.media || message.media.kind === "photo") && <button type="button" className="message-action-button" onClick={() => { setReplyTarget(null); setEditTarget(message); setDraft(message.body); setPhotoDraft(null); setPhotoCaption(""); }} aria-label={locale === "ru" ? "Редактировать" : "Edit"} title={locale === "ru" ? "Редактировать" : "Edit"}><PencilLine size={13} /></button>}
+                          {mine && (!message.media || message.media.kind === "photo" || message.media.kind === "video") && <button type="button" className="message-action-button" onClick={() => { setReplyTarget(null); setEditTarget(message); setDraft(message.body); setPhotoDraft(null); setPhotoCaption(""); }} aria-label={locale === "ru" ? "Редактировать" : "Edit"} title={locale === "ru" ? "Редактировать" : "Edit"}><PencilLine size={13} /></button>}
                           <button
                             type="button"
                             className={"message-action-button " + (pinnedMessages.some((item) => item.id === message.id) ? "is-pinned" : "")}
@@ -2136,7 +2169,9 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
               <div className="profile-view-cover" aria-hidden="true" />
               {profileLoading ? <p className="profile-view-loading">{t(locale, "appLoading")}</p> : viewedProfile ? <>
                 <div className="profile-view-hero">
-                  <Avatar label={viewedProfile.display_name || viewedProfile.username} className="profile-view-avatar" src={viewedProfile.avatar_url} crown={Boolean(crownMap[viewedProfile.id])} />
+                  <button type="button" className="profile-view-avatar-button" onClick={() => viewedProfile.avatar_url && setMediaViewer({ kind: "photo", url: viewedProfile.avatar_url })} disabled={!viewedProfile.avatar_url} aria-label={locale === "ru" ? "Увеличить фото профиля" : "Enlarge profile photo"}>
+                    <Avatar label={viewedProfile.display_name || viewedProfile.username} className="profile-view-avatar" src={viewedProfile.avatar_url} crown={Boolean(crownMap[viewedProfile.id])} />
+                  </button>
                   <h2 id="profile-view-title">
                     <span className="profile-display-name">{viewedProfile.display_name || viewedProfile.username}</span>
                     <PurpleCrownNameMark active={Boolean(crownMap[viewedProfile.id])} />
