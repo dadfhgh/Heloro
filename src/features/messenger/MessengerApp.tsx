@@ -12,6 +12,10 @@ import {
   Menu,
   Megaphone,
   MessageCircle,
+  MessageSquareReply,
+  Pin,
+  PinOff,
+  ChevronDown,
   MoreVertical,
   UserRound,
   Users,
@@ -30,6 +34,9 @@ import {
   deleteDirectMessage,
   getInbox,
   getMessages,
+  getPinnedMessages,
+  getDirectMessageById,
+  setDirectMessagePinned,
   getPublicProfile,
   listPublicProfiles,
   searchProfiles,
@@ -97,17 +104,10 @@ function PurpleCrownNameMark({ active }: { active: boolean }) {
 
 function VerificationMark({ type, title }: { type?: BadgeType | null; title: string }) {
   if (!type) return null;
-  if (type === "epic_sans") {
-    return <BadgeCheck size={14} className="epic-sans-verified-mark" aria-label="Epic Sans" role="img" />;
-  }
-  if (type === "creator") {
-    const creatorTitle = title === "Verified by HELORO" ? "Verified HELORO creator" : "Проверенный автор HELORO";
-    return <BadgeCheck size={14} className="creator-verified-mark" aria-label={creatorTitle} role="img" />;
-  }
-  const label = type === "blue" ? "blue" : "gold";
+  const accessibleTitle = type === "epic_sans" ? "Epic Sans" : type === "creator" ? (title === "Verified by HELORO" ? "Verified HELORO creator" : "Проверенный автор HELORO") : title;
   return (
-    <span className={`verification-mark verification-${label}`} title={title} aria-label={title}>
-      <BadgeCheck size={14} strokeWidth={2.8} />
+    <span className={"heloro-verification-mark heloro-verification-" + type} title={accessibleTitle} aria-label={accessibleTitle} role="img">
+      <BadgeCheck size={15} strokeWidth={2.8} />
     </span>
   );
 }
@@ -146,6 +146,9 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const [systemView, setSystemView] = useState<SystemView | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState("");
+  const [replyTarget, setReplyTarget] = useState<Message | null>(null);
+  const [pinnedMessages, setPinnedMessages] = useState<Message[]>([]);
+  const [showPinnedList, setShowPinnedList] = useState(false);
   const [onlineMap, setOnlineMap] = useState<Record<string, boolean>>({});
   const [lastSeenMap, setLastSeenMap] = useState<Record<string, string>>({});
   const [isTyping, setIsTyping] = useState(false);
@@ -205,6 +208,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const gifInputRef = useRef<HTMLInputElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const typingChannelRef = useRef<RealtimeChannel | null>(null);
   const typingChannelReadyRef = useRef(false);
   const typingTimeoutRef = useRef<number | null>(null);
@@ -221,6 +225,22 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
     () => [...new Set(inbox.map((item) => item.other_user_id))].sort().join(","),
     [inbox],
   );
+
+  useEffect(() => {
+    let active = true;
+    setReplyTarget(null);
+    setPinnedMessages([]);
+    setShowPinnedList(false);
+    if (!activeId) return () => { active = false; };
+    void getPinnedMessages(activeId)
+      .then((items) => { if (active) setPinnedMessages(items); })
+      .catch((cause) => {
+        if (active && !(cause instanceof Error && /pinned_messages|does not exist/i.test(cause.message))) {
+          console.warn("HELORO pinned messages are unavailable:", cause);
+        }
+      });
+    return () => { active = false; };
+  }, [activeId]);
 
   useEffect(() => {
     let active = true;
@@ -268,12 +288,14 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
     })();
 
     touchActivity();
-    const heartbeat = window.setInterval(touchActivity, 60000);
+    const heartbeat = window.setInterval(touchActivity, 30000);
     document.addEventListener("visibilitychange", touchActivity);
+    window.addEventListener("focus", touchActivity);
     return () => {
       active = false;
       window.clearInterval(heartbeat);
       document.removeEventListener("visibilitychange", touchActivity);
+      window.removeEventListener("focus", touchActivity);
       channels.forEach((channel) => { void client.removeChannel(channel); });
     };
   }, [client, user.id, presenceContactKey]);
@@ -658,6 +680,43 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
     }, 2400);
   }
 
+  async function jumpToMessage(messageId: string) {
+    let element = messageRefs.current[messageId] ?? document.getElementById("message-" + messageId);
+    if (!element && activeId) {
+      try {
+        const original = await getDirectMessageById(activeId, messageId);
+        if (original) {
+          setMessages((current) => current.some((item) => item.id === original.id) ? current : [...current, original].sort((left, right) => left.created_at.localeCompare(right.created_at)));
+          window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+            const loaded = messageRefs.current[messageId] ?? document.getElementById("message-" + messageId);
+            loaded?.scrollIntoView({ behavior: "smooth", block: "center" });
+            loaded?.classList.add("message-jump-highlight");
+            window.setTimeout(() => loaded?.classList.remove("message-jump-highlight"), 1200);
+          }));
+        }
+      } catch (cause) { console.warn("HELORO could not load the original message:", cause); }
+      return;
+    }
+    element?.scrollIntoView({ behavior: "smooth", block: "center" });
+    element?.classList.add("message-jump-highlight");
+    window.setTimeout(() => element?.classList.remove("message-jump-highlight"), 1200);
+  }
+
+  async function togglePinnedMessage(message: Message) {
+    if (!activeId) return;
+    const currentlyPinned = pinnedMessages.some((item) => item.id === message.id);
+    try {
+      await setDirectMessagePinned(activeId, message.id, user.id, !currentlyPinned);
+      setPinnedMessages(await getPinnedMessages(activeId));
+      setError("");
+    } catch (cause) {
+      const messageText = cause instanceof Error ? cause.message : "";
+      setError(/pinned_messages|does not exist|schema cache/i.test(messageText)
+        ? (locale === "ru" ? "Закрепы появятся после обновления базы HELORO. Миграция подготовлена, но ещё не применена." : "Pins will be available after the HELORO database migration is applied.")
+        : (cause instanceof Error ? cause.message : (locale === "ru" ? "Не удалось изменить закреп." : "Could not update pin.")));
+    }
+  }
+
   async function handleSend(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (typingChannelRef.current && typingChannelReadyRef.current) sendTypingIndicator(typingChannelRef.current, user.id, false);
@@ -670,8 +729,14 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
     const currentDraft = parsed.data;
     setDraft("");
     try {
-      const saved = await sendMessage(activeId, user.id, currentDraft);
-      setMessages((current) => current.some((item) => item.id === saved.id) ? current : [...current, saved]);
+      const selectedReply = replyTarget;
+      const saved = await sendMessage(activeId, user.id, currentDraft, selectedReply?.id ?? null);
+      const withReply: Message = {
+        ...saved,
+        reply: selectedReply ? { id: selectedReply.id, sender_id: selectedReply.sender_id, body: selectedReply.body || (selectedReply.media ? "Медиафайл" : ""), created_at: selectedReply.created_at } : null,
+      };
+      setMessages((current) => current.some((item) => item.id === saved.id) ? current : [...current, withReply]);
+      setReplyTarget(null);
       await refreshInbox();
     } catch (cause) {
       setDraft(currentDraft);
@@ -1431,10 +1496,10 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                   <ArrowLeft size={20} />
                 </button>
                 <button type="button" className="chat-profile-trigger" onClick={() => void openUserProfile(activeConversation.other_user_id)} aria-label={t(locale, "profileViewTitle")}>
-                  <Avatar label={activeConversation.display_name || activeConversation.username} className="chat-header-avatar" src={activeConversation.avatar_url} crown={Boolean(crownMap[activeConversation.other_user_id])} />
+                  <Avatar label={activeConversation.display_name || activeConversation.username} className={"chat-header-avatar " + (onlineMap[activeConversation.other_user_id] ? "presence-online-avatar" : "")} src={activeConversation.avatar_url} crown={Boolean(crownMap[activeConversation.other_user_id])} />
                   <span className="chat-person">
                     <strong><span className="chat-display-name">{activeConversation.display_name || activeConversation.username}</span><PurpleCrownNameMark active={Boolean(crownMap[activeConversation.other_user_id])} /><VerificationMark type={badgeMap[activeConversation.other_user_id]} title={locale === "ru" ? "Аккаунт подтверждён HELORO" : "Verified by HELORO"} /></strong>
-                    <small className={`chat-presence-status ${onlineMap[activeConversation.other_user_id] ? "is-online" : ""}`}>{isTyping ? (locale === "ru" ? "печатает…" : "typing…") : onlineMap[activeConversation.other_user_id] ? (locale === "ru" ? "в сети" : "online") : formatLastSeen(lastSeenMap[activeConversation.other_user_id] ?? null, locale, !lastSeenMap[activeConversation.other_user_id])}</small>
+                    <small aria-live="polite" className={"chat-presence-status " + (onlineMap[activeConversation.other_user_id] ? "is-online " : "") + (isTyping ? "is-typing" : "")}>{isTyping ? (locale === "ru" ? "печатает…" : "typing…") : onlineMap[activeConversation.other_user_id] ? (locale === "ru" ? "в сети" : "online") : formatLastSeen(lastSeenMap[activeConversation.other_user_id] ?? null, locale, !lastSeenMap[activeConversation.other_user_id])}</small>
                   </span>
                 </button>
                 <div className="chat-header-actions">
@@ -1497,6 +1562,26 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                 </div>
               </header>
               <div className="message-stream">
+                {pinnedMessages.length > 0 && (
+                  <div className="pinned-messages-panel">
+                    <button type="button" className="pinned-messages-toggle" onClick={() => setShowPinnedList((value) => !value)} aria-expanded={showPinnedList}>
+                      <Pin size={15} />
+                      <span><strong>{locale === "ru" ? "Закреплённые сообщения" : "Pinned messages"}</strong><small>{pinnedMessages.length}</small></span>
+                      <ChevronDown size={16} className={showPinnedList ? "is-expanded" : ""} />
+                    </button>
+                    {showPinnedList && (
+                      <div className="pinned-messages-list">
+                        {pinnedMessages.map((item) => (
+                          <button type="button" key={item.id} onClick={() => { void jumpToMessage(item.id); setShowPinnedList(false); }}>
+                            <span>{item.sender_id === user.id ? (locale === "ru" ? "Вы" : "You") : (locale === "ru" ? "Собеседник" : "Contact")}</span>
+                            <strong>{item.body || (item.media ? (locale === "ru" ? "Медиафайл" : "Media") : (locale === "ru" ? "Сообщение" : "Message"))}</strong>
+                            <time>{formatMessageTime(item.created_at)}</time>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
                 {loadingMessages ? (
                   <div className="message-loading">{t(locale, "chatLoading")}</div>
                 ) : messages.length === 0 ? (
@@ -1512,8 +1597,18 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                   return (
                     <Fragment key={message.id}>
                       {showDay && <div className="chat-date-pill">{formatMessageDayLabel(message.created_at, locale)}</div>}
-                      <div className={`message-row ${mine ? "mine" : "theirs"}`}>
+                      <div
+                        id={"message-" + message.id}
+                        ref={(element) => { messageRefs.current[message.id] = element; }}
+                        className={"message-row " + (mine ? "mine" : "theirs")}
+                      >
                       <div className="message-bubble">
+                        {message.reply && (
+                          <button type="button" className="message-reply-quote" onClick={() => void jumpToMessage(message.reply!.id)}>
+                            <span>{message.reply.sender_id === user.id ? (locale === "ru" ? "Вы ответили себе" : "You replied to yourself") : (locale === "ru" ? "Ответ на сообщение" : "Reply to message")}</span>
+                            <strong>{message.reply.body || (locale === "ru" ? "Медиафайл" : "Media")}</strong>
+                          </button>
+                        )}
                         {message.media?.url ? (
                           <img
                             className={message.media.kind === "gif" ? "message-media message-gif" : "message-media message-sticker"}
@@ -1524,6 +1619,10 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                         ) : message.body ? <p>{message.body}</p> : null}
                         <div className="message-meta">
                           <span>{formatMessageTime(message.created_at)} {mine && <CheckCheck size={13} />}</span>
+                          <button type="button" className="message-action-button" onClick={() => setReplyTarget(message)} aria-label={locale === "ru" ? "Ответить" : "Reply"} title={locale === "ru" ? "Ответить" : "Reply"}><MessageSquareReply size={13} /></button>
+                          <button type="button" className={"message-action-button " + (pinnedMessages.some((item) => item.id === message.id) ? "is-pinned" : "")} onClick={() => void togglePinnedMessage(message)} aria-label={pinnedMessages.some((item) => item.id === message.id) ? (locale === "ru" ? "Открепить" : "Unpin") : (locale === "ru" ? "Закрепить" : "Pin")} title={pinnedMessages.some((item) => item.id === message.id) ? (locale === "ru" ? "Открепить" : "Unpin") : (locale === "ru" ? "Закрепить" : "Pin")}>
+                            {pinnedMessages.some((item) => item.id === message.id) ? <PinOff size={13} /> : <Pin size={13} />}
+                          </button>
                           <button type="button" className="message-delete-button" onClick={() => void removeDirectMessage(message)} aria-label={t(locale, "messageDelete")} title={t(locale, "messageDelete")}><Trash2 size={13} /></button>
                           {!mine && <button type="button" className="message-delete-button" onClick={() => { setReportMessageTargetId(message.id); setReportReason("other"); setReportDetails(""); setShowReport(true); }} aria-label={locale === "ru" ? "Пожаловаться на сообщение" : "Report message"} title={locale === "ru" ? "Пожаловаться на сообщение" : "Report message"}><Flag size={13} /></button>}
                         </div>
@@ -1535,6 +1634,13 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                 <div ref={messagesEndRef} />
               </div>
               {error && <div className="inline-error" role="alert">{error}<button onClick={() => setError("")} aria-label={t(locale, "dismiss")}><X size={14} /></button></div>}
+              {replyTarget && (
+                <div className="reply-composer-preview">
+                  <MessageSquareReply size={16} />
+                  <span><strong>{locale === "ru" ? "Ответ на сообщение" : "Replying to message"}</strong><small>{replyTarget.body || (replyTarget.media ? (locale === "ru" ? "Медиафайл" : "Media") : (locale === "ru" ? "Сообщение" : "Message"))}</small></span>
+                  <button type="button" onClick={() => setReplyTarget(null)} aria-label={locale === "ru" ? "Отменить ответ" : "Cancel reply"}><X size={16} /></button>
+                </div>
+              )}
               <form className="composer" onSubmit={handleSend}>
                 <button type="button" className="icon-button composer-media-button" onClick={() => stickerInputRef.current?.click()} disabled={mediaSending} aria-label={locale === "ru" ? "Отправить стикер" : "Send sticker"} title={locale === "ru" ? "Стикер из файла" : "Sticker from file"}>
                   <SmilePlus size={19} />
