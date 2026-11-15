@@ -173,7 +173,7 @@ export async function runAgentTask(task: AgentTask, provider: AgentProvider): Pr
   }
 }
 
-export async function runAgentBatch(tasks: readonly AgentTask[], provider: AgentProvider, maxConcurrency = 2): Promise<AgentResult[]> {
+export async function runAgentBatch(tasks: readonly AgentTask[], provider: AgentProvider, maxConcurrency = 1): Promise<AgentResult[]> {
   if (!Number.isInteger(maxConcurrency) || maxConcurrency < 1 || maxConcurrency > 10) {
     throw new Error("maxConcurrency must be an integer between 1 and 10.");
   }
