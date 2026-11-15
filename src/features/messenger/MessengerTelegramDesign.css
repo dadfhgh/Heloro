@@ -3314,3 +3314,198 @@ html[data-theme="dark"] .video-trim-control label strong { color: #d4e4ee; }
   .media-viewer-zoom-tools { top: max(12px, env(safe-area-inset-top)); left: 12px; transform: none; }
   .video-editor-preview { max-height: 150px; }
 }
+
+
+/* Mobile modal reliability: keep profile content independently scrollable. */
+.profile-view-overlay {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 1200 !important;
+  display: flex !important;
+  align-items: stretch !important;
+  justify-content: stretch !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  overscroll-behavior: none;
+  touch-action: pan-y;
+}
+.profile-view-card {
+  position: relative;
+  display: flex !important;
+  flex: 1 1 auto;
+  flex-direction: column !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  max-width: none !important;
+  max-height: none !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+.profile-view-topbar {
+  position: relative;
+  z-index: 3;
+  flex: 0 0 auto !important;
+}
+.profile-view-content {
+  display: flex !important;
+  flex: 1 1 0 !important;
+  flex-direction: column !important;
+  min-width: 0;
+  min-height: 0 !important;
+  height: 0;
+  max-height: 100%;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  scrollbar-gutter: stable;
+}
+.profile-view-hero,
+.profile-info-section,
+.profile-edit-section { flex: 0 0 auto; }
+.profile-info-section { padding-bottom: max(28px, env(safe-area-inset-bottom)); }
+
+/* All photo/video layers live outside the app shell, so transformed ancestors cannot clip them. */
+.media-viewer-overlay { z-index: 2200 !important; }
+.media-viewer-scroll {
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: auto;
+  padding: 56px 10px 92px;
+  box-sizing: border-box;
+}
+.media-viewer-image {
+  max-width: 100%;
+  max-height: calc(100dvh - 170px);
+  object-fit: contain;
+}
+.media-viewer-zoom-tools {
+  top: auto !important;
+  bottom: calc(18px + env(safe-area-inset-bottom)) !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+}
+.media-viewer-close { z-index: 4; }
+
+.heloro-sheet-backdrop,
+.media-editor-backdrop {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 1600;
+  padding: 0;
+  background: rgba(7, 17, 25, .38);
+  overscroll-behavior: contain;
+}
+.heloro-attachment-menu {
+  position: relative !important;
+  right: auto !important;
+  bottom: auto !important;
+  display: flex !important;
+  flex-direction: column;
+  width: 100% !important;
+  max-width: 620px;
+  gap: 12px !important;
+  padding: 12px 18px calc(20px + env(safe-area-inset-bottom)) !important;
+  border: 1px solid #dce6ed;
+  border-radius: 22px 22px 0 0 !important;
+  color: #253b4d;
+  background: #fff;
+  box-shadow: 0 -12px 38px rgba(22,52,75,.18);
+}
+.heloro-sheet-handle {
+  display: block;
+  width: 38px;
+  height: 4px;
+  margin: 0 auto 2px;
+  border-radius: 999px;
+  background: #c8d3dc;
+}
+.heloro-sheet-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #233e52;
+  font-size: 16px;
+}
+.heloro-sheet-heading button {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  color: #657b8b;
+  background: #f0f4f7;
+}
+.heloro-attachment-options { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
+.heloro-attachment-options > button {
+  display: flex;
+  min-width: 0;
+  min-height: 74px;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #dce8f0;
+  border-radius: 14px;
+  color: #294a61;
+  background: #f7fbfe;
+  text-align: left;
+}
+.heloro-attachment-options > button > span:last-child { display: grid; min-width: 0; gap: 4px; }
+.heloro-attachment-options strong { font-size: 13px; }
+.heloro-attachment-options small { color: #7e91a0; font-size: 10px; }
+.heloro-attachment-icon {
+  display: grid;
+  width: 43px;
+  height: 43px;
+  flex: 0 0 43px;
+  place-items: center;
+  border-radius: 12px;
+  color: #2285c8;
+  background: #e5f3fc;
+}
+.heloro-sheet-hint { margin: 0; color: #8293a0; font-size: 11px; text-align: center; }
+html[data-theme="dark"] .heloro-attachment-menu { border-color: #354a59; color: #e5f0f7; background: #1d2c37; }
+html[data-theme="dark"] .heloro-sheet-heading { color: #e5f0f7; }
+html[data-theme="dark"] .heloro-sheet-heading button { color: #c0d4e1; background: #293c49; }
+html[data-theme="dark"] .heloro-sheet-handle { background: #526777; }
+html[data-theme="dark"] .heloro-attachment-options > button { border-color: #354e60; color: #d2e5f1; background: #223846; }
+html[data-theme="dark"] .heloro-attachment-options small,
+html[data-theme="dark"] .heloro-sheet-hint { color: #9db3c2; }
+html[data-theme="dark"] .heloro-attachment-icon { color: #a4dafa; background: #254a62; }
+
+.media-editor-backdrop { z-index: 1750; }
+.media-editor-sheet {
+  width: 100%;
+  max-width: 760px;
+  max-height: min(82dvh, 760px);
+  margin: 0;
+  padding: 16px 18px calc(18px + env(safe-area-inset-bottom));
+  border: 1px solid #dce6ed;
+  border-radius: 22px 22px 0 0;
+  background: #fff;
+  box-shadow: 0 -14px 40px rgba(12,31,46,.23);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.media-editor-sheet .photo-composer-image-wrap { max-height: min(35dvh, 300px); }
+.media-editor-sheet .photo-composer-image-wrap img { max-height: min(32dvh, 270px); }
+.media-editor-sheet .video-editor-preview { max-height: min(34dvh, 280px); }
+html[data-theme="dark"] .media-editor-sheet { border-color: #354b5b; background: #1d2c37; }
+@media (max-width: 760px) {
+  .profile-view-content { width: 100% !important; padding: 14px 15px max(30px, env(safe-area-inset-bottom)) !important; }
+  .profile-view-hero { margin: 10px 0 22px !important; }
+  .profile-view-avatar { width: 112px !important; height: 112px !important; flex-basis: 112px !important; }
+  .media-viewer-scroll { padding: 64px 5px 100px; }
+  .media-viewer-image { max-height: calc(100dvh - 180px); }
+  .heloro-attachment-menu { padding-left: 14px !important; padding-right: 14px !important; }
+  .media-editor-sheet { padding-left: 14px; padding-right: 14px; }
+}
