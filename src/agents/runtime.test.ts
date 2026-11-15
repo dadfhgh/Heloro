@@ -61,3 +61,43 @@ describe("agent execution", () => {
     );
   });
 });
+
+describe("local Ollama provider", () => {
+  it("uses the local OpenAI-compatible endpoint without sending an API key", async () => {
+    const fetchImpl = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
+      new Response(JSON.stringify({ choices: [{ message: { content: "local response" } }] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    const { createOllamaProvider } = await import("./runtime");
+    const provider = createOllamaProvider({ fetchImpl });
+    const result = await provider.complete({ systemPrompt: "specialist", userPrompt: "task" });
+
+    expect(result).toBe("local response");
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchImpl.mock.calls[0];
+    expect(url).toBe("http://127.0.0.1:11434/v1/chat/completions");
+    expect((init?.headers as Record<string, string>).Authorization).toBeUndefined();
+    expect(init?.signal).toBeInstanceOf(AbortSignal);
+    const body = JSON.parse(String(init?.body)) as { model: string; messages: Array<{ content: string }> };
+    expect(body.model).toBe("qwen2.5-coder:3b");
+    expect(body.messages.map((message) => message.content)).toEqual(["specialist", "task"]);
+  });
+
+  it("refuses remote hosts so local prompts are not sent to another service", async () => {
+    const { createOllamaProvider } = await import("./runtime");
+    expect(() => createOllamaProvider({ baseUrl: "https://example.com/v1" })).toThrow(
+      "Ollama provider only accepts localhost URLs to keep prompts on this device.",
+    );
+  });
+
+  it("reports local server failures without exposing request contents", async () => {
+    const fetchImpl = vi.fn(async () => new Response("unavailable", { status: 503 }));
+    const { createOllamaProvider } = await import("./runtime");
+    const provider = createOllamaProvider({ fetchImpl });
+    await expect(provider.complete({ systemPrompt: "secret prompt", userPrompt: "private task" })).rejects.toThrow(
+      "Agent provider returned HTTP 503.",
+    );
+  });
+});
