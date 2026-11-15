@@ -7,12 +7,16 @@ on:
       - "supabase/migrations/*bot_lua_studio.sql"
       - ".github/workflows/lua-bot-studio.yml"
 
+permissions:
+  contents: read
+
 jobs:
   deno:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: denoland/setup-deno@v2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
         with:
           deno-version: v2.x
       - name: Type-check Edge Function

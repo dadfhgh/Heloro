@@ -27,40 +27,43 @@ begin
   limit 1;
 
   if owner_id is null then
-    raise exception 'HELORO owner account is required to seed the News discussion group';
-  end if;
-
-  select id into discussion_id
-  from public.community_rooms
-  where username = 'heloro_news_discussion'
-  limit 1;
-
-  if discussion_id is null then
-    insert into public.community_rooms(kind, name, username, description, created_by, is_public)
-    values (
-      'group',
-      'News Discussion',
-      'heloro_news_discussion',
-      'Обсуждение публикаций официального канала HELORO News / Discuss official HELORO News posts',
-      owner_id,
-      false
-    )
-    returning id into discussion_id;
+    -- Fresh local/test installations may not have an owner until Auth provisioning.
+    -- Keep migrations replayable; the News discussion group is provisioned when
+    -- an owner exists, without creating a synthetic privileged account.
+    raise notice 'Skipping News discussion group seed: HELORO owner account is not provisioned yet.';
   else
-    update public.community_rooms
-    set name = 'News Discussion',
-        description = 'Обсуждение публикаций официального канала HELORO News / Discuss official HELORO News posts',
-        updated_at = now()
-    where id = discussion_id and kind = 'group';
+    select id into discussion_id
+    from public.community_rooms
+    where username = 'heloro_news_discussion'
+    limit 1;
+
+    if discussion_id is null then
+      insert into public.community_rooms(kind, name, username, description, created_by, is_public)
+      values (
+        'group',
+        'News Discussion',
+        'heloro_news_discussion',
+        'Обсуждение публикаций официального канала HELORO News / Discuss official HELORO News posts',
+        owner_id,
+        false
+      )
+      returning id into discussion_id;
+    else
+      update public.community_rooms
+      set name = 'News Discussion',
+          description = 'Обсуждение публикаций официального канала HELORO News / Discuss official HELORO News posts',
+          updated_at = now()
+      where id = discussion_id and kind = 'group';
+    end if;
+
+    insert into public.community_room_members(room_id, user_id, role)
+    values (discussion_id, owner_id, 'owner')
+    on conflict (room_id, user_id) do update set role = 'owner';
+
+    update public.heloro_channels
+    set discussion_room_id = discussion_id
+    where slug = 'heloro-new';
   end if;
-
-  insert into public.community_room_members(room_id, user_id, role)
-  values (discussion_id, owner_id, 'owner')
-  on conflict (room_id, user_id) do update set role = 'owner';
-
-  update public.heloro_channels
-  set discussion_room_id = discussion_id
-  where slug = 'heloro-new';
 end;
 $$;
 

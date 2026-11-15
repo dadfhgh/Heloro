@@ -4,25 +4,51 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main, feat/heloro-lua-bot-studio, feat/heloro-delete-communities-messages, feat/heloro-admin-permissions, feat/heloro-channel-photo-posts, feat/heloro-presence-chat-dates-avatars]
+    branches:
+      - main
+      - feat/heloro-lua-bot-studio
+      - feat/heloro-delete-communities-messages
+      - feat/heloro-admin-permissions
+      - feat/heloro-channel-photo-posts
+      - feat/heloro-presence-chat-dates-avatars
 
 permissions:
   contents: read
 
 jobs:
   validate:
-    name: Typecheck, tests and production build
+    name: Typecheck, tests, dependency audit and production build
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 22
-      - name: Install dependencies
-        run: npm install --no-audit --no-fund
+
+      - name: Pin npm CLI
+        run: |
+          npm install --global npm@11.21.2
+          npm --version
+
+      - name: Require committed npm lockfile
+        run: |
+          if [ ! -s package-lock.json ]; then
+            echo "::error::package-lock.json is required for reproducible builds."
+            exit 1
+          fi
+
+      - name: Install exact locked dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Audit direct and transitive npm dependencies
+        run: npm audit --audit-level=moderate
+
       - name: Run unit tests
         run: npm test
+
       - name: Build production bundle
         run: npm run build
