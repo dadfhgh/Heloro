@@ -42,7 +42,7 @@ create index if not exists early_access_grants_granted_at_idx
 alter table public.early_access_grants enable row level security;
 
 -- No direct client table access. All reads/writes go through narrowly scoped RPCs.
-revoke all on table public.early_access_grants from anon, authenticated;
+revoke all on table public.early_access_grants from public, anon, authenticated;
 
 create or replace function public.heloro_admin_list_early_access()
 returns table (
