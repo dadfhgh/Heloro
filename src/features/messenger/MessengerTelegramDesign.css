@@ -3618,3 +3618,58 @@ html[data-theme="dark"] .media-editor-sheet { border-color: #354b5b; background:
     bottom: calc(60px + env(safe-area-inset-bottom));
   }
 }
+
+
+/* FINAL FIX: the profile must cover the complete Android WebView viewport. */
+.profile-view-overlay {
+  position: fixed !important;
+  inset: 0 0 0 0 !important;
+  width: 100vw !important;
+  min-width: 100vw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  min-height: 100svh !important;
+  max-height: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  display: flex !important;
+  align-items: stretch !important;
+  justify-content: stretch !important;
+  overflow: hidden !important;
+  background: #f1f5f8 !important;
+  opacity: 1 !important;
+  transform: none !important;
+  z-index: 2147483000 !important;
+}
+.profile-view-overlay > .profile-view-card {
+  position: relative !important;
+  inset: auto !important;
+  display: flex !important;
+  flex: 1 1 100% !important;
+  width: 100vw !important;
+  min-width: 100vw !important;
+  max-width: 100vw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  min-height: 100svh !important;
+  max-height: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  overflow: hidden !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+.profile-view-overlay > .profile-view-card > .profile-view-topbar {
+  flex: 0 0 auto !important;
+}
+.profile-view-overlay > .profile-view-card > .profile-view-content {
+  flex: 1 1 0 !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}
