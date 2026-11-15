@@ -165,10 +165,14 @@ export default function CommunityHub({ client, user, locale, roles = [], contact
     const extended = await client.from("community_room_messages")
       .select("id, room_id, sender_id, body, created_at, reply_to, edited_at")
       .eq("room_id", roomId).order("created_at", { ascending: true }).limit(100);
-    const rows = extended.error
-      ? await client.from("community_room_messages").select("id, room_id, sender_id, body, created_at")
+    const withReplies = extended.error
+      ? await client.from("community_room_messages").select("id, room_id, sender_id, body, created_at, reply_to")
         .eq("room_id", roomId).order("created_at", { ascending: true }).limit(100)
       : extended;
+    const rows = withReplies.error
+      ? await client.from("community_room_messages").select("id, room_id, sender_id, body, created_at")
+        .eq("room_id", roomId).order("created_at", { ascending: true }).limit(100)
+      : withReplies;
     if (rows.error) throw rows.error;
     const raw = (rows.data ?? []) as RoomMessage[];
     const hydrated = await Promise.all(raw.map((item) => hydrateRoomMessage(client, item)));
@@ -713,7 +717,16 @@ export default function CommunityHub({ client, user, locale, roles = [], contact
         .select(replyTarget ? "id, room_id, sender_id, body, created_at, reply_to, edited_at" : "id, room_id, sender_id, body, created_at").single();
       if (sendError) throw sendError;
       messageCreated = true;
-      const hydrated = await hydrateRoomMessage(client, data as RoomMessage);
+      const hydratedBase = await hydrateRoomMessage(client, data as RoomMessage);
+      const hydrated = {
+        ...hydratedBase,
+        reply: replyTarget ? {
+          id: replyTarget.id,
+          sender_id: replyTarget.sender_id,
+          body: replyTarget.body || (replyTarget.media ? (ru ? "Фотография" : "Photo") : ""),
+          created_at: replyTarget.created_at,
+        } : null,
+      };
       setMessages((current) => current.some((item) => item.id === hydrated.id) ? current : [...current, hydrated]);
       setDraft("");
       setReplyTarget(null);
