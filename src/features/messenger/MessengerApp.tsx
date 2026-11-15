@@ -171,6 +171,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState("");
   const [replyTarget, setReplyTarget] = useState<Message | null>(null);
+  const [editTarget, setEditTarget] = useState<Message | null>(null);
   const [pinnedMessages, setPinnedMessages] = useState<Message[]>([]);
   const [showPinnedList, setShowPinnedList] = useState(false);
   const [pinningMessageIds, setPinningMessageIds] = useState<string[]>([]);
@@ -773,15 +774,48 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
     if (typingChannelRef.current && typingChannelReadyRef.current) sendTypingIndicator(typingChannelRef.current, user.id, false);
     if (typingTimeoutRef.current !== null) window.clearTimeout(typingTimeoutRef.current);
     typingTimeoutRef.current = null;
+    if (!activeId) return;
+    const currentDraft = draft.trim();
+    if (editTarget) {
+      if (!currentDraft && editTarget.media?.kind !== "photo") return;
+      setSending(true);
+      setError("");
+      try {
+        const body = editTarget.media?.path
+          ? `HELORO_MEDIA:${JSON.stringify({ kind: editTarget.media.kind, path: editTarget.media.path, ...(editTarget.media.kind === "photo" ? { caption: currentDraft } : {}) })}`
+          : currentDraft;
+        const editedAt = new Date().toISOString();
+        const { data, error: updateError } = await client.from("messages")
+          .update({ body, edited_at: editedAt })
+          .eq("id", editTarget.id).eq("conversation_id", activeId)
+          .select("id, conversation_id, sender_id, body, created_at, reply_to, edited_at")
+          .maybeSingle();
+        if (updateError) throw updateError;
+        if (!data) throw new Error(locale === "ru" ? "Сообщение не найдено или редактирование запрещено." : "Message not found or editing is not allowed.");
+        const updated: Message = { ...editTarget, body: currentDraft, edited_at: editedAt };
+        setMessages((current) => current.map((item) => item.id === updated.id ? updated : item));
+        setPinnedMessages((current) => current.map((item) => item.id === updated.id ? updated : item));
+        setEditTarget(null);
+        setDraft("");
+        await refreshInbox();
+      } catch (cause) {
+        const detail = cause instanceof Error ? cause.message : "";
+        setDraft(currentDraft);
+        setError(/edited_at|permission|row-level security|not allowed|schema cache/i.test(detail)
+          ? (locale === "ru" ? "Редактирование личных сообщений появится после обновления базы HELORO." : "Direct-message editing requires the HELORO database migration.")
+          : (detail || t(locale, "messageSendFailed")));
+      } finally { setSending(false); }
+      return;
+    }
     const parsed = messageBodySchema.safeParse(draft);
-    if (!parsed.success || !activeId) return;
+    if (!parsed.success) return;
     setSending(true);
     setError("");
-    const currentDraft = parsed.data;
+    const currentMessage = parsed.data;
     setDraft("");
     try {
       const selectedReply = replyTarget;
-      const saved = await sendMessage(activeId, user.id, currentDraft, selectedReply?.id ?? null);
+      const saved = await sendMessage(activeId, user.id, currentMessage, selectedReply?.id ?? null);
       const withReply: Message = {
         ...saved,
         reply: selectedReply ? { id: selectedReply.id, sender_id: selectedReply.sender_id, body: selectedReply.body || (selectedReply.media ? "Медиафайл" : ""), created_at: selectedReply.created_at } : null,
@@ -790,7 +824,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
       setReplyTarget(null);
       await refreshInbox();
     } catch (cause) {
-      setDraft(currentDraft);
+      setDraft(currentMessage);
       setError(cause instanceof Error ? cause.message : t(locale, "messageSendFailed"));
     } finally {
       setSending(false);
@@ -1756,8 +1790,9 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                           </>
                         ) : message.body ? <p>{message.body}</p> : null}
                         <div className="message-meta">
-                          <span>{formatMessageTime(message.created_at)} {mine && <CheckCheck size={13} />}</span>
-                          <button type="button" className="message-action-button" onClick={() => setReplyTarget(message)} aria-label={locale === "ru" ? "Ответить" : "Reply"} title={locale === "ru" ? "Ответить" : "Reply"}><MessageSquareReply size={13} /></button>
+                          <span>{formatMessageTime(message.created_at)} {mine && <CheckCheck size={13} />} {message.edited_at && <small className="message-edited-label">{locale === "ru" ? "изменено" : "edited"}</small>}</span>
+                          <button type="button" className="message-action-button" onClick={() => { setEditTarget(null); setReplyTarget(message); }} aria-label={locale === "ru" ? "Ответить" : "Reply"} title={locale === "ru" ? "Ответить" : "Reply"}><MessageSquareReply size={13} /></button>
+                          {mine && (!message.media || message.media.kind === "photo") && <button type="button" className="message-action-button" onClick={() => { setReplyTarget(null); setEditTarget(message); setDraft(message.body); setPhotoDraft(null); setPhotoCaption(""); }} aria-label={locale === "ru" ? "Редактировать" : "Edit"} title={locale === "ru" ? "Редактировать" : "Edit"}><PencilLine size={13} /></button>}
                           <button
                             type="button"
                             className={"message-action-button " + (pinnedMessages.some((item) => item.id === message.id) ? "is-pinned" : "")}
@@ -1787,6 +1822,13 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                   <button type="button" onClick={() => setReplyTarget(null)} aria-label={locale === "ru" ? "Отменить ответ" : "Cancel reply"}><X size={16} /></button>
                 </div>
               )}
+              {editTarget && (
+                <div className="reply-composer-preview edit-composer-preview">
+                  <PencilLine size={16} />
+                  <span><strong>{locale === "ru" ? "Редактирование сообщения" : "Editing message"}</strong><small>{editTarget.body || (locale === "ru" ? "Фотография" : "Photo")}</small></span>
+                  <button type="button" onClick={() => { setEditTarget(null); setDraft(""); }} aria-label={locale === "ru" ? "Отменить редактирование" : "Cancel editing"}><X size={16} /></button>
+                </div>
+              )}
               {photoDraft && photoPreviewUrl && (
                 <section className="photo-composer-preview" aria-label={locale === "ru" ? "Предпросмотр фото" : "Photo preview"}>
                   <div className="photo-composer-image-wrap">
@@ -1813,7 +1855,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                 </section>
               )}
               <form className="composer" onSubmit={handleSend}>
-                <button type="button" className="icon-button composer-media-button" onClick={() => photoInputRef.current?.click()} disabled={mediaSending} aria-label={locale === "ru" ? "Выбрать фото" : "Choose photo"} title={locale === "ru" ? "Выбрать фото" : "Choose photo"}>
+                <button type="button" className="icon-button composer-media-button" onClick={() => photoInputRef.current?.click()} disabled={mediaSending || Boolean(editTarget)} aria-label={locale === "ru" ? "Выбрать фото" : "Choose photo"} title={locale === "ru" ? "Выбрать фото" : "Choose photo"}>
                   <ImagePlus size={19} />
                 </button>
                 <button type="button" className="icon-button composer-media-button" onClick={() => stickerInputRef.current?.click()} disabled={mediaSending} aria-label={locale === "ru" ? "Отправить стикер" : "Send sticker"} title={locale === "ru" ? "Стикер из файла" : "Sticker from file"}>
@@ -1829,12 +1871,12 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                   value={draft}
                   onChange={(event) => handleDraftChange(event.target.value)}
                   onBlur={() => { if (typingChannelRef.current && typingChannelReadyRef.current) sendTypingIndicator(typingChannelRef.current, user.id, false); if (typingTimeoutRef.current !== null) window.clearTimeout(typingTimeoutRef.current); typingTimeoutRef.current = null; }}
-                  placeholder={mediaSending ? (locale === "ru" ? "Отправка медиа…" : "Sending media…") : t(locale, "messagePlaceholder")}
+                  placeholder={editTarget ? (locale === "ru" ? "Измени сообщение…" : "Edit your message…") : mediaSending ? (locale === "ru" ? "Отправка медиа…" : "Sending media…") : t(locale, "messagePlaceholder")}
                   aria-label={t(locale, "messagePlaceholder")}
                   maxLength={4000}
                 />
-                <button type="submit" disabled={sending || !draft.trim()} aria-label={t(locale, "messageSend")} className="send-button">
-                  {sending ? <span className="button-spinner" /> : <ArrowUp size={20} />}
+                <button type="submit" disabled={sending || (!draft.trim() && editTarget?.media?.kind !== "photo")} aria-label={editTarget ? (locale === "ru" ? "Сохранить" : "Save") : t(locale, "messageSend")} className="send-button">
+                  {sending ? <span className="button-spinner" /> : editTarget ? <Check size={20} /> : <ArrowUp size={20} />}
                 </button>
               </form>
               <div className="chat-footnote"><ShieldCheck size={13} /> {t(locale, "messageSecurityNote")}</div>
