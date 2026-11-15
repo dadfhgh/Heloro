@@ -3,7 +3,7 @@ import type { User } from "@supabase/supabase-js";
 import {
   Activity, BadgeCheck, Ban, Check, CheckCircle2, CircleAlert,
   FileText, Gift, Headphones, LockKeyhole, Megaphone, MessageCircle, RefreshCw,
-  Search, Settings, ShieldCheck, UserRound, Users, X,
+  Search, Settings, ShieldCheck, Sparkles, UserPlus, UserMinus, UserRound, Users, X,
 } from "lucide-react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
@@ -24,10 +24,11 @@ type Props = {
   initialTab?: TabId;
 };
 
-type TabId = "overview" | "users" | "moderation" | "reports" | "support" | "audit" | "settings" | "security" | "verification" | "channels" | "roles" | "groups";
+type TabId = "overview" | "users" | "moderation" | "reports" | "support" | "audit" | "settings" | "security" | "verification" | "channels" | "roles" | "groups" | "early_access";
 type CommunityBadgeType = "blue" | "gold" | "creator";
 type CommunityEntry = { id: string; name: string; username: string | null; kind: "group" | "channel"; created_at: string; created_by: string; member_count: number; badge_type?: CommunityBadgeType | null };
 type AdminUser = PublicProfile & { created_at: string };
+type EarlyAccessEntry = { user_id: string; username: string | null; display_name: string | null; avatar_url: string | null; granted_at: string; granted_by: string };
 type AdminReport = {
   id: string; reporter_id: string; reported_user_id: string | null; reason: string;
   details: string; status: string; created_at: string;
@@ -68,6 +69,7 @@ const tabItems: { id: TabId; ru: string; en: string; icon: typeof Activity }[] =
   { id: "channels", ru: "Каналы", en: "Channels", icon: Megaphone },
   { id: "roles", ru: "Роли", en: "Roles", icon: ShieldCheck },
   { id: "groups", ru: "Группы", en: "Groups", icon: Users },
+  { id: "early_access", ru: "Ранний доступ", en: "Early Access", icon: Sparkles },
 ];
 
 const settingDefinitions = [
@@ -117,6 +119,8 @@ export default function HeloroSPanel({
   const [reportNote, setReportNote] = useState<Record<string, string>>({});
   const [badgeType, setBadgeType] = useState<BadgeType>("blue");
   const [communities, setCommunities] = useState<CommunityEntry[]>([]);
+  const [earlyAccessUsers, setEarlyAccessUsers] = useState<EarlyAccessEntry[]>([]);
+  const [earlyAccessLoading, setEarlyAccessLoading] = useState(false);
   const [communitySearch, setCommunitySearch] = useState("");
   const [communityBadgeDraft, setCommunityBadgeDraft] = useState<Record<string, string>>({});
   const [selectedUserHasFatGift, setSelectedUserHasFatGift] = useState(false);
@@ -189,6 +193,18 @@ export default function HeloroSPanel({
     setStaffEntries((data ?? []) as StaffEntry[]);
   }
 
+  async function loadEarlyAccess() {
+    if (!isOwner) return;
+    setEarlyAccessLoading(true);
+    try {
+      const { data, error: queryError } = await client.rpc("heloro_admin_list_early_access");
+      if (queryError) throw queryError;
+      setEarlyAccessUsers((data ?? []) as EarlyAccessEntry[]);
+    } finally {
+      setEarlyAccessLoading(false);
+    }
+  }
+
   async function loadCommunities() {
     const { data, error: queryError } = await client.rpc("heloro_admin_list_communities");
     if (queryError) throw queryError;
@@ -241,13 +257,14 @@ export default function HeloroSPanel({
         if (tab === "roles") await loadStaff();
         if (tab === "settings") await loadSettings();
         if (tab === "groups") await loadCommunities();
+        if (tab === "early_access" && isOwner) await loadEarlyAccess();
       } catch (cause) {
         if (active) setError(errorText(cause, ru ? "Не удалось загрузить раздел." : "Could not load this section."));
       }
     };
     if (staff) void run();
     return () => { active = false; };
-  }, [client, tab, staff, ru]);
+  }, [client, tab, staff, isOwner, ru]);
 
   useEffect(() => {
     let active = true;
@@ -270,7 +287,7 @@ export default function HeloroSPanel({
   }, [client, isOwner, selectedUser?.id, tab, ru]);
 
   useEffect(() => {
-    if (!["users", "moderation", "verification", "roles"].includes(tab)) return;
+    if (!["users", "moderation", "verification", "roles", "early_access"].includes(tab)) return;
     let active = true;
     const timer = window.setTimeout(() => {
       loadUsers(search).catch((cause: unknown) => {
@@ -502,6 +519,33 @@ export default function HeloroSPanel({
     } finally { setGiftLoading(false); }
   }
 
+  async function updateEarlyAccess(target: AdminUser, enabled: boolean) {
+    if (!isOwner || busy) return;
+    const targetName = target.display_name || target.username || "user";
+    const question = enabled
+      ? (ru ? `Выдать ранний доступ аккаунту ${targetName} (@${target.username})?` : `Grant Early Access to ${targetName} (@${target.username})?`)
+      : (ru ? `Отозвать ранний доступ у ${targetName} (@${target.username})?` : `Revoke Early Access from ${targetName} (@${target.username})?`);
+    if (!window.confirm(question)) return;
+    setBusy(true); clearMessages();
+    try {
+      const { error: rpcError } = await client.rpc("heloro_admin_set_early_access", {
+        p_target_user_id: target.id,
+        p_enabled: enabled,
+      });
+      if (rpcError) throw rpcError;
+      await loadEarlyAccess();
+      await loadAudit();
+      setNotice(enabled
+        ? (ru ? "Ранний доступ выдан." : "Early Access granted.")
+        : (ru ? "Ранний доступ отозван." : "Early Access revoked."));
+    } catch (cause) {
+      const message = errorText(cause, ru ? "Не удалось изменить ранний доступ." : "Could not update Early Access.");
+      setError(message.includes("heloro_admin_set_early_access") || message.includes("heloro_admin_list_early_access")
+        ? (ru ? "Серверная миграция раннего доступа ещё не установлена. Запросите её отдельное применение." : "The Early Access database migration is not installed yet. Request its separate approval and application.")
+        : message);
+    } finally { setBusy(false); }
+  }
+
   async function saveCommunityBadge(target: CommunityEntry) {
     if (!isOwner || busy) return;
     const raw = communityBadgeDraft[target.id] ?? target.badge_type ?? "";
@@ -532,7 +576,7 @@ export default function HeloroSPanel({
 
   function visibleTabs() {
     return tabItems.filter((item) => {
-      if (item.id === "roles" || item.id === "settings") return isOwner;
+      if (item.id === "roles" || item.id === "settings" || item.id === "early_access") return isOwner;
       if (item.id === "verification") return canManageBadges;
       if (item.id === "security") return isOwner || isAdmin;
       if (item.id === "groups") return isOwner || isAdmin;
@@ -719,6 +763,53 @@ export default function HeloroSPanel({
               {communities.length === 0 && <p className="admin-muted">{ru ? "Сообществ нет или серверное обновление ещё не установлено." : "No communities found, or the backend migration is not installed yet."}</p>}
             </div>
             <p className="admin-privacy-note">{ru ? "Выдавать и снимать существующие стандартные отметки сообществам может только Owner. Epic Sans остаётся эксклюзивной отметкой одного пользовательского аккаунта. Удаление сообществ доступно Owner и Admin." : "Only the Owner can grant or revoke existing standard community marks. Epic Sans remains exclusive to one user account. Community deletion is available to Owner and Admin."}</p>
+          </section>
+        )}
+
+        {tab === "early_access" && isOwner && (
+          <section className="admin-section admin-early-access-section">
+            <div className="admin-section-heading">
+              <div><h2>{ru ? "Ранний доступ" : "Early Access"}</h2><p>{ru ? "Выдавайте и отзывайте доступ к предварительным функциям HELORO. Раздел доступен только владельцу." : "Grant or revoke access to HELORO preview features. Owner only."}</p></div>
+              <button className="admin-icon-action" disabled={earlyAccessLoading || busy} onClick={() => void loadEarlyAccess()}><RefreshCw size={15} />{ru ? "Обновить" : "Refresh"}</button>
+            </div>
+            <div className="admin-early-access-note"><ShieldCheck size={17} /><span>{ru ? "Только владелец может управлять участниками. Все выдачи и отзывы записываются в журнал действий." : "Only the Owner can manage access. Every grant and revocation is recorded in the audit log."}</span></div>
+            <div className="admin-early-access-layout">
+              <div className="admin-early-access-search-panel">
+                <h3>{ru ? "Добавить пользователя" : "Add a user"}</h3>
+                <div className="admin-search"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={ru ? "Поиск по имени или @username" : "Search by name or @username"} /><button type="button" onClick={() => setSearch("")} aria-label={ru ? "Очистить" : "Clear"}><X size={14} /></button></div>
+                <div className="admin-user-results admin-early-access-results">
+                  {users.map((item) => {
+                    const alreadyGranted = earlyAccessUsers.some((entry) => entry.user_id === item.id);
+                    return <button key={item.id} type="button" className={"admin-user-row"+(selectedUser?.id === item.id ? " active" : "")} onClick={() => setSelectedUser(item)}>
+                      <span className="admin-user-avatar">{(item.display_name || item.username || "?").slice(0,1).toUpperCase()}</span>
+                      <span className="admin-user-copy"><strong>{item.display_name || item.username || "—"}</strong><small>@{item.username || "—"}</small></span>
+                      <span className={"admin-early-access-state"+(alreadyGranted ? " is-active" : "")}>{alreadyGranted ? (ru ? "Есть доступ" : "Granted") : (ru ? "Без доступа" : "No access")}</span>
+                    </button>;
+                  })}
+                  {users.length === 0 && <p className="admin-muted">{ru ? "Введите минимум 2 символа для поиска пользователя." : "Enter at least 2 characters to search."}</p>}
+                </div>
+                {selectedUser && (
+                  <div className="admin-early-access-selected">
+                    <div><strong>{selectedUser.display_name || selectedUser.username}</strong><small>@{selectedUser.username}</small></div>
+                    {earlyAccessUsers.some((entry) => entry.user_id === selectedUser.id) ? (
+                      <button type="button" className="admin-secondary-action" disabled={busy} onClick={() => void updateEarlyAccess(selectedUser, false)}><UserMinus size={15} />{ru ? "Отозвать доступ" : "Revoke access"}</button>
+                    ) : (
+                      <button type="button" className="admin-primary-action" disabled={busy} onClick={() => void updateEarlyAccess(selectedUser, true)}><UserPlus size={15} />{ru ? "Выдать доступ" : "Grant access"}</button>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="admin-early-access-members">
+                <div className="admin-early-access-members-heading"><h3>{ru ? "Участники раннего доступа" : "Early Access members"}</h3><span>{earlyAccessUsers.length}</span></div>
+                {earlyAccessLoading ? <p className="admin-muted">{ru ? "Загрузка…" : "Loading…"}</p> : earlyAccessUsers.length === 0 ? <p className="admin-muted">{ru ? "Пока никому не выдан ранний доступ." : "No one has Early Access yet."}</p> : earlyAccessUsers.map((entry) => (
+                  <article className="admin-early-access-member" key={entry.user_id}>
+                    <span className="admin-user-avatar">{(entry.display_name || entry.username || "?").slice(0,1).toUpperCase()}</span>
+                    <span><strong>{entry.display_name || entry.username || "—"}</strong><small>@{entry.username || "—"} · {new Date(entry.granted_at).toLocaleDateString()}</small></span>
+                    <button type="button" className="admin-secondary-action" disabled={busy} onClick={() => void updateEarlyAccess({ id: entry.user_id, username: entry.username || "", display_name: entry.display_name || "", avatar_url: entry.avatar_url } as AdminUser, false)} aria-label={ru ? "Отозвать ранний доступ" : "Revoke Early Access"} title={ru ? "Отозвать доступ" : "Revoke access"}><UserMinus size={15} /></button>
+                  </article>
+                ))}
+              </div>
+            </div>
           </section>
         )}
 
