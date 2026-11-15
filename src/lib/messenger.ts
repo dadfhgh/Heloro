@@ -194,22 +194,51 @@ export async function sendMessage(
   conversationId: string,
   senderId: string,
   body: string,
+  replyTo?: string | null,
 ): Promise<Message> {
   const parsed = messageBodySchema.safeParse(body);
-  if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "Invalid message.");
+  if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? 'Invalid message.');
+  const values = { conversation_id: conversationId, sender_id: senderId, body: parsed.data, ...(replyTo ? { reply_to: replyTo } : {}) };
+  const query = client().from('messages').insert(values);
+  const result = replyTo
+    ? await query.select('id, conversation_id, sender_id, body, created_at, reply_to').single()
+    : await query.select('id, conversation_id, sender_id, body, created_at').single();
+  if (result.error && replyTo && /reply_to/i.test(result.error.message)) throw new Error('Ответы в чате ещё не включены на сервере. Требуется обновление базы HELORO.');
+  if (result.error) throw result.error;
+  return { ...(result.data as Message), reply_to: replyTo ?? null };
+}
 
-  const { data, error } = await client()
-    .from("messages")
-    .insert({
-      conversation_id: conversationId,
-      sender_id: senderId,
-      body: parsed.data,
-    })
-    .select("id, conversation_id, sender_id, body, created_at")
-    .single();
+export async function getDirectMessageById(conversationId: string, messageId: string): Promise<Message | null> {
+  const withReply = await client().from('messages').select('id, conversation_id, sender_id, body, created_at, reply_to').eq('conversation_id', conversationId).eq('id', messageId).maybeSingle();
+  if (withReply.error && !/reply_to/i.test(withReply.error.message)) throw withReply.error;
+  const row = withReply.error
+    ? await client().from('messages').select('id, conversation_id, sender_id, body, created_at').eq('conversation_id', conversationId).eq('id', messageId).maybeSingle()
+    : withReply;
+  if (row.error) throw row.error;
+  if (!row.data) return null;
+  const [message] = await hydrateMessageRows([row.data as Message]);
+  return message ?? null;
+}
 
+export async function getPinnedMessages(conversationId: string): Promise<Message[]> {
+  const { data: pins, error: pinError } = await client().from('pinned_messages').select('message_id, pinned_at').eq('conversation_id', conversationId).order('pinned_at', { ascending: false }).limit(50);
+  if (pinError) throw pinError;
+  const ids = (pins ?? []).map((item) => item.message_id as string);
+  if (ids.length === 0) return [];
+  const { data, error } = await client().from('messages').select('id, conversation_id, sender_id, body, created_at, reply_to').eq('conversation_id', conversationId).in('id', ids);
   if (error) throw error;
-  return data as Message;
+  const byId = new Map((await hydrateMessageRows((data ?? []) as Message[])).map((item) => [item.id, item]));
+  return ids.map((id) => byId.get(id)).filter((item): item is Message => Boolean(item));
+}
+
+export async function setDirectMessagePinned(conversationId: string, messageId: string, userId: string, pinned: boolean): Promise<void> {
+  if (pinned) {
+    const { error } = await client().from('pinned_messages').insert({ conversation_id: conversationId, message_id: messageId, pinned_by: userId });
+    if (error && error.code !== '23505') throw error;
+    return;
+  }
+  const { error } = await client().from('pinned_messages').delete().eq('conversation_id', conversationId).eq('message_id', messageId);
+  if (error) throw error;
 }
 
 export async function sendMediaMessage(
