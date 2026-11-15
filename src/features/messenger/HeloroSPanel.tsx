@@ -264,7 +264,12 @@ export default function HeloroSPanel({
         if (tab === "groups") await loadCommunities();
         if (tab === "early_access" && isOwner) await loadEarlyAccess();
       } catch (cause) {
-        if (active) setError(errorText(cause, ru ? "Не удалось загрузить раздел." : "Could not load this section."));
+        if (active) {
+          const message = errorText(cause, ru ? "Не удалось загрузить раздел." : "Could not load this section.");
+          setError(tab === "early_access" && (message.includes("heloro_admin_list_early_access") || message.includes("Could not find the function"))
+            ? (ru ? "Серверная миграция раннего доступа ещё не установлена. Список участников станет доступен после её отдельного применения." : "The Early Access database migration is not installed yet. The member list will be available after its separate approval and application.")
+            : message);
+        }
       }
     };
     if (staff) void run();
