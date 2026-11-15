@@ -712,12 +712,24 @@ export default function CommunityHub({ client, user, locale, roles = [], contact
       }
 
       const insertValues = { room_id: room.id, sender_id: user.id, body, ...(replyTarget ? { reply_to: replyTarget.id } : {}) };
-      const { data, error: sendError } = await client.from("community_room_messages")
-        .insert(insertValues)
-        .select(replyTarget ? "id, room_id, sender_id, body, created_at, reply_to, edited_at" : "id, room_id, sender_id, body, created_at").single();
-      if (sendError) throw sendError;
+      let createdMessage: RoomMessage;
+      if (replyTarget) {
+        const inserted = await client.from("community_room_messages")
+          .insert(insertValues)
+          .select("id, room_id, sender_id, body, created_at, reply_to, edited_at")
+          .single();
+        if (inserted.error) throw inserted.error;
+        createdMessage = inserted.data as RoomMessage;
+      } else {
+        const inserted = await client.from("community_room_messages")
+          .insert(insertValues)
+          .select("id, room_id, sender_id, body, created_at")
+          .single();
+        if (inserted.error) throw inserted.error;
+        createdMessage = inserted.data as RoomMessage;
+      }
       messageCreated = true;
-      const hydratedBase = await hydrateRoomMessage(client, data as RoomMessage);
+      const hydratedBase = await hydrateRoomMessage(client, createdMessage);
       const hydrated = {
         ...hydratedBase,
         reply: replyTarget ? {
