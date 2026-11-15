@@ -46,6 +46,7 @@ import {
   saveProfile,
   sendMessage,
   sendMediaMessage,
+  sendBuiltInMediaMessage,
   subscribeToMessages,
   subscribeToUserPresence,
   subscribeToConversationTyping,
@@ -127,19 +128,19 @@ function formatInboxMessagePreview(value: string | null, locale: Locale): string
   const prefix = "HELORO_MEDIA:";
   if (!value.startsWith(prefix)) return value;
   try {
-    const payload = JSON.parse(value.slice(prefix.length)) as { kind?: string; caption?: string };
+    const payload = JSON.parse(value.slice(prefix.length)) as { kind?: string; caption?: string; emoji?: string };
     if (payload.kind === "photo") {
       const photoLabel = locale === "ru" ? "Фото" : "Photo";
-      return payload.caption?.trim() ? `${photoLabel}: ${payload.caption.trim()}` : photoLabel;
+      return payload.caption?.trim() ? photoLabel + ": " + payload.caption.trim() : photoLabel;
     }
-    if (payload.kind === "gif") return "GIF";
-    if (payload.kind === "sticker") return locale === "ru" ? "Стикер" : "Sticker";
+    if (payload.kind === "video") return payload.caption?.trim() ? "Видео: " + payload.caption.trim() : (locale === "ru" ? "Видео" : "Video");
+    if (payload.kind === "gif") return payload.emoji ? "GIF " + payload.emoji : "GIF";
+    if (payload.kind === "sticker") return payload.emoji ? (locale === "ru" ? "Стикер " : "Sticker ") + payload.emoji : (locale === "ru" ? "Стикер" : "Sticker");
   } catch {
     // Older or malformed media messages still get a safe, readable preview.
   }
   return locale === "ru" ? "Медиафайл" : "Media";
 }
-
 function EmptyChat({ locale }: { locale: Locale }) {
   return (
     <div className="empty-chat">
@@ -148,6 +149,52 @@ function EmptyChat({ locale }: { locale: Locale }) {
       <p>{t(locale, "chatSelectDescription")}</p>
     </div>
   );
+}
+
+type PhotoAspect = "original" | "square" | "landscape";
+type MediaViewerState = { kind: "photo" | "video"; url: string; caption?: string };
+
+async function transformPhotoFile(file: File, rotation: number, aspect: PhotoAspect): Promise<File> {
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const image = new Image();
+    image.src = objectUrl;
+    await image.decode();
+    const normalizedRotation = ((rotation % 360) + 360) % 360;
+    const swap = normalizedRotation === 90 || normalizedRotation === 270;
+    const rotatedWidth = swap ? image.naturalHeight : image.naturalWidth;
+    const rotatedHeight = swap ? image.naturalWidth : image.naturalHeight;
+    const rotatedCanvas = document.createElement("canvas");
+    rotatedCanvas.width = rotatedWidth;
+    rotatedCanvas.height = rotatedHeight;
+    const rotatedContext = rotatedCanvas.getContext("2d");
+    if (!rotatedContext) throw new Error("Не удалось открыть редактор фото.");
+    rotatedContext.translate(rotatedWidth / 2, rotatedHeight / 2);
+    rotatedContext.rotate((normalizedRotation * Math.PI) / 180);
+    rotatedContext.drawImage(image, -image.naturalWidth / 2, -image.naturalHeight / 2);
+
+    let cropWidth = rotatedWidth;
+    let cropHeight = rotatedHeight;
+    const targetRatio = aspect === "square" ? 1 : aspect === "landscape" ? 16 / 9 : rotatedWidth / rotatedHeight;
+    if (cropWidth / cropHeight > targetRatio) cropWidth = cropHeight * targetRatio;
+    else cropHeight = cropWidth / targetRatio;
+    const cropX = (rotatedWidth - cropWidth) / 2;
+    const cropY = (rotatedHeight - cropHeight) / 2;
+    const output = document.createElement("canvas");
+    output.width = Math.max(1, Math.round(cropWidth));
+    output.height = Math.max(1, Math.round(cropHeight));
+    const context = output.getContext("2d");
+    if (!context) throw new Error("Не удалось подготовить фото к отправке.");
+    context.drawImage(rotatedCanvas, cropX, cropY, cropWidth, cropHeight, 0, 0, output.width, output.height);
+    const outputType = file.type === "image/png" ? "image/png" : "image/jpeg";
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      output.toBlob((value) => value ? resolve(value) : reject(new Error("Не удалось сохранить отредактированное фото.")), outputType, 0.92);
+    });
+    const extension = outputType === "image/png" ? "png" : "jpg";
+    return new File([blob], file.name.replace(/\.[^.]+$/, "") + "-edited." + extension, { type: outputType, lastModified: Date.now() });
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
 }
 
 const reportReasons = ["spam", "harassment", "scam", "inappropriate", "other"] as const;
@@ -194,6 +241,16 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const [photoDraft, setPhotoDraft] = useState<File | null>(null);
   const [photoCaption, setPhotoCaption] = useState("");
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
+  const [photoRotation, setPhotoRotation] = useState(0);
+  const [photoAspect, setPhotoAspect] = useState<PhotoAspect>("original");
+  const [videoDraft, setVideoDraft] = useState<File | null>(null);
+  const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
+  const [videoCaption, setVideoCaption] = useState("");
+  const [videoDuration, setVideoDuration] = useState(0);
+  const [videoTrimStart, setVideoTrimStart] = useState(0);
+  const [videoTrimEnd, setVideoTrimEnd] = useState(0);
+  const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
+  const [mediaViewer, setMediaViewer] = useState<MediaViewerState | null>(null);
   const [error, setError] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -238,6 +295,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const composeSearchInputRef = useRef<HTMLInputElement>(null);
   const contactsSearchInputRef = useRef<HTMLInputElement>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -636,9 +694,28 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   }, [photoDraft]);
 
   useEffect(() => {
+    if (!videoDraft) {
+      setVideoPreviewUrl(null);
+      return;
+    }
+    const previewUrl = URL.createObjectURL(videoDraft);
+    setVideoPreviewUrl(previewUrl);
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [videoDraft]);
+
+  useEffect(() => {
     setPhotoDraft(null);
     setPhotoCaption("");
+    setPhotoRotation(0);
+    setPhotoAspect("original");
+    setVideoDraft(null);
+    setVideoCaption("");
+    setVideoDuration(0);
+    setVideoTrimStart(0);
+    setVideoTrimEnd(0);
+    setShowAttachmentMenu(false);
     if (photoInputRef.current) photoInputRef.current.value = "";
+    if (videoInputRef.current) videoInputRef.current.value = "";
   }, [activeId]);
 
   useEffect(() => {
@@ -676,6 +753,8 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
         setShowSearch(false);
         setSearch("");
         setResults([]);
+        setShowAttachmentMenu(false);
+        setMediaViewer(null);
       }
     }
     window.addEventListener("keydown", closeOnEscape);
