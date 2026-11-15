@@ -2261,3 +2261,194 @@ html[data-theme="light"] .verification-mark.verification-gold {
   color: #d99b24 !important;
   filter: drop-shadow(0 1px 1px rgba(145,91,8,.28));
 }
+
+
+/* Telegram-like motion: the inbox and conversation slide across each other on mobile. */
+@media (max-width: 760px) {
+  .messenger-stage .inbox-panel,
+  .messenger-stage .conversation-panel {
+    display: flex;
+    transition:
+      transform .34s cubic-bezier(.22,.75,.2,1),
+      opacity .24s ease,
+      visibility 0s linear .34s;
+    will-change: transform, opacity;
+    backface-visibility: hidden;
+  }
+  .messenger-stage .inbox-panel {
+    z-index: 2;
+    transform: translate3d(0, 0, 0);
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transition-delay: 0s;
+  }
+  .messenger-stage .conversation-panel {
+    z-index: 3;
+    transform: translate3d(100%, 0, 0);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+  .messenger-stage.chat-selected .inbox-panel {
+    transform: translate3d(-16%, 0, 0);
+    opacity: .72;
+    visibility: hidden;
+    pointer-events: none;
+  }
+  .messenger-stage.chat-selected .conversation-panel {
+    transform: translate3d(0, 0, 0);
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transition-delay: 0s;
+  }
+}
+
+/* Quiet feedback on taps and new messages; no heavy, distracting motion. */
+.conversation-item,
+.person-result,
+.composer .icon-button,
+.send-button,
+.photo-composer-remove {
+  transition:
+    transform .16s cubic-bezier(.2,.7,.2,1),
+    background-color .18s ease,
+    color .18s ease,
+    opacity .18s ease,
+    box-shadow .18s ease;
+}
+.conversation-item:active,
+.person-result:active,
+.composer .icon-button:active,
+.send-button:active:not(:disabled) { transform: scale(.985); }
+.message-row {
+  animation: heloro-message-in .2s cubic-bezier(.2,.7,.2,1) both;
+}
+@keyframes heloro-message-in {
+  from { opacity: 0; transform: translateY(7px) scale(.995); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.photo-composer-preview {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 9px;
+  margin: 0 15px 7px;
+  padding: 10px;
+  border: 1px solid #dedede;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 5px 18px rgba(0,0,0,.07);
+  animation: heloro-photo-preview-in .22s cubic-bezier(.2,.7,.2,1) both;
+}
+@keyframes heloro-photo-preview-in {
+  from { opacity: 0; transform: translateY(9px) scale(.99); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.photo-composer-image-wrap {
+  position: relative;
+  min-height: 70px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 9px;
+  background: #f0f0f0;
+}
+.photo-composer-image-wrap img {
+  display: block;
+  max-width: 100%;
+  max-height: 180px;
+  object-fit: contain;
+}
+.photo-composer-remove {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255,255,255,.7);
+  border-radius: 50%;
+  color: #fff;
+  background: rgba(0,0,0,.65);
+}
+.photo-composer-size {
+  position: absolute;
+  left: 8px;
+  bottom: 7px;
+  padding: 3px 6px;
+  border-radius: 5px;
+  color: #fff;
+  background: rgba(0,0,0,.62);
+  font-size: 10px;
+}
+.photo-composer-caption-row {
+  min-width: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 9px;
+}
+.photo-composer-caption-row textarea {
+  min-width: 0;
+  min-height: 44px;
+  max-height: 108px;
+  flex: 1;
+  resize: vertical;
+  padding: 10px 11px;
+  border: 1px solid #e0e0e0;
+  border-radius: 10px;
+  outline: none;
+  color: #222;
+  background: #f7f7f7;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.photo-composer-caption-row textarea:focus {
+  border-color: #999;
+  background: #fff;
+  box-shadow: 0 0 0 2px rgba(0,0,0,.04);
+}
+.photo-composer-send { flex: 0 0 39px; }
+.gif-composer-button {
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  letter-spacing: -.04em;
+}
+.message-media-photo {
+  display: block;
+  width: auto;
+  max-width: min(100%, 360px);
+  max-height: 420px;
+  border-radius: 9px;
+  object-fit: contain;
+}
+.message-media-caption {
+  margin: 7px 1px 2px !important;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+html[data-theme="dark"] .photo-composer-preview {
+  border-color: #393939;
+  background: #1c1c1c;
+  box-shadow: 0 5px 18px rgba(0,0,0,.25);
+}
+html[data-theme="dark"] .photo-composer-image-wrap { background: #111; }
+html[data-theme="dark"] .photo-composer-caption-row textarea {
+  border-color: #444;
+  color: #eee;
+  background: #292929;
+}
+html[data-theme="dark"] .photo-composer-caption-row textarea:focus { border-color: #777; background: #222; }
+html[data-theme="dark"] .message-media-photo { background: #191919; }
+@media (max-width: 760px) {
+  .photo-composer-preview { margin-inline: 8px; padding: 8px; gap: 8px; }
+  .photo-composer-image-wrap img { max-height: 160px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .messenger-stage .inbox-panel,
+  .messenger-stage .conversation-panel { transition: none !important; transform: none !important; }
+  .message-row,
+  .photo-composer-preview { animation: none !important; }
+}
