@@ -169,11 +169,15 @@ async function hydrateMessageRows(rows: Message[]): Promise<Message[]> {
     const prefix = 'HELORO_MEDIA:';
     if (!row.body.startsWith(prefix)) return withReply;
     try {
-      const payload = JSON.parse(row.body.slice(prefix.length)) as { kind?: string; path?: string };
-      if ((payload.kind !== 'sticker' && payload.kind !== 'gif') || typeof payload.path !== 'string') return { ...withReply, body: 'Media unavailable.', media: null };
+      const payload = JSON.parse(row.body.slice(prefix.length)) as { kind?: string; path?: string; caption?: string };
+      if ((payload.kind !== 'photo' && payload.kind !== 'sticker' && payload.kind !== 'gif') || typeof payload.path !== 'string') return { ...withReply, body: 'Media unavailable.', media: null };
       const { data: signed, error } = await client().storage.from('message-media').createSignedUrl(payload.path, 3600);
       if (error || !signed?.signedUrl) return { ...withReply, body: 'Media unavailable.', media: null };
-      return { ...withReply, body: '', media: { kind: payload.kind, url: signed.signedUrl, path: payload.path } };
+      return {
+        ...withReply,
+        body: payload.kind === 'photo' && typeof payload.caption === 'string' ? payload.caption : '',
+        media: { kind: payload.kind, url: signed.signedUrl, path: payload.path },
+      };
     } catch { return { ...withReply, body: 'Media unavailable.', media: null }; }
   }));
 }
@@ -245,7 +249,8 @@ export async function sendMediaMessage(
   conversationId: string,
   senderId: string,
   file: File,
-  kind: "sticker" | "gif",
+  kind: "photo" | "sticker" | "gif",
+  caption = "",
 ): Promise<void> {
   const allowed = kind === "gif"
     ? ["image/gif"]
@@ -271,10 +276,15 @@ export async function sendMediaMessage(
   });
   if (uploadError) throw uploadError;
 
+  const payload = {
+    kind,
+    path,
+    ...(kind === "photo" && caption.trim() ? { caption: caption.trim().slice(0, 4000) } : {}),
+  };
   const { error: messageError } = await client().from("messages").insert({
     conversation_id: conversationId,
     sender_id: senderId,
-    body: `HELORO_MEDIA:${JSON.stringify({ kind, path })}`,
+    body: `HELORO_MEDIA:${JSON.stringify(payload)}`,
   });
   if (messageError) {
     await storage.remove([path]);
