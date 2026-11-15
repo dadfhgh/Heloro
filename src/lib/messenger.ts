@@ -153,45 +153,43 @@ export async function getInbox(): Promise<InboxConversation[]> {
   return (data ?? []) as InboxConversation[];
 }
 
-export async function getMessages(
-  conversationId: string,
-  limit = 60,
-): Promise<Message[]> {
-  const { data, error } = await client()
-    .from("messages")
-    .select("id, conversation_id, sender_id, body, created_at")
-    .eq("conversation_id", conversationId)
-    .order("created_at", { ascending: false })
-    .limit(limit);
-
-  if (error) throw error;
-  const rows = ((data ?? []) as Message[]).reverse();
-  return await Promise.all(rows.map(async (row): Promise<Message> => {
-    const mediaPrefix = "HELORO_MEDIA:";
-    if (!row.body.startsWith(mediaPrefix)) {
-      return { ...row };
+async function hydrateMessageRows(rows: Message[]): Promise<Message[]> {
+  const replyIds = [...new Set(rows.map((row) => row.reply_to).filter((id): id is string => Boolean(id)))];
+  const replies = new Map<string, NonNullable<Message['reply']>>();
+  if (replyIds.length > 0) {
+    const { data, error } = await client().from('messages').select('id, sender_id, body, created_at').in('id', replyIds);
+    if (error) throw error;
+    for (const item of data ?? []) {
+      const row = item as NonNullable<Message['reply']>;
+      replies.set(row.id, { ...row, body: row.body.startsWith('HELORO_MEDIA:') ? 'Медиафайл' : row.body });
     }
+  }
+  return Promise.all(rows.map(async (row): Promise<Message> => {
+    const withReply = { ...row, reply: row.reply_to ? replies.get(row.reply_to) ?? null : null };
+    const prefix = 'HELORO_MEDIA:';
+    if (!row.body.startsWith(prefix)) return withReply;
     try {
-      const payload = JSON.parse(row.body.slice(mediaPrefix.length)) as { kind?: string; path?: string };
-      if ((payload.kind !== "sticker" && payload.kind !== "gif") || typeof payload.path !== "string") {
-        return { ...row, body: "Media unavailable.", media: null };
-      }
-      const { data: signed, error: signError } = await client()
-        .storage.from("message-media").createSignedUrl(payload.path, 3600);
-      if (signError || !signed?.signedUrl) {
-        return { ...row, body: "Media unavailable.", media: null };
-      }
-      return {
-        ...row,
-        body: "",
-        media: { kind: payload.kind, url: signed.signedUrl, path: payload.path },
-      };
-    } catch {
-      return { ...row, body: "Media unavailable.", media: null };
-    }
+      const payload = JSON.parse(row.body.slice(prefix.length)) as { kind?: string; path?: string };
+      if ((payload.kind !== 'sticker' && payload.kind !== 'gif') || typeof payload.path !== 'string') return { ...withReply, body: 'Media unavailable.', media: null };
+      const { data: signed, error } = await client().storage.from('message-media').createSignedUrl(payload.path, 3600);
+      if (error || !signed?.signedUrl) return { ...withReply, body: 'Media unavailable.', media: null };
+      return { ...withReply, body: '', media: { kind: payload.kind, url: signed.signedUrl, path: payload.path } };
+    } catch { return { ...withReply, body: 'Media unavailable.', media: null }; }
   }));
 }
-
+export async function getMessages(conversationId: string, limit = 60): Promise<Message[]> {
+  const withReplies = await client().from('messages')
+    .select('id, conversation_id, sender_id, body, created_at, reply_to')
+    .eq('conversation_id', conversationId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (withReplies.error && !/reply_to/i.test(withReplies.error.message)) throw withReplies.error;
+  const rows = withReplies.error
+    ? await client().from('messages').select('id, conversation_id, sender_id, body, created_at').eq('conversation_id', conversationId).order('created_at', { ascending: false }).limit(limit)
+    : withReplies;
+  if (rows.error) throw rows.error;
+  return hydrateMessageRows(((rows.data ?? []) as Message[]).reverse());
+}
 export async function sendMessage(
   conversationId: string,
   senderId: string,
