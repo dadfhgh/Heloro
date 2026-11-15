@@ -1,5 +1,5 @@
 import { useRef, useState, type ChangeEvent } from "react";
-import { Smile, Upload, Sticker } from "lucide-react";
+import { Smile, Upload } from "lucide-react";
 import type { Locale } from "../../lib/i18n";
 import "./ChatMediaPicker.css";
 
