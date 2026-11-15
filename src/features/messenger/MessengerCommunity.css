@@ -1368,3 +1368,197 @@ html[data-theme="dark"] .message-reply-quote, html[data-theme="dark"] .reply-com
 @media (max-width: 600px) { .pinned-messages-panel { margin-bottom: 8px; } .message-meta { gap: 3px; } .message-action-button { width: 28px; height: 28px; flex-basis: 28px; } .reply-composer-preview { margin-inline: 9px; } }
 @media (prefers-reduced-motion: reduce) { .chat-presence-status.is-typing, .message-jump-highlight .message-bubble { animation: none; } .pinned-messages-toggle > svg:last-child { transition: none; } }
 
+
+
+/* Standard verification marks use the exact Support BadgeCheck geometry. */
+.blue-verified-mark {
+  display: inline-block;
+  flex: 0 0 auto;
+  vertical-align: -2px;
+  color: #269bd2 !important;
+  fill: rgba(38, 155, 210, .12);
+}
+.gold-verified-mark {
+  display: inline-block;
+  flex: 0 0 auto;
+  vertical-align: -2px;
+  color: #c49327 !important;
+  fill: rgba(231, 184, 72, .22);
+  filter: drop-shadow(0 0 1px rgba(255, 229, 163, .9)) drop-shadow(0 1px 1px rgba(119, 78, 10, .42));
+}
+
+/* Pinned message banner: readable preview rather than a thin blue strip. */
+.pinned-messages-panel {
+  position: relative;
+  z-index: 5;
+  flex: 0 0 auto;
+  width: min(100%, 820px);
+  margin: 0 auto 14px;
+  overflow: hidden;
+  border: 1px solid rgba(95, 117, 130, .22);
+  border-radius: 14px;
+  background: linear-gradient(115deg, #f8fafb 0%, #ffffff 75%);
+  box-shadow: 0 5px 18px rgba(25, 45, 58, .08);
+}
+.pinned-message-head {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-height: 60px;
+  padding: 10px 12px;
+}
+.pinned-message-symbol {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  color: #405b6b;
+  background: #e8eef1;
+}
+.pinned-message-main {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: grid;
+  gap: 3px;
+  padding: 0;
+  border: 0;
+  color: #202b32;
+  background: transparent;
+  text-align: left;
+}
+.pinned-message-main small {
+  color: #637985;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .06em;
+}
+.pinned-message-main strong {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  color: #202b32;
+  font-size: 12px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pinned-messages-toggle {
+  min-width: 40px;
+  min-height: 38px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 10px;
+  border: 1px solid rgba(95, 117, 130, .2);
+  border-radius: 10px;
+  color: #425d6b;
+  background: #f0f4f6;
+}
+.pinned-messages-toggle > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  font-size: 11px;
+  font-weight: 800;
+}
+.pinned-messages-toggle > svg:last-child { transition: transform .18s ease; }
+.pinned-messages-toggle > svg:last-child.is-expanded { transform: rotate(180deg); }
+.pinned-messages-list {
+  display: grid;
+  gap: 6px;
+  padding: 0 10px 10px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.pinned-message-item {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(95, 117, 130, .13);
+}
+.pinned-messages-open {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: grid;
+  gap: 3px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 9px;
+  color: #27343c;
+  background: #f1f5f7;
+  text-align: left;
+}
+.pinned-messages-open span {
+  color: #657985;
+  font-size: 10px;
+  font-weight: 700;
+}
+.pinned-messages-open strong {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 11px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pinned-messages-remove {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(95, 117, 130, .18);
+  border-radius: 9px;
+  color: #687984;
+  background: transparent;
+}
+.pinned-messages-remove:disabled,
+.message-action-button:disabled { opacity: .45; cursor: wait; }
+.message-action-button {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid rgba(95, 117, 130, .2);
+  border-radius: 9px;
+  color: #536873;
+  background: rgba(255, 255, 255, .82);
+  box-shadow: 0 1px 2px rgba(20, 40, 55, .05);
+}
+.message-action-button svg { width: 16px; height: 16px; stroke-width: 2.1; }
+.message-action-button:hover,
+.message-action-button.is-pinned {
+  color: #8c6418;
+  border-color: rgba(201, 153, 49, .48);
+  background: linear-gradient(145deg, #fff8df, #f4e2ad);
+}
+html[data-theme="dark"] .pinned-messages-panel {
+  border-color: rgba(153, 177, 190, .22);
+  background: linear-gradient(115deg, #202a31 0%, #182128 75%);
+}
+html[data-theme="dark"] .pinned-message-symbol { color: #c1d0d7; background: #34444e; }
+html[data-theme="dark"] .pinned-message-main,
+html[data-theme="dark"] .pinned-message-main strong { color: #edf3f6; }
+html[data-theme="dark"] .pinned-message-main small,
+html[data-theme="dark"] .pinned-messages-open span { color: #a7bac5; }
+html[data-theme="dark"] .pinned-messages-toggle,
+html[data-theme="dark"] .pinned-messages-open { color: #e3edf2; border-color: rgba(153, 177, 190, .18); background: #2a3942; }
+html[data-theme="dark"] .pinned-message-item { border-color: rgba(153, 177, 190, .16); }
+html[data-theme="dark"] .pinned-messages-remove { color: #c3d0d6; border-color: rgba(153, 177, 190, .2); }
+html[data-theme="dark"] .message-action-button { color: #c5d0d5; border-color: rgba(153, 177, 190, .2); background: #2a343a; }
+html[data-theme="dark"] .message-action-button:hover,
+html[data-theme="dark"] .message-action-button.is-pinned { color: #f4d47f; border-color: rgba(218, 177, 84, .5); background: linear-gradient(145deg, #4c4128, #382f1d); }
+@media (max-width: 600px) {
+  .pinned-messages-panel { margin-bottom: 10px; }
+  .pinned-message-head { min-height: 58px; gap: 9px; padding: 9px; }
+  .pinned-message-symbol { width: 36px; height: 36px; flex-basis: 36px; }
+  .message-action-button { width: 34px; height: 34px; flex-basis: 34px; }
+}
