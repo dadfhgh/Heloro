@@ -568,6 +568,10 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
         void getMessages(activeId).then(setMessages).catch((cause: unknown) => setError(cause instanceof Error ? cause.message : t(locale, "messagesLoadFailed")));
         void refreshInbox();
       },
+      (updated) => {
+        setMessages((current) => current.map((item) => item.id === updated.id ? updated : item));
+        void refreshInbox();
+      },
     );
     return () => {
       active = false;
