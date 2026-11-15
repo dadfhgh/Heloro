@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "agents:local": "tsc -p tsconfig.agents.json && node agent-dist/agents/local-server.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.0",
