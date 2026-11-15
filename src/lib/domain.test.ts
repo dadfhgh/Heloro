@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { displayNameSchema, formatInboxTime, formatLastSeen, formatMessageDayLabel, formatMessageTime, initials, messageBodySchema, usernameSchema } from "./domain";
 
 describe("usernameSchema", () => {
@@ -43,8 +43,24 @@ describe("display helpers", () => {
 });
 
 describe("message day separators", () => {
-  it("labels the current day", () => {
-    expect(formatMessageDayLabel(new Date().toISOString(), "en")).toBe("Today");
+  afterEach(() => vi.useRealTimers());
+
+  it("shows day and month without the year for dates in the current year", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 10, 15, 12, 0, 0));
+    expect(formatMessageDayLabel(new Date(2026, 10, 14, 12, 0, 0).toISOString(), "ru")).toBe("14 ноября");
+  });
+
+  it("adds the year for dates from previous years", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 10, 15, 12, 0, 0));
+    expect(formatMessageDayLabel(new Date(2025, 10, 14, 12, 0, 0).toISOString(), "ru")).toBe("14 ноября 2025 г.");
+  });
+
+  it("does not replace dates with Today, Yesterday, or weekday labels", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 10, 15, 12, 0, 0));
+    expect(formatMessageDayLabel(new Date(2026, 10, 15, 12, 0, 0).toISOString(), "ru")).toBe("15 ноября");
   });
 
   it("uses an approximate label when exact last-seen time is hidden", () => {
