@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   ArrowUp,
   BadgeCheck,
+  Check,
   CheckCheck,
   Crown,
   Flag,
