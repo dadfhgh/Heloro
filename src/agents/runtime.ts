@@ -1,4 +1,4 @@
-import { getAgent, type AgentId } from "./registry";
+import { getAgent, type AgentId } from "./registry.js";
 
 export interface AgentTask {
   id: string;
