@@ -24,6 +24,7 @@ export interface Message {
   sender_id: string;
   body: string;
   created_at: string;
+  edited_at?: string | null;
   reply_to?: string | null;
   reply?: { id: string; sender_id: string; body: string; created_at: string } | null;
   media?: { kind: "photo" | "sticker" | "gif"; url: string; path?: string } | null;
