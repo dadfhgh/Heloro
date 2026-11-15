@@ -5,7 +5,7 @@
 HELORO can use a local Ollama model without an API key, paid model, payment card, or cloud inference account.
 
 1. Install Ollama on a supported Windows PC.
-2. Download the coding model: `ollama pull qwen2.5-coder:3b` (about 1.9 GB).
+2. Download the coding model: `ollama pull qwen2.5-coder:1.5b` (about 986 MB).
 3. Start Ollama; its local OpenAI-compatible API is `http://127.0.0.1:11434/v1`.
 4. In the HELORO repository, run `npm run agents:local`.
 5. The runner prints a random local API token. Keep it private; it is regenerated every time the runner starts.
@@ -17,7 +17,7 @@ The local server:
 - limits requests to 10 per minute and JSON bodies to 32 KB;
 - has no public internet endpoint, no persistent queue, and no cloud model integration.
 
-The Ollama adapter accepts only loopback URLs, sends no Authorization header, and uses `qwen2.5-coder:3b` by default. Keep Ollama's port 11434 bound to loopback; never expose it to the public internet.
+The Ollama adapter accepts only loopback URLs, sends no Authorization header, and uses `qwen2.5-coder:1.5b` by default. Keep Ollama's port 11434 bound to loopback; never expose it to the public internet.
 
 ## Local runner API
 
