@@ -187,23 +187,31 @@ export async function getMessages(conversationId: string, limit = 60): Promise<M
     .eq('conversation_id', conversationId)
     .order('created_at', { ascending: false })
     .limit(limit);
-  let rows = withEditsAndReplies;
-  if (withEditsAndReplies.error && /edited_at/i.test(withEditsAndReplies.error.message)) {
-    rows = await client().from('messages')
+
+  let rawRows: Message[];
+  if (!withEditsAndReplies.error) {
+    rawRows = (withEditsAndReplies.data ?? []) as Message[];
+  } else {
+    const withReplies = await client().from('messages')
       .select('id, conversation_id, sender_id, body, created_at, reply_to')
       .eq('conversation_id', conversationId)
       .order('created_at', { ascending: false })
       .limit(limit);
+    if (!withReplies.error) {
+      rawRows = (withReplies.data ?? []) as Message[];
+    } else if (/reply_to|edited_at/i.test(withReplies.error.message)) {
+      const basic = await client().from('messages')
+        .select('id, conversation_id, sender_id, body, created_at')
+        .eq('conversation_id', conversationId)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+      if (basic.error) throw basic.error;
+      rawRows = (basic.data ?? []) as Message[];
+    } else {
+      throw withReplies.error;
+    }
   }
-  if (rows.error && /reply_to/i.test(rows.error.message)) {
-    rows = await client().from('messages')
-      .select('id, conversation_id, sender_id, body, created_at')
-      .eq('conversation_id', conversationId)
-      .order('created_at', { ascending: false })
-      .limit(limit);
-  }
-  if (rows.error) throw rows.error;
-  return hydrateMessageRows(((rows.data ?? []) as Message[]).reverse());
+  return hydrateMessageRows(rawRows.reverse());
 }
 export async function sendMessage(
   conversationId: string,
