@@ -50,6 +50,12 @@ create table if not exists public.pinned_messages (
 create index if not exists pinned_messages_conversation_time_idx
   on public.pinned_messages(conversation_id, pinned_at desc);
 
+create index if not exists pinned_messages_message_id_idx
+  on public.pinned_messages(message_id);
+
+create index if not exists pinned_messages_pinned_by_idx
+  on public.pinned_messages(pinned_by);
+
 alter table public.pinned_messages enable row level security;
 revoke all on public.pinned_messages from anon, authenticated;
 grant select, insert, delete on public.pinned_messages to authenticated;
