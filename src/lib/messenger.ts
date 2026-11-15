@@ -329,6 +329,7 @@ export function subscribeToMessages(
   conversationId: string,
   onInsert: (message: Message) => void,
   onDelete?: () => void,
+  onUpdate?: (message: Message) => void,
 ): RealtimeChannel {
   return client()
     .channel(`heloro:messages:${conversationId}`)
@@ -366,6 +367,17 @@ export function subscribeToMessages(
           });
       },
     )
+    .on("postgres_changes", {
+      event: "UPDATE",
+      schema: "public",
+      table: "messages",
+      filter: `conversation_id=eq.${conversationId}`,
+    }, (payload) => {
+      const updated = payload.new as Message;
+      void getDirectMessageById(conversationId, updated.id)
+        .then((message) => { if (message) onUpdate?.(message); })
+        .catch((cause: unknown) => console.warn("HELORO edited message could not be refreshed:", cause));
+    })
     .on("postgres_changes", { event: "DELETE", schema: "public", table: "messages" }, () => onDelete?.())
     .subscribe();
 }
