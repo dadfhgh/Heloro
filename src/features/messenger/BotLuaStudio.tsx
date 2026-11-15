@@ -249,10 +249,13 @@ export default function BotLuaStudio({ client, botId, locale }: Props) {
     if (parsed) {
       setVisualRules(parsed);
       setBlockNotice("");
-    } else if (source.trim()) {
-      setBlockNotice(ru
-        ? "Текущий Lua-код не преобразуется в блоки автоматически. Он останется нетронутым, пока ты не соберёшь и не применишь новые блоки."
-        : "Existing Lua code is not converted into blocks automatically. It stays untouched until you generate and apply new blocks.");
+    } else {
+      setVisualRules([]);
+      setBlockNotice(source.trim()
+        ? (ru
+          ? "Текущий Lua-код не переводится в правила автоматически. Он останется сохранённым, пока ты не добавишь новые визуальные правила."
+          : "Existing Lua is not converted to rules automatically. It stays saved until you add new visual rules.")
+        : "");
     }
     setEditorMode("blocks");
   }
