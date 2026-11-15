@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import type { User } from "@supabase/supabase-js";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { ArrowLeft, BadgeCheck, ImagePlus, MessageCircle, Megaphone, Send, Users, X, Check, PencilLine, ChevronRight, Trash2, ShieldCheck } from "lucide-react";
+import { ArrowLeft, BadgeCheck, ImagePlus, MessageCircle, Megaphone, Send, Users, X, Check, PencilLine, ChevronRight, ChevronDown, Pin, PinOff, Trash2, ShieldCheck } from "lucide-react";
 import type { Locale } from "../../lib/i18n";
 import { searchProfiles } from "../../lib/messenger";
+import { formatMessageDayLabel, formatMessageTime } from "../../lib/domain";
 import type { PublicProfile } from "../../lib/types";
 import { canDeleteCommunityMessage, canManageCommunityAdmin, EMPTY_COMMUNITY_ADMIN_PERMISSIONS, hasCommunityPermission, type CommunityAdminPermissions } from "../../lib/communityPermissions";
 
@@ -26,6 +28,9 @@ type RoomMessage = {
   sender_id: string;
   body: string;
   created_at: string;
+  reply_to?: string | null;
+  edited_at?: string | null;
+  reply?: { id: string; sender_id: string; body: string; created_at: string } | null;
   media?: { kind: "photo"; path: string; url: string } | null;
 };
 const CHANNEL_MEDIA_PREFIX = "HELORO_CHANNEL_MEDIA:";
@@ -99,6 +104,13 @@ export default function CommunityHub({ client, user, locale, roles = [], contact
   const [showRoomInfo, setShowRoomInfo] = useState(false);
   const [memberCount, setMemberCount] = useState<number | null>(null);
   const [messages, setMessages] = useState<RoomMessage[]>([]);
+  const [replyTarget, setReplyTarget] = useState<RoomMessage | null>(null);
+  const [editTarget, setEditTarget] = useState<RoomMessage | null>(null);
+  const [pinnedMessages, setPinnedMessages] = useState<RoomMessage[]>([]);
+  const [showPinnedList, setShowPinnedList] = useState(false);
+  const [pinningMessageIds, setPinningMessageIds] = useState<string[]>([]);
+  const [otherTyping, setOtherTyping] = useState(false);
+  const [onlineMemberCount, setOnlineMemberCount] = useState(0);
   const [discussionRooms, setDiscussionRooms] = useState<Array<{ id: string; name: string }>>([]);
   const [discussionRoomDraft, setDiscussionRoomDraft] = useState("");
   const [commentTargetId, setCommentTargetId] = useState<string | null>(null);
@@ -130,11 +142,15 @@ export default function CommunityHub({ client, user, locale, roles = [], contact
   const avatarInput = useRef<HTMLInputElement>(null);
   const channelPhotoInput = useRef<HTMLInputElement>(null);
   const messagesEnd = useRef<HTMLDivElement>(null);
+  const typingChannelRef = useRef<RealtimeChannel | null>(null);
+  const typingSendTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const typingReceiveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isGlobalOwner = roles.includes("owner");
   const isGlobalAdmin = roles.includes("admin");
   const canChangeRoomInfo = isGlobalOwner || isGlobalAdmin || hasCommunityPermission(memberRole, myAdminPermissions, "change_info");
   const canManageRoomAdmins = isGlobalOwner || isGlobalAdmin || hasCommunityPermission(memberRole, myAdminPermissions, "manage_admins");
   const canPostChannelMessages = isGlobalOwner || isGlobalAdmin || hasCommunityPermission(memberRole, myAdminPermissions, "post_messages");
+  const canPinMessages = isGlobalOwner || isGlobalAdmin || hasCommunityPermission(memberRole, myAdminPermissions, "pin_messages");
 
   async function loadRooms() {
     const { data, error: loadError } = await client.from("community_rooms")
@@ -146,12 +162,112 @@ export default function CommunityHub({ client, user, locale, roles = [], contact
   }
 
   async function loadMessages(roomId: string) {
-    const { data, error: loadError } = await client.from("community_room_messages")
-      .select("id, room_id, sender_id, body, created_at")
+    const extended = await client.from("community_room_messages")
+      .select("id, room_id, sender_id, body, created_at, reply_to, edited_at")
       .eq("room_id", roomId).order("created_at", { ascending: true }).limit(100);
-    if (loadError) throw loadError;
-    const hydrated = await Promise.all(((data ?? []) as RoomMessage[]).map((item) => hydrateRoomMessage(client, item)));
+    const rows = extended.error
+      ? await client.from("community_room_messages").select("id, room_id, sender_id, body, created_at")
+        .eq("room_id", roomId).order("created_at", { ascending: true }).limit(100)
+      : extended;
+    if (rows.error) throw rows.error;
+    const raw = (rows.data ?? []) as RoomMessage[];
+    const hydrated = await Promise.all(raw.map((item) => hydrateRoomMessage(client, item)));
+    const replyIds = [...new Set(raw.map((item) => item.reply_to).filter((id): id is string => Boolean(id)))];
+    if (replyIds.length) {
+      const originalsResult = await client.from("community_room_messages")
+        .select("id, room_id, sender_id, body, created_at").in("id", replyIds).eq("room_id", roomId);
+      if (!originalsResult.error) {
+        const originals = await Promise.all(((originalsResult.data ?? []) as RoomMessage[]).map((item) => hydrateRoomMessage(client, item)));
+        const byId = new Map(originals.map((item) => [item.id, item]));
+        setMessages(hydrated.map((item) => {
+          const original = item.reply_to ? byId.get(item.reply_to) : undefined;
+          return { ...item, reply: original ? { id: original.id, sender_id: original.sender_id, body: original.body || (original.media ? "Фото" : "Сообщение"), created_at: original.created_at } : null };
+        }));
+        return;
+      }
+    }
     setMessages(hydrated);
+  }
+
+  async function loadPinnedMessages(roomId: string) {
+    const { data, error: pinError } = await client.from("community_pinned_messages")
+      .select("message_id, pinned_at").eq("room_id", roomId).order("pinned_at", { ascending: false }).limit(50);
+    if (pinError) { setPinnedMessages([]); return; }
+    const ids = (data ?? []).map((item) => item.message_id as string);
+    if (!ids.length) { setPinnedMessages([]); return; }
+    const { data: rows, error } = await client.from("community_room_messages")
+      .select("id, room_id, sender_id, body, created_at").eq("room_id", roomId).in("id", ids);
+    if (error) throw error;
+    const hydrated = await Promise.all(((rows ?? []) as RoomMessage[]).map((item) => hydrateRoomMessage(client, item)));
+    const byId = new Map(hydrated.map((item) => [item.id, item]));
+    setPinnedMessages(ids.map((id) => byId.get(id)).filter((item): item is RoomMessage => Boolean(item)));
+  }
+
+  function updateCommunityDraft(next: string) {
+    setDraft(next);
+    const channel = typingChannelRef.current;
+    if (!channel || !room || editTarget) return;
+    void channel.send({ type: "broadcast", event: "typing", payload: { user_id: user.id, typing: true } });
+    if (typingSendTimer.current) clearTimeout(typingSendTimer.current);
+    typingSendTimer.current = setTimeout(() => {
+      void typingChannelRef.current?.send({ type: "broadcast", event: "typing", payload: { user_id: user.id, typing: false } });
+    }, 1600);
+  }
+
+  function stopCommunityTyping() {
+    if (typingSendTimer.current) clearTimeout(typingSendTimer.current);
+    typingSendTimer.current = null;
+    void typingChannelRef.current?.send({ type: "broadcast", event: "typing", payload: { user_id: user.id, typing: false } });
+  }
+
+  function beginReply(item: RoomMessage) { setEditTarget(null); setReplyTarget(item); }
+  function beginEdit(item: RoomMessage) {
+    if (item.sender_id !== user.id) return;
+    setReplyTarget(null);
+    setEditTarget(item);
+    setDraft(item.body);
+    setChannelPhotoFile(null);
+  }
+  function cancelMessageMode() {
+    setReplyTarget(null); setEditTarget(null); setDraft(""); setChannelPhotoFile(null);
+    if (channelPhotoInput.current) channelPhotoInput.current.value = "";
+  }
+
+  async function jumpToRoomMessage(messageId: string) {
+    if (!room) return;
+    if (!messages.some((item) => item.id === messageId)) {
+      const { data, error: fetchError } = await client.from("community_room_messages")
+        .select("id, room_id, sender_id, body, created_at").eq("room_id", room.id).eq("id", messageId).maybeSingle();
+      if (fetchError) { setError(fetchError.message); return; }
+      if (data) {
+        const hydrated = await hydrateRoomMessage(client, data as RoomMessage);
+        setMessages((current) => current.some((item) => item.id === messageId) ? current : [...current, hydrated]);
+      }
+    }
+    requestAnimationFrame(() => document.getElementById("community-message-" + messageId)?.scrollIntoView({ behavior: "smooth", block: "center" }));
+  }
+
+  async function toggleCommunityPin(item: RoomMessage) {
+    if (!room || !canPinMessages || pinningMessageIds.includes(item.id)) return;
+    const isPinned = pinnedMessages.some((entry) => entry.id === item.id);
+    setPinningMessageIds((current) => [...current, item.id]);
+    setError("");
+    try {
+      if (isPinned) {
+        const { error: removeError } = await client.from("community_pinned_messages").delete().eq("room_id", room.id).eq("message_id", item.id);
+        if (removeError) throw removeError;
+        setPinnedMessages((current) => current.filter((entry) => entry.id !== item.id));
+      } else {
+        const { error: addError } = await client.from("community_pinned_messages").insert({ room_id: room.id, message_id: item.id, pinned_by: user.id });
+        if (addError && addError.code !== "23505") throw addError;
+        setPinnedMessages((current) => [item, ...current.filter((entry) => entry.id !== item.id)]);
+      }
+    } catch (cause) {
+      const detail = cause instanceof Error ? cause.message : "";
+      setError(/community_pinned_messages|schema cache|does not exist/i.test(detail)
+        ? (ru ? "Закрепы для групп и каналов появятся после обновления базы HELORO." : "Group and channel pins will be available after the HELORO database migration.")
+        : (detail || (ru ? "Не удалось изменить закреп." : "Could not update pin.")));
+    } finally { setPinningMessageIds((current) => current.filter((id) => id !== item.id)); }
   }
 
   useEffect(() => {
@@ -320,23 +436,40 @@ export default function CommunityHub({ client, user, locale, roles = [], contact
   }, [client, room?.id]);
 
   useEffect(() => {
-    if (!room || !memberRole) { setMessages([]); return; }
+    if (!room || !memberRole) { setMessages([]); setPinnedMessages([]); setOnlineMemberCount(0); return; }
     let active = true;
-    loadMessages(room.id).catch((cause: unknown) => { if (active) setError(cause instanceof Error ? cause.message : "Could not load messages."); });
-    const channel = client.channel("community-room-" + room.id)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "community_room_messages", filter: "room_id=eq." + room.id }, (payload) => {
-        const rawItem = payload.new as RoomMessage;
-        void hydrateRoomMessage(client, rawItem).then((item) => {
-          setMessages((current) => current.some((row) => row.id === item.id) ? current : [...current, item]);
-        }).catch((cause: unknown) => {
-          setError(cause instanceof Error ? cause.message : (ru ? "Не удалось загрузить фотографию." : "Could not load the photo."));
-        });
+    void loadMessages(room.id).catch((cause: unknown) => { if (active) setError(cause instanceof Error ? cause.message : "Could not load messages."); });
+    void loadPinnedMessages(room.id).catch((cause: unknown) => { if (active) setError(cause instanceof Error ? cause.message : "Could not load pinned messages."); });
+    const channel = client.channel("community-room-" + room.id, { config: { presence: { key: user.id } } })
+      .on("presence", { event: "sync" }, () => {
+        const state = channel.presenceState<{ user_id?: string }>();
+        const online = new Set(Object.values(state).flat().map((entry) => entry.user_id).filter((id): id is string => Boolean(id)));
+        setOnlineMemberCount(online.size);
       })
-      .on("postgres_changes", { event: "DELETE", schema: "public", table: "community_room_messages" }, () => {
-        void loadMessages(room.id);
-      }).subscribe();
-    return () => { active = false; void client.removeChannel(channel); };
-  }, [client, room, memberRole]);
+      .on("broadcast", { event: "typing" }, ({ payload }) => {
+        const event = payload as { user_id?: string; typing?: boolean };
+        if (event.user_id === user.id) return;
+        setOtherTyping(Boolean(event.typing));
+        if (typingReceiveTimer.current) clearTimeout(typingReceiveTimer.current);
+        if (event.typing) typingReceiveTimer.current = setTimeout(() => setOtherTyping(false), 2200);
+      })
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "community_room_messages", filter: "room_id=eq." + room.id }, () => { void loadMessages(room.id); })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "community_room_messages", filter: "room_id=eq." + room.id }, () => { void loadMessages(room.id); })
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "community_room_messages", filter: "room_id=eq." + room.id }, () => { void loadMessages(room.id); void loadPinnedMessages(room.id); })
+      .on("postgres_changes", { event: "*", schema: "public", table: "community_pinned_messages", filter: "room_id=eq." + room.id }, () => { void loadPinnedMessages(room.id); })
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") void channel.track({ user_id: user.id, room_id: room.id, online_at: new Date().toISOString() });
+      });
+    typingChannelRef.current = channel;
+    return () => {
+      active = false;
+      if (typingSendTimer.current) clearTimeout(typingSendTimer.current);
+      if (typingReceiveTimer.current) clearTimeout(typingReceiveTimer.current);
+      typingChannelRef.current = null;
+      void channel.untrack();
+      void client.removeChannel(channel);
+    };
+  }, [client, room?.id, memberRole, user.id]);
 
   useEffect(() => { messagesEnd.current?.scrollIntoView({ behavior: "smooth", block: "end" }); }, [messages]);
 
@@ -364,6 +497,7 @@ export default function CommunityHub({ client, user, locale, roles = [], contact
   async function openRoom(nextRoom: Room) {
     setError("");
     setRoomEditing(false);
+    setReplyTarget(null); setEditTarget(null); setPinnedMessages([]); setShowPinnedList(false); setOtherTyping(false); setOnlineMemberCount(0);
     setShowRoomInfo(false);
     setRoomUsernameDraft(nextRoom.username);
     setRoomNameDraft(nextRoom.name);
@@ -524,10 +658,34 @@ export default function CommunityHub({ client, user, locale, roles = [], contact
     if (!room || !memberRole) return;
     const caption = draft.trim();
     const photo = channelPhotoFile;
-    if (!caption && !photo) return;
+    if (!caption && !photo && !editTarget?.media?.path) return;
     if (room.kind === "channel" && !canPostChannelMessages) return;
     setBusy(true);
     setError("");
+    stopCommunityTyping();
+    if (editTarget) {
+      try {
+        let body = caption;
+        if (editTarget.media?.path) body = CHANNEL_MEDIA_PREFIX + JSON.stringify({ scope: "community", path: editTarget.media.path, caption });
+        if (!body.trim()) throw new Error(ru ? "Сообщение не может быть пустым." : "Message cannot be empty.");
+        const editedAt = new Date().toISOString();
+        const { data, error: updateError } = await client.from("community_room_messages")
+          .update({ body, edited_at: editedAt }).eq("id", editTarget.id).eq("room_id", room.id)
+          .select("id, room_id, sender_id, body, created_at, edited_at").maybeSingle();
+        if (updateError) throw updateError;
+        if (!data) throw new Error(ru ? "Сообщение не найдено или редактирование запрещено." : "Message not found or editing is not allowed.");
+        const hydrated = await hydrateRoomMessage(client, data as RoomMessage);
+        setMessages((current) => current.map((item) => item.id === hydrated.id ? hydrated : item));
+        setPinnedMessages((current) => current.map((item) => item.id === hydrated.id ? hydrated : item));
+        setEditTarget(null); setDraft("");
+      } catch (cause) {
+        const detail = cause instanceof Error ? cause.message : "";
+        setError(/permission|not allowed|schema cache|edited_at|update/i.test(detail)
+          ? (ru ? "Редактирование сообщений в группах и каналах появится после обновления базы HELORO." : "Editing group and channel messages requires the HELORO database migration.")
+          : (detail || (ru ? "Не удалось изменить сообщение." : "Could not edit the message.")));
+      } finally { setBusy(false); }
+      return;
+    }
     let uploadedPath: string | null = null;
     let messageCreated = false;
     try {
@@ -549,14 +707,16 @@ export default function CommunityHub({ client, user, locale, roles = [], contact
         if (body.length > 4000) throw new Error(ru ? "Подпись к фото слишком длинная." : "Photo caption is too long.");
       }
 
+      const insertValues = { room_id: room.id, sender_id: user.id, body, ...(replyTarget ? { reply_to: replyTarget.id } : {}) };
       const { data, error: sendError } = await client.from("community_room_messages")
-        .insert({ room_id: room.id, sender_id: user.id, body })
-        .select("id, room_id, sender_id, body, created_at").single();
+        .insert(insertValues)
+        .select("id, room_id, sender_id, body, created_at, reply_to, edited_at").single();
       if (sendError) throw sendError;
       messageCreated = true;
       const hydrated = await hydrateRoomMessage(client, data as RoomMessage);
       setMessages((current) => current.some((item) => item.id === hydrated.id) ? current : [...current, hydrated]);
       setDraft("");
+      setReplyTarget(null);
       setChannelPhotoFile(null);
       if (channelPhotoInput.current) channelPhotoInput.current.value = "";
       await loadRooms();
@@ -565,7 +725,10 @@ export default function CommunityHub({ client, user, locale, roles = [], contact
         const { error: cleanupError } = await client.storage.from("channel-media").remove([uploadedPath]);
         if (cleanupError) console.warn("Unsent channel photo could not be cleaned up.", cleanupError);
       }
-      setError(cause instanceof Error ? cause.message : (ru ? "Не удалось отправить сообщение." : "Could not send message."));
+      const detail = cause instanceof Error ? cause.message : "";
+      setError(replyTarget && /reply_to|column|schema cache/i.test(detail)
+        ? (ru ? "Ответы в группах и каналах появятся после обновления базы HELORO." : "Replies in groups and channels require the HELORO database migration.")
+        : (detail || (ru ? "Не удалось отправить сообщение." : "Could not send message.")));
     } finally { setBusy(false); }
   }
 
