@@ -15,7 +15,7 @@ const provider = createOllamaProvider({ baseUrl: OLLAMA_BASE_URL, model: MODEL }
 const allowedHosts = new Set([`127.0.0.1:${PORT}`, `localhost:${PORT}`]);
 const requestTimes: number[] = [];
 const MAX_REQUESTS_PER_MINUTE = 10;
-const MAX_BODY_BYTES = 32 * 1024;
+const MAX_BODY_BYTES = 160 * 1024;
 
 class HttpError extends Error {
   constructor(readonly status: number, message: string) {
@@ -188,7 +188,7 @@ const server = createServer(async (request, response) => {
   }
 });
 
-server.requestTimeout = 15 * 60 * 1000;
+server.requestTimeout = 31 * 60 * 1000;
 server.headersTimeout = 30_000;
 server.listen(PORT, "127.0.0.1", () => {
   process.stdout.write(`HELORO local agent runner: http://127.0.0.1:${PORT}\n`);
