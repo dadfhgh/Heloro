@@ -1,5 +1,5 @@
 -- Direct-chat replies and pinned messages.
--- Source-only until explicitly approved for the live HELORO Supabase project.
+-- Adds reply scope validation and member-scoped pinned-message storage.
 
 begin;
 
