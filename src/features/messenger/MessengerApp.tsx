@@ -251,6 +251,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const [videoTrimEnd, setVideoTrimEnd] = useState(0);
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
   const [mediaViewer, setMediaViewer] = useState<MediaViewerState | null>(null);
+  const [mediaViewerScale, setMediaViewerScale] = useState(1);
   const [error, setError] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -1979,7 +1980,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                               <button
                                 type="button"
                                 className="message-media-open"
-                                onClick={() => setMediaViewer({ kind: "photo", url: message.media!.url!, caption: message.body })}
+                                onClick={() => { setMediaViewer({ kind: "photo", url: message.media!.url!, caption: message.body }); setMediaViewerScale(1); }}
                                 aria-label={locale === "ru" ? "Открыть фото на весь экран" : "Open photo fullscreen"}
                               >
                                 <img className="message-media message-photo" src={message.media.url} alt={locale === "ru" ? "Фото" : "Photo"} loading="lazy" />
@@ -2205,7 +2206,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
               <div className="profile-view-cover" aria-hidden="true" />
               {profileLoading ? <p className="profile-view-loading">{t(locale, "appLoading")}</p> : viewedProfile ? <>
                 <div className="profile-view-hero">
-                  <button type="button" className="profile-view-avatar-button" onClick={() => viewedProfile.avatar_url && setMediaViewer({ kind: "photo", url: viewedProfile.avatar_url })} disabled={!viewedProfile.avatar_url} aria-label={locale === "ru" ? "Увеличить фото профиля" : "Enlarge profile photo"}>
+                  <button type="button" className="profile-view-avatar-button" onClick={() => { if (viewedProfile.avatar_url) { setMediaViewer({ kind: "photo", url: viewedProfile.avatar_url }); setMediaViewerScale(1); } }} disabled={!viewedProfile.avatar_url} aria-label={locale === "ru" ? "Увеличить фото профиля" : "Enlarge profile photo"}>
                     <Avatar label={viewedProfile.display_name || viewedProfile.username} className="profile-view-avatar" src={viewedProfile.avatar_url} crown={Boolean(crownMap[viewedProfile.id])} />
                   </button>
                   <h2 id="profile-view-title">
@@ -2300,7 +2301,16 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
         <div className="media-viewer-overlay" role="dialog" aria-modal="true" aria-label={mediaViewer.kind === "photo" ? (locale === "ru" ? "Просмотр фото" : "Photo viewer") : (locale === "ru" ? "Просмотр видео" : "Video viewer")} onClick={() => setMediaViewer(null)}>
           <button type="button" className="media-viewer-close" onClick={() => setMediaViewer(null)} aria-label={locale === "ru" ? "Закрыть просмотр" : "Close viewer"}><X size={23} /></button>
           {mediaViewer.kind === "photo" ? (
-            <img className="media-viewer-image" src={mediaViewer.url} alt={mediaViewer.caption || (locale === "ru" ? "Фото" : "Photo")} onClick={(event) => event.stopPropagation()} />
+            <>
+              <div className="media-viewer-zoom-tools" onClick={(event) => event.stopPropagation()}>
+                <button type="button" onClick={() => setMediaViewerScale((value) => Math.max(1, Number((value - 0.25).toFixed(2))))} disabled={mediaViewerScale <= 1} aria-label={locale === "ru" ? "Уменьшить" : "Zoom out"}>−</button>
+                <span>{Math.round(mediaViewerScale * 100)}%</span>
+                <button type="button" onClick={() => setMediaViewerScale((value) => Math.min(3, Number((value + 0.25).toFixed(2))))} disabled={mediaViewerScale >= 3} aria-label={locale === "ru" ? "Увеличить" : "Zoom in"}>+</button>
+              </div>
+              <div className="media-viewer-scroll" onClick={(event) => event.stopPropagation()}>
+                <img className="media-viewer-image" src={mediaViewer.url} alt={mediaViewer.caption || (locale === "ru" ? "Фото" : "Photo")} style={{ transform: "scale(" + mediaViewerScale + ")" }} />
+              </div>
+            </>
           ) : (
             <video className="media-viewer-video" src={mediaViewer.url} controls playsInline autoPlay onClick={(event) => event.stopPropagation()} />
           )}
