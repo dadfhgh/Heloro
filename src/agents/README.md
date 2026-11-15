@@ -1,52 +1,59 @@
 # HELORO multi-agent runtime
 
-## Local free mode (recommended for development)
+## Free local mode
 
-HELORO can use a local Ollama server without an API key, paid model, or cloud inference account.
+HELORO can use a local Ollama model without an API key, paid model, payment card, or cloud inference account.
 
-1. Install Ollama on the Windows PC.
-2. Download the small coding model: `ollama pull qwen2.5-coder:3b`.
+1. Install Ollama on a supported Windows PC.
+2. Download the coding model: `ollama pull qwen2.5-coder:3b` (about 1.9 GB).
 3. Start Ollama; its local OpenAI-compatible API is `http://127.0.0.1:11434/v1`.
-4. On the trusted local server only, create the provider with `createOllamaProvider()`.
-5. Run batches with `runAgentBatch(tasks, provider, 1)` initially. One local model serves all ten isolated specialist prompts, sequentially, to reduce RAM/VRAM pressure.
+4. In the HELORO repository, run `npm run agents:local`.
+5. The runner prints a random local API token. Keep it private; it is regenerated every time the runner starts.
 
-The Ollama adapter:
-- sends requests only to `localhost` / `127.0.0.1` / `[::1]`;
-- does not send an Authorization header or API key;
-- uses the installed local model `qwen2.5-coder:3b` by default;
-- enforces a local request timeout and rejects remote base URLs.
+The local server:
+- binds only to `127.0.0.1:8787` and refuses requests with a browser Origin;
+- requires its temporary token for POST task requests;
+- accepts up to 10 tasks per batch and runs them sequentially to protect low-memory PCs;
+- limits requests to 10 per minute and JSON bodies to 32 KB;
+- has no public internet endpoint, no persistent queue, and no cloud model integration.
 
-The local Ollama API does not require authentication. Keep it bound to loopback; never expose port 11434 to the public internet.
+The Ollama adapter accepts only loopback URLs, sends no Authorization header, and uses `qwen2.5-coder:3b` by default. Keep Ollama's port 11434 bound to loopback; never expose it to the public internet.
+
+## Local runner API
+
+- `GET http://127.0.0.1:8787/health` — checks Ollama and the selected model.
+- `GET http://127.0.0.1:8787/v1/agents` — lists the ten specialist roles.
+- `POST http://127.0.0.1:8787/v1/tasks/run` — run one agent task.
+- `POST http://127.0.0.1:8787/v1/tasks/batch` — run 1–10 independent tasks sequentially.
+
+The task JSON shape is:
+
+```json
+{
+  "agentId": "architect",
+  "instruction": "Review the HELORO authentication architecture.",
+  "projectContext": "Only include the minimum relevant, non-secret project context."
+}
+```
+
+All requests to POST endpoints require `Authorization: Bearer <local-token>`. The token is printed only to the local terminal and must not be saved in Git, Notion, or chat. This API intentionally has no CORS support and is for local scripts/PowerShell only; a hosted HELORO website cannot access a developer PC's localhost server.
 
 ## Ten independent specialist roles
 
 `coordinator`, `architect`, `frontend`, `backend`, `database`, `qa`, `security`, `design`, `devops`, `research`.
 
-Each role has a separate system prompt and each task is sent as an independent model request. They share one local model binary to keep the setup free and lightweight; they are not ten separate model installations.
+Each role has a separate system prompt and each task is an independent model request. All ten roles share one local model binary to keep the setup free and lightweight; they are not ten separate model installations.
 
-## Other provider option
+## Boundaries
 
-`createOpenAICompatibleProvider` supports a remote OpenAI-compatible endpoint only when a server-side API key is provided. It is not enabled by default, and HELORO's local free mode does not use it.
-
-## Not implemented yet
-
-- No agent is running in the background merely because the source code exists.
-- No production HTTP endpoint, persistent task queue, scheduler, or deployment is enabled.
-- Agents currently return analysis/recommendations only. They have no direct GitHub, Supabase, Vercel, browser, or shell tools and cannot modify HELORO autonomously.
-- Running Ollama on a PC makes that PC the inference host; turning it off stops agent inference. A deployed website cannot reach a developer's localhost server.
-- No credentials, provider API keys, or paid services are included.
-
-## Safety gates before activation
-
-1. Keep the local Ollama port bound to loopback.
-2. Add authenticated task submission before exposing any agent endpoint.
-3. Add a persistent queue, per-user quotas, cancellation, and audit-safe logs if background processing is needed.
-4. Add a restricted tool gateway with read-only defaults; require approval for writes, merges, production, live Supabase/Auth, or deployments.
-5. Validate local model performance and privacy before enabling real users.
+- The local runner can reason over task text supplied to it. It does not yet have direct GitHub, Supabase, Vercel, browser, or shell tools and cannot edit repository files autonomously.
+- Tasks and results are held in process memory only; stopping the server clears the in-memory execution state.
+- The local server runs only while the PC and Ollama are running.
+- No provider credentials, API keys, paid services, production changes, or deployments are included.
 
 ## Status
 
-- Implemented in source: ten specialist definitions, independent model-call runtime, bounded scheduler, and local Ollama adapter.
-- Tested: automated CI must pass on the latest commit.
+- Implemented: ten role prompts, isolated model calls, local Ollama adapter, loopback-only task API, token protection, request limits, and batch execution.
+- Tested: CI verification pending for the latest local-server commit.
 - Deployed: no.
-- Autonomous tool access: not implemented.
+- Autonomous repository/tool access: not implemented.
