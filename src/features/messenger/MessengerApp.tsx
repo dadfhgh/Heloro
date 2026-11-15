@@ -253,6 +253,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
   const [mediaViewer, setMediaViewer] = useState<MediaViewerState | null>(null);
   const [mediaViewerScale, setMediaViewerScale] = useState(1);
+  const [mediaViewerLoadError, setMediaViewerLoadError] = useState(false);
   const [error, setError] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -936,6 +937,13 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
     } finally {
       setSending(false);
     }
+  }
+
+  function openPhotoViewer(url: string | null | undefined, caption?: string) {
+    if (!url) return;
+    setMediaViewerLoadError(false);
+    setMediaViewer({ kind: "photo", url, caption });
+    setMediaViewerScale(1);
   }
 
   async function openUserProfile(userId: string) {
@@ -1996,8 +2004,10 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                               <button
                                 type="button"
                                 className="message-media-open"
-                                onClick={() => { setMediaViewer({ kind: "photo", url: message.media!.url!, caption: message.body }); setMediaViewerScale(1); }}
+                                onClick={(event) => { event.preventDefault(); event.stopPropagation(); openPhotoViewer(message.media?.url, message.body); }}
+                                onPointerUp={(event) => { if (event.pointerType === "touch") { event.preventDefault(); event.stopPropagation(); openPhotoViewer(message.media?.url, message.body); } }}
                                 aria-label={locale === "ru" ? "Открыть фото на весь экран" : "Open photo fullscreen"}
+                                title={locale === "ru" ? "Открыть фото" : "Open photo"}
                               >
                                 <img className="message-media message-photo" src={message.media.url} alt={locale === "ru" ? "Фото" : "Photo"} loading="lazy" />
                                 <span>{locale === "ru" ? "Открыть фото" : "Open photo"}</span>
@@ -2243,7 +2253,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
               <div className="profile-view-cover" aria-hidden="true" />
               {profileLoading ? <p className="profile-view-loading">{t(locale, "appLoading")}</p> : viewedProfile ? <>
                 <div className="profile-view-hero">
-                  <button type="button" className="profile-view-avatar-button" onClick={() => { if (viewedProfile.avatar_url) { setMediaViewer({ kind: "photo", url: viewedProfile.avatar_url }); setMediaViewerScale(1); } }} disabled={!viewedProfile.avatar_url} aria-label={locale === "ru" ? "Увеличить фото профиля" : "Enlarge profile photo"}>
+                  <button type="button" className="profile-view-avatar-button" onClick={() => openPhotoViewer(viewedProfile.avatar_url)} disabled={!viewedProfile.avatar_url} aria-label={locale === "ru" ? "Увеличить фото профиля" : "Enlarge profile photo"}>
                     <Avatar label={viewedProfile.display_name || viewedProfile.username} className="profile-view-avatar" src={viewedProfile.avatar_url} crown={Boolean(crownMap[viewedProfile.id])} />
                   </button>
                   <h2 id="profile-view-title">
@@ -2346,7 +2356,11 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                 <button type="button" onClick={() => setMediaViewerScale((value) => Math.min(3, Number((value + 0.25).toFixed(2))))} disabled={mediaViewerScale >= 3} aria-label={locale === "ru" ? "Увеличить" : "Zoom in"}>+</button>
               </div>
               <div className="media-viewer-scroll" onClick={(event) => event.stopPropagation()}>
-                <img className="media-viewer-image" src={mediaViewer.url} alt={mediaViewer.caption || (locale === "ru" ? "Фото" : "Photo")} style={{ transform: "scale(" + mediaViewerScale + ")" }} />
+                {mediaViewerLoadError ? (
+                  <p className="media-viewer-load-error" role="alert">{locale === "ru" ? "Не удалось загрузить фото. Попробуйте открыть его ещё раз." : "Could not load this photo. Please try opening it again."}</p>
+                ) : (
+                  <img className="media-viewer-image" src={mediaViewer.url} alt={mediaViewer.caption || (locale === "ru" ? "Фото" : "Photo")} draggable={false} onLoad={() => setMediaViewerLoadError(false)} onError={() => setMediaViewerLoadError(true)} style={{ transform: "scale(" + mediaViewerScale + ")" }} />
+                )}
               </div>
             </>
           ) : (
