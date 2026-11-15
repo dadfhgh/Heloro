@@ -104,10 +104,18 @@ function PurpleCrownNameMark({ active }: { active: boolean }) {
 
 function VerificationMark({ type, title }: { type?: BadgeType | null; title: string }) {
   if (!type) return null;
-  const accessibleTitle = type === "epic_sans" ? "Epic Sans" : type === "creator" ? (title === "Verified by HELORO" ? "Verified HELORO creator" : "Проверенный автор HELORO") : title;
+  if (type === "epic_sans") {
+    // Keep Epic Sans exactly as it was before the badge redesign.
+    return <BadgeCheck size={14} className="epic-sans-verified-mark" aria-label="Epic Sans" role="img" />;
+  }
+  if (type === "creator") {
+    const creatorTitle = title === "Verified by HELORO" ? "Verified HELORO creator" : "Проверенный автор HELORO";
+    return <BadgeCheck size={14} className="creator-verified-mark" aria-label={creatorTitle} role="img" />;
+  }
+  const label = type === "blue" ? "blue" : "gold";
   return (
-    <span className={"heloro-verification-mark heloro-verification-" + type} title={accessibleTitle} aria-label={accessibleTitle} role="img">
-      <BadgeCheck size={15} strokeWidth={2.8} />
+    <span className={`verification-mark verification-${label}`} title={title} aria-label={title}>
+      <BadgeCheck size={14} strokeWidth={2.8} />
     </span>
   );
 }
