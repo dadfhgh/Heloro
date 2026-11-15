@@ -20,13 +20,13 @@ import {
   PinOff,
   ChevronDown,
   MoreVertical,
+  Paperclip,
   UserRound,
   Users,
   PencilLine,
   Phone,
   Search,
   Settings2,
-  SmilePlus,
   ShieldCheck,
   Trash2,
   Video,
@@ -61,6 +61,7 @@ import { t, type Locale } from "../../lib/i18n";
 import OfficialPanels from "./OfficialPanels";
 import OfficialAvatar from "./OfficialAvatar";
 import CommunityHub from "./CommunityHub";
+import ChatMediaPicker from "./ChatMediaPicker";
 import { setVerificationBadge, submitUserReport, submitContentReport } from "../../lib/official";
 import type { SettingsSection } from "./MessengerNavigation";
 import type { ThemePreference } from "../../lib/preferences";
@@ -236,8 +237,6 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const searchInputRef = useRef<HTMLInputElement>(null);
   const composeSearchInputRef = useRef<HTMLInputElement>(null);
   const contactsSearchInputRef = useRef<HTMLInputElement>(null);
-  const stickerInputRef = useRef<HTMLInputElement>(null);
-  const gifInputRef = useRef<HTMLInputElement>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -1021,8 +1020,6 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
       setError(cause instanceof Error ? cause.message : t(locale, "messageSendFailed"));
     } finally {
       setMediaSending(false);
-      if (kind === "sticker" && stickerInputRef.current) stickerInputRef.current.value = "";
-      if (kind === "gif" && gifInputRef.current) gifInputRef.current.value = "";
     }
   }
 
@@ -1886,18 +1883,13 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                 </section>
               )}
               <form className="composer" onSubmit={handleSend}>
-                <button type="button" className="icon-button composer-media-button" onClick={() => photoInputRef.current?.click()} disabled={mediaSending || Boolean(editTarget)} aria-label={locale === "ru" ? "Выбрать фото" : "Choose photo"} title={locale === "ru" ? "Выбрать фото" : "Choose photo"}>
-                  <ImagePlus size={19} />
-                </button>
-                <button type="button" className="icon-button composer-media-button" onClick={() => stickerInputRef.current?.click()} disabled={mediaSending} aria-label={locale === "ru" ? "Отправить стикер" : "Send sticker"} title={locale === "ru" ? "Стикер из файла" : "Sticker from file"}>
-                  <SmilePlus size={19} />
-                </button>
-                <button type="button" className="icon-button composer-media-button gif-composer-button" onClick={() => gifInputRef.current?.click()} disabled={mediaSending} aria-label="GIF" title={locale === "ru" ? "Отправить GIF" : "Send GIF"}>
-                  GIF
-                </button>
-                <input ref={photoInputRef} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(event) => { handlePhotoSelect(event.target.files?.[0]); event.target.value = ""; }} />
-                <input ref={stickerInputRef} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(event) => void handleMediaSelect("sticker", event.target.files?.[0])} />
-                <input ref={gifInputRef} type="file" accept="image/gif" hidden onChange={(event) => void handleMediaSelect("gif", event.target.files?.[0])} />
+                <ChatMediaPicker
+                  locale={locale}
+                  disabled={mediaSending || Boolean(editTarget)}
+                  onEmojiSelect={(emoji) => setDraft((current) => (current + emoji).slice(0, 4000))}
+                  onStickerSelect={(file) => void handleMediaSelect("sticker", file)}
+                  onGifSelect={(file) => void handleMediaSelect("gif", file)}
+                />
                 <input
                   value={draft}
                   onChange={(event) => handleDraftChange(event.target.value)}
@@ -1906,6 +1898,10 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                   aria-label={t(locale, "messagePlaceholder")}
                   maxLength={4000}
                 />
+                <button type="button" className="icon-button composer-media-button" onClick={() => photoInputRef.current?.click()} disabled={mediaSending || Boolean(editTarget)} aria-label={locale === "ru" ? "Прикрепить фото" : "Attach a photo"} title={locale === "ru" ? "Прикрепить фото" : "Attach a photo"}>
+                  <Paperclip size={19} />
+                </button>
+                <input ref={photoInputRef} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(event) => { handlePhotoSelect(event.target.files?.[0]); event.target.value = ""; }} />
                 <button type="submit" disabled={sending || (!draft.trim() && editTarget?.media?.kind !== "photo")} aria-label={editTarget ? (locale === "ru" ? "Сохранить" : "Save") : t(locale, "messageSend")} className="send-button">
                   {sending ? <span className="button-spinner" /> : editTarget ? <Check size={20} /> : <ArrowUp size={20} />}
                 </button>
