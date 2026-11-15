@@ -112,12 +112,10 @@ function VerificationMark({ type, title }: { type?: BadgeType | null; title: str
     const creatorTitle = title === "Verified by HELORO" ? "Verified HELORO creator" : "Проверенный автор HELORO";
     return <BadgeCheck size={14} className="creator-verified-mark" aria-label={creatorTitle} role="img" />;
   }
-  const label = type === "blue" ? "blue" : "gold";
-  return (
-    <span className={`verification-mark verification-${label}`} title={title} aria-label={title}>
-      <BadgeCheck size={14} strokeWidth={2.8} />
-    </span>
-  );
+  if (type === "blue") {
+    return <BadgeCheck size={14} className="blue-verified-mark" aria-label={title} role="img" />;
+  }
+  return <BadgeCheck size={14} className="gold-verified-mark" aria-label={title} role="img" />;
 }
 
 function EmptyChat({ locale }: { locale: Locale }) {
@@ -157,6 +155,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const [replyTarget, setReplyTarget] = useState<Message | null>(null);
   const [pinnedMessages, setPinnedMessages] = useState<Message[]>([]);
   const [showPinnedList, setShowPinnedList] = useState(false);
+  const [pinningMessageIds, setPinningMessageIds] = useState<string[]>([]);
   const [onlineMap, setOnlineMap] = useState<Record<string, boolean>>({});
   const [lastSeenMap, setLastSeenMap] = useState<Record<string, string>>({});
   const [isTyping, setIsTyping] = useState(false);
@@ -711,17 +710,23 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   }
 
   async function togglePinnedMessage(message: Message) {
-    if (!activeId) return;
+    const conversationId = activeId;
+    if (!conversationId || pinningMessageIds.includes(message.id)) return;
     const currentlyPinned = pinnedMessages.some((item) => item.id === message.id);
+    setPinningMessageIds((current) => current.includes(message.id) ? current : [...current, message.id]);
+    setError("");
     try {
-      await setDirectMessagePinned(activeId, message.id, user.id, !currentlyPinned);
-      setPinnedMessages(await getPinnedMessages(activeId));
-      setError("");
+      await setDirectMessagePinned(conversationId, message.id, user.id, !currentlyPinned);
+      setPinnedMessages((current) => currentlyPinned
+        ? current.filter((item) => item.id !== message.id)
+        : [message, ...current.filter((item) => item.id !== message.id)]);
     } catch (cause) {
-      const messageText = cause instanceof Error ? cause.message : "";
-      setError(/pinned_messages|does not exist|schema cache/i.test(messageText)
-        ? (locale === "ru" ? "Закрепы появятся после обновления базы HELORO. Миграция подготовлена, но ещё не применена." : "Pins will be available after the HELORO database migration is applied.")
-        : (cause instanceof Error ? cause.message : (locale === "ru" ? "Не удалось изменить закреп." : "Could not update pin.")));
+      const detail = cause instanceof Error ? cause.message : "";
+      setError(locale === "ru"
+        ? `Не удалось ${currentlyPinned ? "открепить" : "закрепить"} сообщение.${detail ? ` ${detail}` : ""}`
+        : `Could not ${currentlyPinned ? "unpin" : "pin"} the message.${detail ? ` ${detail}` : ""}`);
+    } finally {
+      setPinningMessageIds((current) => current.filter((id) => id !== message.id));
     }
   }
 
@@ -1572,19 +1577,52 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
               <div className="message-stream">
                 {pinnedMessages.length > 0 && (
                   <div className="pinned-messages-panel">
-                    <button type="button" className="pinned-messages-toggle" onClick={() => setShowPinnedList((value) => !value)} aria-expanded={showPinnedList}>
-                      <Pin size={15} />
-                      <span><strong>{locale === "ru" ? "Закреплённые сообщения" : "Pinned messages"}</strong><small>{pinnedMessages.length}</small></span>
-                      <ChevronDown size={16} className={showPinnedList ? "is-expanded" : ""} />
-                    </button>
+                    <div className="pinned-message-head">
+                      <span className="pinned-message-symbol" aria-hidden="true"><Pin size={18} /></span>
+                      <button
+                        type="button"
+                        className="pinned-message-main"
+                        onClick={() => void jumpToMessage(pinnedMessages[0].id)}
+                        title={locale === "ru" ? "Перейти к закреплённому сообщению" : "Jump to pinned message"}
+                      >
+                        <small>{locale === "ru" ? "ЗАКРЕПЛЁННОЕ СООБЩЕНИЕ" : "PINNED MESSAGE"}</small>
+                        <strong>{pinnedMessages[0].body || (pinnedMessages[0].media ? (locale === "ru" ? "Медиафайл" : "Media") : (locale === "ru" ? "Сообщение" : "Message"))}</strong>
+                      </button>
+                      <button
+                        type="button"
+                        className="pinned-messages-toggle"
+                        onClick={() => setShowPinnedList((value) => !value)}
+                        aria-expanded={showPinnedList}
+                        aria-label={locale === "ru" ? "Показать все закреплённые сообщения" : "Show all pinned messages"}
+                        title={locale === "ru" ? "Все закреплённые сообщения" : "All pinned messages"}
+                      >
+                        <span>{pinnedMessages.length}</span>
+                        <ChevronDown size={17} className={showPinnedList ? "is-expanded" : ""} />
+                      </button>
+                    </div>
                     {showPinnedList && (
                       <div className="pinned-messages-list">
                         {pinnedMessages.map((item) => (
-                          <button type="button" key={item.id} onClick={() => { void jumpToMessage(item.id); setShowPinnedList(false); }}>
-                            <span>{item.sender_id === user.id ? (locale === "ru" ? "Вы" : "You") : (locale === "ru" ? "Собеседник" : "Contact")}</span>
-                            <strong>{item.body || (item.media ? (locale === "ru" ? "Медиафайл" : "Media") : (locale === "ru" ? "Сообщение" : "Message"))}</strong>
-                            <time>{formatMessageTime(item.created_at)}</time>
-                          </button>
+                          <div className="pinned-message-item" key={item.id}>
+                            <button
+                              type="button"
+                              className="pinned-messages-open"
+                              onClick={() => { void jumpToMessage(item.id); setShowPinnedList(false); }}
+                            >
+                              <span>{item.sender_id === user.id ? (locale === "ru" ? "Вы" : "You") : (locale === "ru" ? "Собеседник" : "Contact")} · {formatMessageTime(item.created_at)}</span>
+                              <strong>{item.body || (item.media ? (locale === "ru" ? "Медиафайл" : "Media") : (locale === "ru" ? "Сообщение" : "Message"))}</strong>
+                            </button>
+                            <button
+                              type="button"
+                              className="pinned-messages-remove"
+                              disabled={pinningMessageIds.includes(item.id)}
+                              onClick={() => void togglePinnedMessage(item)}
+                              aria-label={locale === "ru" ? "Открепить сообщение" : "Unpin message"}
+                              title={locale === "ru" ? "Открепить" : "Unpin"}
+                            >
+                              <PinOff size={16} />
+                            </button>
+                          </div>
                         ))}
                       </div>
                     )}
@@ -1628,8 +1666,16 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                         <div className="message-meta">
                           <span>{formatMessageTime(message.created_at)} {mine && <CheckCheck size={13} />}</span>
                           <button type="button" className="message-action-button" onClick={() => setReplyTarget(message)} aria-label={locale === "ru" ? "Ответить" : "Reply"} title={locale === "ru" ? "Ответить" : "Reply"}><MessageSquareReply size={13} /></button>
-                          <button type="button" className={"message-action-button " + (pinnedMessages.some((item) => item.id === message.id) ? "is-pinned" : "")} onClick={() => void togglePinnedMessage(message)} aria-label={pinnedMessages.some((item) => item.id === message.id) ? (locale === "ru" ? "Открепить" : "Unpin") : (locale === "ru" ? "Закрепить" : "Pin")} title={pinnedMessages.some((item) => item.id === message.id) ? (locale === "ru" ? "Открепить" : "Unpin") : (locale === "ru" ? "Закрепить" : "Pin")}>
-                            {pinnedMessages.some((item) => item.id === message.id) ? <PinOff size={13} /> : <Pin size={13} />}
+                          <button
+                            type="button"
+                            className={"message-action-button " + (pinnedMessages.some((item) => item.id === message.id) ? "is-pinned" : "")}
+                            disabled={pinningMessageIds.includes(message.id)}
+                            aria-busy={pinningMessageIds.includes(message.id)}
+                            onClick={() => void togglePinnedMessage(message)}
+                            aria-label={pinnedMessages.some((item) => item.id === message.id) ? (locale === "ru" ? "Открепить" : "Unpin") : (locale === "ru" ? "Закрепить" : "Pin")}
+                            title={pinnedMessages.some((item) => item.id === message.id) ? (locale === "ru" ? "Открепить" : "Unpin") : (locale === "ru" ? "Закрепить" : "Pin")}
+                          >
+                            {pinnedMessages.some((item) => item.id === message.id) ? <PinOff size={16} /> : <Pin size={16} />}
                           </button>
                           <button type="button" className="message-delete-button" onClick={() => void removeDirectMessage(message)} aria-label={t(locale, "messageDelete")} title={t(locale, "messageDelete")}><Trash2 size={13} /></button>
                           {!mine && <button type="button" className="message-delete-button" onClick={() => { setReportMessageTargetId(message.id); setReportReason("other"); setReportDetails(""); setShowReport(true); }} aria-label={locale === "ru" ? "Пожаловаться на сообщение" : "Report message"} title={locale === "ru" ? "Пожаловаться на сообщение" : "Report message"}><Flag size={13} /></button>}
