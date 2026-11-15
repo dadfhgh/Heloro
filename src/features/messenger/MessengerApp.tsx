@@ -1983,6 +1983,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
               )}
             </header>
             <div className="profile-view-content">
+              <div className="profile-view-cover" aria-hidden="true" />
               {profileLoading ? <p className="profile-view-loading">{t(locale, "appLoading")}</p> : viewedProfile ? <>
                 <div className="profile-view-hero">
                   <Avatar label={viewedProfile.display_name || viewedProfile.username} className="profile-view-avatar" src={viewedProfile.avatar_url} crown={Boolean(crownMap[viewedProfile.id])} />
