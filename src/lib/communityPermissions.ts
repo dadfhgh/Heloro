@@ -1,6 +1,7 @@
 export type CommunityAdminPermission =
   | "change_info"
   | "delete_messages"
+  | "pin_messages"
   | "post_messages"
   | "manage_admins";
 
@@ -9,6 +10,7 @@ export type CommunityAdminPermissions = Record<CommunityAdminPermission, boolean
 export const EMPTY_COMMUNITY_ADMIN_PERMISSIONS: CommunityAdminPermissions = {
   change_info: false,
   delete_messages: false,
+  pin_messages: false,
   post_messages: false,
   manage_admins: false,
 };
