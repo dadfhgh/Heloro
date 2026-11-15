@@ -740,9 +740,13 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   }, [search, user.id, locale]);
 
   useEffect(() => {
-    if (!showSettings && !showBots && !showReport && !showNavigation && !showProfile && !showComposeScreen && !showContactsScreen) return;
+    if (!showSettings && !showBots && !showReport && !showNavigation && !showProfile && !showComposeScreen && !showContactsScreen && !mediaViewer) return;
     function closeOnEscape(event: KeyboardEvent) {
       if (event.key === "Escape") {
+        if (mediaViewer) {
+          setMediaViewer(null);
+          return;
+        }
         setShowSettings(false);
         setShowBots(false);
         setShowNavigation(false);
@@ -760,7 +764,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
     }
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [showSettings, showBots, showNavigation, showReport, showProfile, showComposeScreen, showContactsScreen]);
+  }, [showSettings, showBots, showNavigation, showReport, showProfile, showComposeScreen, showContactsScreen, mediaViewer]);
 
   useEffect(() => {
     if (showSearch && !showComposeScreen) searchInputRef.current?.focus();
