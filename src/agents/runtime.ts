@@ -128,7 +128,7 @@ function assertLoopbackUrl(baseUrl: string): string {
 export function createOllamaProvider(config: OllamaProviderConfig = {}): AgentProvider {
   const baseUrl = assertLoopbackUrl(config.baseUrl ?? "http://127.0.0.1:11434/v1");
   const fetchImpl = config.fetchImpl ?? fetch;
-  const model = config.model ?? "qwen2.5-coder:3b";
+  const model = config.model ?? "qwen2.5-coder:1.5b";
 
   return {
     complete({ systemPrompt, userPrompt }) {
