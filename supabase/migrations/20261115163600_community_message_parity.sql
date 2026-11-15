@@ -8,6 +8,51 @@ alter table public.community_room_messages
     references public.community_room_messages(id) on delete set null,
   add column if not exists edited_at timestamptz;
 
+-- Direct messages receive the same author-only edit capability.
+alter table public.messages
+  add column if not exists edited_at timestamptz;
+
+grant update on public.messages to authenticated;
+
+drop policy if exists "Authors edit own direct messages" on public.messages;
+create policy "Authors edit own direct messages"
+  on public.messages
+  for update
+  to authenticated
+  using (
+    sender_id = (select auth.uid())
+    and private.is_conversation_member(conversation_id)
+  )
+  with check (
+    sender_id = (select auth.uid())
+    and private.is_conversation_member(conversation_id)
+  );
+
+create or replace function private.protect_direct_message_identity()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $function$
+begin
+  if new.id is distinct from old.id
+    or new.conversation_id is distinct from old.conversation_id
+    or new.sender_id is distinct from old.sender_id
+    or new.created_at is distinct from old.created_at then
+    raise exception 'direct_message_identity_is_immutable'
+      using errcode = '23514';
+  end if;
+  return new;
+end;
+$function$;
+
+revoke all on function private.protect_direct_message_identity() from public, anon, authenticated;
+drop trigger if exists protect_direct_message_identity on public.messages;
+create trigger protect_direct_message_identity
+before update on public.messages
+for each row
+execute function private.protect_direct_message_identity();
+
 create index if not exists community_room_messages_reply_to_idx
   on public.community_room_messages(reply_to)
   where reply_to is not null;
@@ -20,7 +65,8 @@ set search_path = ''
 as $function$
 begin
   if tg_op = 'UPDATE' and (
-    new.room_id is distinct from old.room_id
+    new.id is distinct from old.id
+    or new.room_id is distinct from old.room_id
     or new.sender_id is distinct from old.sender_id
     or new.created_at is distinct from old.created_at
   ) then
