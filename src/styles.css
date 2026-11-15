@@ -1794,3 +1794,194 @@ html[data-theme="dark"] .admin-panel-full .admin-nav-tabs button.active { color:
   .admin-panel-full .admin-channel-actions { grid-template-columns: 1fr; }
   .admin-panel-full .admin-record-card { padding: 13px; }
 }
+
+
+/* HELORO final mobile overlay and motion layer — loaded after app component styles. */
+/* Layer order: app < profile (1200) < bottom sheets/editors (1600/1750) < media viewer (2400). */
+.profile-view-overlay {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 1200 !important;
+  display: block !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  min-height: 100svh !important;
+  max-height: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  background: transparent !important;
+}
+.profile-view-overlay > .profile-view-card {
+  position: fixed !important;
+  inset: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  width: 100vw !important;
+  min-width: 100vw !important;
+  max-width: 100vw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  min-height: 100svh !important;
+  max-height: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  overflow: hidden !important;
+  box-shadow: none !important;
+  box-sizing: border-box !important;
+}
+.profile-view-overlay > .profile-view-card > .profile-view-topbar {
+  flex: 0 0 auto !important;
+  padding-top: calc(8px + env(safe-area-inset-top)) !important;
+}
+.profile-view-overlay > .profile-view-card > .profile-view-content {
+  flex: 1 1 0 !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  padding-bottom: max(28px, env(safe-area-inset-bottom)) !important;
+}
+
+/* The media viewer must sit above a profile so an avatar tap is never hidden by it. */
+.media-viewer-overlay {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 2400 !important;
+  display: block !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  min-height: 100svh !important;
+  max-height: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+.media-viewer-scroll {
+  position: absolute !important;
+  inset: 0 !important;
+  display: flex !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+  overflow: auto !important;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y pinch-zoom;
+  box-sizing: border-box;
+}
+.media-viewer-image {
+  display: block;
+  flex: 0 0 auto;
+  width: auto !important;
+  height: auto !important;
+  max-width: 100vw !important;
+  max-height: 100vh !important;
+  max-height: 100dvh !important;
+  margin: auto;
+  object-fit: contain;
+}
+.media-viewer-video {
+  display: block;
+  width: min(100vw, 1100px) !important;
+  max-height: 100dvh !important;
+  margin: auto;
+}
+.media-viewer-close {
+  z-index: 20 !important;
+  top: max(10px, env(safe-area-inset-top)) !important;
+  right: max(10px, env(safe-area-inset-right)) !important;
+}
+.media-viewer-zoom-tools {
+  z-index: 20 !important;
+  top: auto !important;
+  bottom: max(12px, env(safe-area-inset-bottom)) !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+}
+
+:root {
+  --heloro-motion-fast: 140ms;
+  --heloro-motion-normal: 190ms;
+  --heloro-motion-ease: cubic-bezier(.2, .72, .2, 1);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .profile-view-overlay > .profile-view-card {
+    animation: heloro-profile-enter 190ms var(--heloro-motion-ease) both;
+  }
+  .media-viewer-overlay,
+  .heloro-sheet-backdrop,
+  .media-editor-backdrop,
+  .chat-media-picker-backdrop {
+    animation: heloro-overlay-enter 160ms ease-out both;
+  }
+  .heloro-attachment-menu,
+  .media-editor-sheet,
+  .chat-media-picker-panel {
+    animation: heloro-sheet-enter 220ms var(--heloro-motion-ease) both;
+  }
+  .settings-page-card,
+  .navigation-drawer {
+    animation: heloro-panel-enter 190ms var(--heloro-motion-ease) both;
+  }
+  .conversation-item,
+  .person-result,
+  .navigation-item,
+  .icon-button,
+  .profile-view-action,
+  .profile-info-copy,
+  .chat-media-picker-tabs button {
+    transition:
+      color var(--heloro-motion-normal) var(--heloro-motion-ease),
+      background-color var(--heloro-motion-normal) var(--heloro-motion-ease),
+      border-color var(--heloro-motion-normal) var(--heloro-motion-ease),
+      box-shadow var(--heloro-motion-normal) var(--heloro-motion-ease),
+      transform var(--heloro-motion-fast) var(--heloro-motion-ease);
+  }
+  .conversation-item:active,
+  .person-result:active,
+  .navigation-item:active,
+  .icon-button:active,
+  .profile-view-action:active,
+  .profile-info-copy:active,
+  .chat-media-picker-tabs button:active {
+    filter: brightness(.96);
+  }
+}
+@keyframes heloro-overlay-enter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes heloro-profile-enter {
+  from { opacity: .82; filter: blur(3px); }
+  to { opacity: 1; filter: blur(0); }
+}
+@keyframes heloro-sheet-enter {
+  from { opacity: 0; transform: translate3d(0, 16px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+@keyframes heloro-panel-enter {
+  from { opacity: 0; transform: translate3d(0, 8px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: .01ms !important;
+  }
+}
