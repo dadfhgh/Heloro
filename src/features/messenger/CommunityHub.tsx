@@ -66,7 +66,7 @@ type Props = { client: SupabaseClient; user: User; locale: Locale; roles?: strin
 
 function RoomVerificationMark({ type }: { type?: "blue" | "gold" | "creator" | null }) {
   if (!type) return null;
-  return <span className={"community-verification-mark community-verification-" + type} aria-label="Verified community"><BadgeCheck size={15} strokeWidth={2.7} /></span>;
+  return <span className={"community-verification-mark community-verification-" + type} aria-label="Verified community"><BadgeCheck size={14} /></span>;
 }
 
 function RoomAvatar({ room, className = "" }: { room: Room; className?: string }) {
