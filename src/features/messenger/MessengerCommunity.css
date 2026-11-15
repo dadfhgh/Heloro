@@ -1613,3 +1613,27 @@ html[data-theme="dark"] .pinned-messages-list .pinned-messages-remove {
   color: #c3d0d6;
   border-color: rgba(153, 177, 190, .2);
 }
+
+
+/* Community badges: same clean 14px BadgeCheck geometry as Official Support. */
+.community-verification-gold {
+  color: #c99a36 !important;
+  filter: none !important;
+  text-shadow: none !important;
+}
+.community-verification-gold svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  stroke-width: 2;
+  fill: rgba(220, 171, 62, .13);
+  filter: none !important;
+}
+
+/* The count/dropdown control is only a compact trailing pill, not a full-width bar. */
+.pinned-message-head > .pinned-messages-toggle {
+  width: auto;
+  min-width: 40px;
+  max-width: max-content;
+  flex: 0 0 auto;
+}
