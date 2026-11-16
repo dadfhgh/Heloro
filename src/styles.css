@@ -1985,3 +1985,109 @@ html[data-theme="dark"] .admin-panel-full .admin-nav-tabs button.active { color:
     transition-duration: .01ms !important;
   }
 }
+
+
+/* HELORO motion system — based on the pre-Telegram product layout. */
+:root {
+  --heloro-stable-fast: 130ms;
+  --heloro-stable-normal: 210ms;
+  --heloro-stable-slow: 300ms;
+  --heloro-stable-ease: cubic-bezier(.2, .72, .2, 1);
+}
+@media (prefers-reduced-motion: no-preference) {
+  :where(button:not(:disabled), a, [role="button"]:not([aria-disabled="true"])) {
+    -webkit-tap-highlight-color: transparent;
+    transition:
+      color var(--heloro-stable-normal) var(--heloro-stable-ease),
+      background-color var(--heloro-stable-normal) var(--heloro-stable-ease),
+      border-color var(--heloro-stable-normal) var(--heloro-stable-ease),
+      box-shadow var(--heloro-stable-normal) var(--heloro-stable-ease),
+      opacity var(--heloro-stable-normal) var(--heloro-stable-ease),
+      transform var(--heloro-stable-fast) var(--heloro-stable-ease);
+  }
+  :where(button:not(:disabled), [role="button"]:not([aria-disabled="true"])):active {
+    transform: scale(.975);
+  }
+  :where(input, select, textarea) {
+    transition: border-color var(--heloro-stable-normal) var(--heloro-stable-ease),
+      box-shadow var(--heloro-stable-normal) var(--heloro-stable-ease),
+      background-color var(--heloro-stable-normal) var(--heloro-stable-ease);
+  }
+  :where(input, select, textarea, button, a, [role="button"]):focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--blue, #55a9d1) 75%, white);
+    outline-offset: 3px;
+  }
+  .auth-card, .profile-card, .messenger-shell {
+    animation: heloro-stable-screen-in 360ms var(--heloro-stable-ease) both;
+  }
+  .inbox-panel, .conversation-panel, .new-message-screen, .contacts-screen, .system-screen {
+    animation: heloro-stable-panel-in 260ms var(--heloro-stable-ease) both;
+  }
+  .profile-view-overlay, .settings-overlay {
+    animation: heloro-stable-backdrop-in 180ms ease-out both;
+  }
+  .profile-view-card, .settings-card, .report-card, .chat-action-menu {
+    animation: heloro-stable-card-in 240ms var(--heloro-stable-ease) both;
+    transform-origin: center bottom;
+  }
+  .conversation-list > *, .new-message-people > *, .contacts-directory-list > * {
+    animation: heloro-stable-row-in 240ms var(--heloro-stable-ease) both;
+  }
+  .message-stream > * {
+    animation: heloro-stable-message-in 220ms var(--heloro-stable-ease) both;
+  }
+  .message-bubble {
+    transition: transform var(--heloro-stable-fast) var(--heloro-stable-ease),
+      box-shadow var(--heloro-stable-normal) var(--heloro-stable-ease);
+    transform-origin: bottom left;
+  }
+  .mobile-bottom-nav button, .chat-filter-tabs button, .contacts-directory-tabs button,
+  .icon-button, .compose-button, .send-button, .primary-button, .profile-view-action {
+    transition: transform var(--heloro-stable-fast) var(--heloro-stable-ease),
+      background-color var(--heloro-stable-normal) var(--heloro-stable-ease),
+      color var(--heloro-stable-normal) var(--heloro-stable-ease),
+      box-shadow var(--heloro-stable-normal) var(--heloro-stable-ease);
+  }
+  .mobile-bottom-nav button:active, .chat-filter-tabs button:active,
+  .contacts-directory-tabs button:active, .icon-button:active,
+  .compose-button:active, .send-button:active, .primary-button:active,
+  .profile-view-action:active {
+    transform: scale(.94);
+  }
+  .auth-tabs button, .chat-header-actions button {
+    transition: transform var(--heloro-stable-fast) var(--heloro-stable-ease),
+      opacity var(--heloro-stable-normal) var(--heloro-stable-ease);
+  }
+}
+@keyframes heloro-stable-screen-in {
+  from { opacity: 0; transform: translate3d(0, 12px, 0) scale(.992); }
+  to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+@keyframes heloro-stable-panel-in {
+  from { opacity: .55; transform: translate3d(0, 7px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+@keyframes heloro-stable-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes heloro-stable-card-in {
+  from { opacity: 0; transform: translate3d(0, 14px, 0) scale(.985); }
+  to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+@keyframes heloro-stable-row-in {
+  from { opacity: 0; transform: translate3d(0, 6px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+@keyframes heloro-stable-message-in {
+  from { opacity: 0; transform: translate3d(0, 8px, 0) scale(.99); }
+  to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

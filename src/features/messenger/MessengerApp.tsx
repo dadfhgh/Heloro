@@ -46,6 +46,7 @@ import {
   getPublicProfile,
   listPublicProfiles,
   searchProfiles,
+  searchDirectMessages,
   saveProfile,
   sendMessage,
   sendMediaMessage,
@@ -324,6 +325,11 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const [reportBusy, setReportBusy] = useState(false);
   const [chatFilter, setChatFilter] = useState<"all" | "personal">("all");
   const [showChatActions, setShowChatActions] = useState(false);
+  const [messageSearchOpen, setMessageSearchOpen] = useState(false);
+  const [messageSearchQuery, setMessageSearchQuery] = useState("");
+  const [messageSearchResults, setMessageSearchResults] = useState<Message[]>([]);
+  const [messageSearchLoading, setMessageSearchLoading] = useState(false);
+  const [messageSearchError, setMessageSearchError] = useState("");
   const searchInputRef = useRef<HTMLInputElement>(null);
   const composeSearchInputRef = useRef<HTMLInputElement>(null);
   const contactsSearchInputRef = useRef<HTMLInputElement>(null);
@@ -340,6 +346,52 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const isStaff = roles.some((role) => role === "owner" || role === "admin" || role === "moderator");
   const canManageBadges = roles.includes("owner") || roles.includes("admin");
   const handleFolderFilterChange = useCallback((ids: string[] | null) => setFolderChatIds(ids), []);
+
+  useEffect(() => {
+    if (!messageSearchOpen || !activeId) {
+      setMessageSearchResults([]);
+      setMessageSearchLoading(false);
+      setMessageSearchError("");
+      return;
+    }
+
+    const query = messageSearchQuery.trim();
+    if (query.replace(/[%_,]/g, "").length < 2) {
+      setMessageSearchResults([]);
+      setMessageSearchLoading(false);
+      setMessageSearchError("");
+      return;
+    }
+
+    let active = true;
+    setMessageSearchLoading(true);
+    setMessageSearchError("");
+    const timer = window.setTimeout(() => {
+      void searchDirectMessages(activeId, query)
+        .then((items) => { if (active) setMessageSearchResults(items); })
+        .catch((cause: unknown) => {
+          if (active) {
+            setMessageSearchResults([]);
+            setMessageSearchError(cause instanceof Error ? cause.message : (locale === "ru" ? "Не удалось выполнить поиск." : "Search failed."));
+          }
+        })
+        .finally(() => { if (active) setMessageSearchLoading(false); });
+    }, 220);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [messageSearchOpen, messageSearchQuery, activeId, locale]);
+
+  useEffect(() => {
+    if (!messageSearchOpen) return;
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMessageSearchOpen(false);
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [messageSearchOpen]);
 
   useEffect(() => {
     try {
@@ -1425,16 +1477,10 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   }
 
   function openSearch() {
-    setMobileTab("chats");
-    setShowContactsScreen(false);
-    setShowComposeScreen(false);
-    setSystemView(null);
-    setActiveId(null);
-    setActiveCommunityRoomId(null);
-    setCommunityCreateKind(null);
-    setShowSearch(true);
-    setSearch("");
-    setResults([]);
+    setMessageSearchQuery("");
+    setMessageSearchResults([]);
+    setMessageSearchError("");
+    setMessageSearchOpen((current) => !current);
   }
 
   function openSystemView(view: SystemView) {
@@ -1446,6 +1492,8 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
     setActiveCommunityRoomId(null);
     setCommunityCreateKind(null);
     setSystemView(view);
+    setMessageSearchOpen(false);
+    setMessageSearchQuery("");
     setShowSearch(false);
     setSearch("");
     setResults([]);
@@ -1463,6 +1511,8 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
     setSystemView(null);
     setShowSearch(false);
     setShowChatActions(false);
+    setMessageSearchOpen(false);
+    setMessageSearchQuery("");
     setSearch("");
   }
 
@@ -2046,6 +2096,61 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                   </div>
                 </div>
               </header>
+                {messageSearchOpen && (
+                  <section className="chat-message-search-panel" aria-label={locale === "ru" ? "Поиск по переписке" : "Search in conversation"}>
+                    <div className="chat-message-search-input-row">
+                      <Search size={17} aria-hidden="true" />
+                      <input
+                        autoFocus
+                        type="search"
+                        value={messageSearchQuery}
+                        onChange={(event) => setMessageSearchQuery(event.target.value)}
+                        placeholder={locale === "ru" ? "Найти сообщение в чате" : "Find a message in this chat"}
+                        aria-label={locale === "ru" ? "Поиск сообщений" : "Search messages"}
+                      />
+                      {messageSearchQuery && (
+                        <button type="button" onClick={() => setMessageSearchQuery("")} aria-label={locale === "ru" ? "Очистить поиск" : "Clear search"}>
+                          <X size={16} />
+                        </button>
+                      )}
+                      <button type="button" onClick={() => setMessageSearchOpen(false)} aria-label={locale === "ru" ? "Закрыть поиск" : "Close search"}>
+                        <X size={18} />
+                      </button>
+                    </div>
+                    <div className="chat-message-search-status" aria-live="polite">
+                      {messageSearchLoading
+                        ? (locale === "ru" ? "Поиск…" : "Searching…")
+                        : messageSearchError
+                          ? messageSearchError
+                          : messageSearchQuery.trim().length < 2
+                            ? (locale === "ru" ? "Введите минимум 2 символа" : "Enter at least 2 characters")
+                            : messageSearchResults.length === 0
+                              ? (locale === "ru" ? "Ничего не найдено" : "No messages found")
+                              : (locale === "ru" ? `Найдено: ${messageSearchResults.length}` : `Found: ${messageSearchResults.length}`)}
+                    </div>
+                    {messageSearchResults.length > 0 && (
+                      <div className="chat-message-search-results">
+                        {messageSearchResults.map((result) => (
+                          <button
+                            type="button"
+                            className="chat-message-search-result"
+                            key={result.id}
+                            onClick={() => {
+                              setMessageSearchOpen(false);
+                              void jumpToMessage(result.id);
+                            }}
+                          >
+                            <span className="chat-message-search-result-copy">
+                              <strong>{result.sender_id === user.id ? (locale === "ru" ? "Вы" : "You") : activeConversation.display_name}</strong>
+                              <span>{result.media?.caption || result.media?.emoji || (result.body && !result.body.startsWith("HELORO_MEDIA:") ? result.body : (locale === "ru" ? "Медиафайл" : "Media"))}</span>
+                            </span>
+                            <time>{formatMessageTime(result.created_at)}</time>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </section>
+                )}
                 {pinnedMessages.length > 0 && (
                   <div className="pinned-messages-panel">
                     <div className="pinned-message-head">

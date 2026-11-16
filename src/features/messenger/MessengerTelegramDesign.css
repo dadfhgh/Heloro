@@ -3709,3 +3709,98 @@ html[data-theme="dark"] .media-editor-sheet { border-color: #354b5b; background:
     box-shadow: 0 -8px 24px rgba(0, 0, 0, .2);
   }
 }
+
+
+/* Conversation message search — preserves the existing HELORO surface palette. */
+.chat-message-search-panel {
+  position: relative;
+  z-index: 24;
+  flex: 0 0 auto;
+  padding: 10px 14px 9px;
+  border-bottom: 1px solid var(--line, #e4e8ec);
+  background: var(--panel, #fff);
+}
+.chat-message-search-input-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--line, #e1e6eb);
+  border-radius: 12px;
+  color: var(--muted, #71808d);
+  background: var(--surface, #f5f7f9);
+}
+.chat-message-search-input-row input {
+  flex: 1;
+  min-width: 0;
+  height: 38px;
+  border: 0;
+  outline: 0;
+  color: var(--text, #24313c);
+  background: transparent;
+  font: inherit;
+}
+.chat-message-search-input-row button {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  color: var(--muted, #71808d);
+  background: transparent;
+  cursor: pointer;
+}
+.chat-message-search-input-row button:hover { color: var(--text, #24313c); background: var(--hover, #e9eef2); }
+.chat-message-search-status {
+  padding: 7px 3px 4px;
+  color: var(--muted, #77838e);
+  font-size: 12px;
+}
+.chat-message-search-results {
+  display: grid;
+  gap: 3px;
+  max-height: 210px;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.chat-message-search-result {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+  padding: 8px 9px;
+  border: 0;
+  border-radius: 10px;
+  color: var(--text, #263440);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.chat-message-search-result:hover { background: var(--hover, #f0f4f6); }
+.chat-message-search-result-copy { display: grid; gap: 3px; min-width: 0; }
+.chat-message-search-result-copy strong { font-size: 12px; font-weight: 650; }
+.chat-message-search-result-copy span {
+  overflow: hidden;
+  color: var(--muted, #65727e);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-message-search-result time { flex: 0 0 auto; color: var(--muted, #82909b); font-size: 11px; }
+html[data-theme="dark"] .chat-message-search-panel { border-color: #29343d; background: #11181e; }
+html[data-theme="dark"] .chat-message-search-input-row { border-color: #2d3943; background: #19232b; }
+html[data-theme="dark"] .chat-message-search-input-row input { color: #e7edf2; }
+html[data-theme="dark"] .chat-message-search-result { color: #e7edf2; }
+html[data-theme="dark"] .chat-message-search-result:hover { background: #1e2a33; }
+@media (prefers-reduced-motion: no-preference) {
+  .chat-message-search-panel { animation: heloro-search-panel-in 190ms cubic-bezier(.2, .72, .2, 1) both; }
+}
+@keyframes heloro-search-panel-in {
+  from { opacity: 0; transform: translate3d(0, -5px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
