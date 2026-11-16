@@ -236,6 +236,47 @@ export async function getMessages(conversationId: string, limit = 60): Promise<M
   }
   return hydrateMessageRows(rawRows.reverse());
 }
+
+export async function searchDirectMessages(conversationId: string, query: string, limit = 40): Promise<Message[]> {
+  const normalized = query.trim().replace(/[%,_]/g, "").slice(0, 120);
+  if (normalized.length < 2) return [];
+
+  const withEditsAndReplies = await client().from("messages")
+    .select("id, conversation_id, sender_id, body, created_at, reply_to, edited_at")
+    .eq("conversation_id", conversationId)
+    .ilike("body", `%${normalized}%`)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  let rawRows: Message[];
+  if (!withEditsAndReplies.error) {
+    rawRows = (withEditsAndReplies.data ?? []) as Message[];
+  } else {
+    const withReplies = await client().from("messages")
+      .select("id, conversation_id, sender_id, body, created_at, reply_to")
+      .eq("conversation_id", conversationId)
+      .ilike("body", `%${normalized}%`)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (!withReplies.error) {
+      rawRows = (withReplies.data ?? []) as Message[];
+    } else if (/reply_to|edited_at/i.test(withReplies.error.message)) {
+      const basic = await client().from("messages")
+        .select("id, conversation_id, sender_id, body, created_at")
+        .eq("conversation_id", conversationId)
+        .ilike("body", `%${normalized}%`)
+        .order("created_at", { ascending: false })
+        .limit(limit);
+      if (basic.error) throw basic.error;
+      rawRows = (basic.data ?? []) as Message[];
+    } else {
+      throw withReplies.error;
+    }
+  }
+
+  return hydrateMessageRows(rawRows.reverse());
+}
+
 export async function sendMessage(
   conversationId: string,
   senderId: string,
