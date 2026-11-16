@@ -180,6 +180,8 @@ export default function App() {
     const applyTheme = () => {
       const resolved = theme === "system" ? (media.matches ? "dark" : "light") : theme;
       document.documentElement.dataset.theme = resolved;
+      const themeColor = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+      if (themeColor) themeColor.content = resolved === "dark" ? "#080808" : "#ffffff";
     };
     applyTheme();
     try {
