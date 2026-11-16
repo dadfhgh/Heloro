@@ -1,10 +1,12 @@
-import { Fragment, lazy, Suspense, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { Fragment, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import type { RealtimeChannel, User } from "@supabase/supabase-js";
 import {
   ArrowLeft,
   ArrowUp,
   BadgeCheck,
+  Bookmark,
+  BookmarkCheck,
   Check,
   CheckCheck,
   CalendarDays,
@@ -66,6 +68,7 @@ import CommunityHub from "./CommunityHub";
 import ChatMediaPicker from "./ChatMediaPicker";
 import { setVerificationBadge, submitUserReport, submitContentReport } from "../../lib/official";
 import type { SettingsSection } from "./MessengerNavigation";
+import ChatFoldersBar, { type FolderChoice } from "./ChatFoldersBar";
 import type { ThemePreference } from "../../lib/preferences";
 import "./MessengerTelegramDesign.css";
 import "./MessengerCommunity.css";
@@ -73,6 +76,29 @@ import "./MessengerCommunity.css";
 type SystemView = "news" | "discussion" | "support" | "admin";
 type CommunityRoomPreview = { id: string; kind: "group" | "channel"; name: string; username: string; description: string; avatar_url: string | null; is_public: boolean; updated_at: string; badge_type?: "blue" | "gold" | "creator" | null };
 type VisibleChatItem = { kind: "direct"; sortAt: string; conversation: InboxConversation } | { kind: "community"; sortAt: string; room: CommunityRoomPreview };
+type SavedMessageRecord = { id: string; conversationId: string; sourceTitle: string; savedAt: string; message: Message };
+
+function readSavedMessages(userId: string): SavedMessageRecord[] {
+  try {
+    const raw = window.localStorage.getItem("heloro:saved-messages:" + userId);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((item): item is SavedMessageRecord =>
+      Boolean(item) &&
+      typeof item === "object" &&
+      typeof (item as SavedMessageRecord).id === "string" &&
+      typeof (item as SavedMessageRecord).conversationId === "string" &&
+      typeof (item as SavedMessageRecord).sourceTitle === "string" &&
+      typeof (item as SavedMessageRecord).savedAt === "string" &&
+      Boolean((item as SavedMessageRecord).message) &&
+      typeof (item as SavedMessageRecord).message.id === "string" &&
+      typeof (item as SavedMessageRecord).message.created_at === "string",
+    ).slice(-300);
+  } catch {
+    return [];
+  }
+}
 
 type Props = {
   client: SupabaseClient;
@@ -276,6 +302,10 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const [directoryRoomsLoaded, setDirectoryRoomsLoaded] = useState(false);
   const [directoryError, setDirectoryError] = useState("");
   const [mobileTab, setMobileTab] = useState<"chats" | "contacts" | "settings" | "profile">("chats");
+  const [showSavedMessages, setShowSavedMessages] = useState(false);
+  const [savedMessages, setSavedMessages] = useState<SavedMessageRecord[]>(() => readSavedMessages(user.id));
+  const [folderChatIds, setFolderChatIds] = useState<string[] | null>(null);
+  const [folderManagerOpen, setFolderManagerOpen] = useState(false);
   const [viewedProfile, setViewedProfile] = useState<PublicProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileBusy, setProfileBusy] = useState(false);
@@ -309,6 +339,15 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const lastTypingBroadcastRef = useRef(0);
   const isStaff = roles.some((role) => role === "owner" || role === "admin" || role === "moderator");
   const canManageBadges = roles.includes("owner") || roles.includes("admin");
+  const handleFolderFilterChange = useCallback((ids: string[] | null) => setFolderChatIds(ids), []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem("heloro:saved-messages:" + user.id, JSON.stringify(savedMessages));
+    } catch {
+      // Keep the in-memory Saved Messages view usable when storage is full or unavailable.
+    }
+  }, [savedMessages, user.id]);
 
   // Modal layers are portalled to document.body, and the page behind them must not scroll.
   useEffect(() => {
@@ -438,6 +477,26 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
       room,
     })),
   ].sort((left, right) => Date.parse(right.sortAt) - Date.parse(left.sortAt)), [visibleInbox, visibleCommunityRooms]);
+
+  const folderChoices = useMemo<FolderChoice[]>(() => [
+    ...inbox.map((item) => ({
+      id: item.conversation_id,
+      label: item.display_name || item.username || (locale === "ru" ? "Личный чат" : "Direct chat"),
+      subtitle: "@" + item.username,
+    })),
+    ...communityRooms.map((room) => ({
+      id: room.id,
+      label: room.name,
+      subtitle: room.kind === "channel" ? (locale === "ru" ? "Канал" : "Channel") : (locale === "ru" ? "Группа" : "Group"),
+    })),
+  ], [inbox, communityRooms, locale]);
+
+  const folderFilteredChatItems = useMemo(() => {
+    if (!folderChatIds) return visibleChatItems;
+    return visibleChatItems.filter((entry) => folderChatIds.includes(
+      entry.kind === "direct" ? entry.conversation.conversation_id : entry.room.id,
+    ));
+  }, [visibleChatItems, folderChatIds]);
 
   async function refreshInbox(selectId?: string) {
     const updated = await getInbox();
@@ -777,7 +836,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
     }
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [showSettings, showBots, showNavigation, showReport, showProfile, showComposeScreen, showContactsScreen, mediaViewer]);
+  }, [showSettings, showBots, showNavigation, showReport, showProfile, showComposeScreen, showContactsScreen, showSavedMessages, mediaViewer]);
 
   useEffect(() => {
     if (showSearch && !showComposeScreen) searchInputRef.current?.focus();
@@ -1320,6 +1379,11 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
 
   function openMobileTab(tab: "chats" | "contacts" | "settings" | "profile") {
     setMobileTab(tab);
+    setShowSettings(false);
+    setShowProfile(false);
+    setShowSavedMessages(false);
+    setShowBots(false);
+    setFolderManagerOpen(false);
     if (tab === "chats") {
       setShowContactsScreen(false);
       closeConversation();
@@ -1371,6 +1435,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   }
 
   function openSystemView(view: SystemView) {
+    setShowSavedMessages(false);
     setMobileTab("chats");
     setShowContactsScreen(false);
     setShowComposeScreen(false);
@@ -1385,6 +1450,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   }
 
   function closeConversation() {
+    setShowSavedMessages(false);
     setMobileTab("chats");
     setShowContactsScreen(false);
     setShowComposeScreen(false);
@@ -1398,12 +1464,14 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   }
 
   function openSettings(section: SettingsSection = "account") {
+    setShowSavedMessages(false);
     setSettingsSection(section);
     setShowBots(false);
     setShowSettings(true);
   }
 
   function openBots() {
+    setShowSavedMessages(false);
     setShowSettings(false);
     setShowNavigation(false);
     setShowComposeScreen(false);
@@ -1418,8 +1486,62 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
     setMobileTab("chats");
   }
 
+  function openSavedMessages() {
+    setShowNavigation(false);
+    setShowSettings(false);
+    setShowProfile(false);
+    setShowBots(false);
+    setShowContactsScreen(false);
+    setShowComposeScreen(false);
+    setShowSearch(false);
+    setActiveId(null);
+    setActiveCommunityRoomId(null);
+    setCommunityCreateKind(null);
+    setSystemView(null);
+    setMobileTab("chats");
+    setShowSavedMessages(true);
+  }
+
+  function openFolderManager() {
+    setShowNavigation(false);
+    setShowSettings(false);
+    setShowProfile(false);
+    setShowSavedMessages(false);
+    setShowBots(false);
+    setShowComposeScreen(false);
+    setShowContactsScreen(false);
+    closeConversation();
+    setFolderManagerOpen(true);
+  }
+
+  function toggleSavedMessage(message: Message) {
+    const id = message.conversation_id + ":" + message.id;
+    setSavedMessages((current) => {
+      if (current.some((item) => item.id === id)) return current.filter((item) => item.id !== id);
+      const record: SavedMessageRecord = {
+        id,
+        conversationId: message.conversation_id,
+        sourceTitle: activeConversation?.display_name || activeConversation?.username || (locale === "ru" ? "Личный чат" : "Direct chat"),
+        savedAt: new Date().toISOString(),
+        message: { ...message, media: message.media ? { ...message.media } : message.media },
+      };
+      return [...current, record].slice(-300);
+    });
+  }
+
+  function openSavedConversation(record: SavedMessageRecord) {
+    setShowSavedMessages(false);
+    setShowContactsScreen(false);
+    setShowComposeScreen(false);
+    setSystemView(null);
+    setActiveCommunityRoomId(null);
+    setCommunityCreateKind(null);
+    setActiveId(record.conversationId);
+    setMobileTab("chats");
+  }
+
   return (
-    <main className={`messenger-stage ${activeConversation || systemView || activeCommunityRoomId || communityCreateKind ? "chat-selected" : ""}`}>
+    <main className={`messenger-stage ${activeConversation || systemView || activeCommunityRoomId || communityCreateKind || showSavedMessages ? "chat-selected" : ""}`}>
       <div className="messenger-shell">
         <aside className="inbox-panel">
           <header className="inbox-topbar">
@@ -1471,6 +1593,14 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
               {t(locale, "chatPersonal")}
             </button>
           </div>
+          <ChatFoldersBar
+            userId={user.id}
+            locale={locale}
+            choices={folderChoices}
+            managerOpen={folderManagerOpen}
+            onManagerClose={() => setFolderManagerOpen(false)}
+            onActiveFolderChange={handleFolderFilterChange}
+          />
 
           <section className="conversation-list">
             {showSearch && search.trim().length > 1 ? (
@@ -1533,14 +1663,14 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                 )}
                 {loadingInbox ? (
                   <div className="list-placeholder"><span /><span /><span /><span /></div>
-                ) : visibleChatItems.length === 0 ? (
+                ) : folderFilteredChatItems.length === 0 ? (
                   <div className="inbox-empty">
                     <div className="inbox-empty-icon"><MessageCircle size={21} /></div>
                     <strong>{t(locale, "inboxEmptyTitle")}</strong>
                     <p>{t(locale, "inboxEmptyDescription")}</p>
                     <button onClick={openSearch}>{t(locale, "inboxFindSomeone")}</button>
                   </div>
-                ) : visibleChatItems.map((entry) => entry.kind === "community" ? (
+                ) : folderFilteredChatItems.map((entry) => entry.kind === "community" ? (
                   <button
                     className={`conversation-item community-inbox-item ${activeCommunityRoomId === entry.room.id ? "selected" : ""}`}
                     type="button"
@@ -1790,7 +1920,40 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
         </aside>
 
         <section className="conversation-panel">
-          {systemView ? (
+          {showSavedMessages ? (
+            <div className="saved-messages-screen">
+              <header className="saved-messages-header">
+                <button type="button" onClick={closeConversation} aria-label={locale === "ru" ? "Назад к чатам" : "Back to chats"}><ArrowLeft size={20} /></button>
+                <span><strong>{locale === "ru" ? "Избранное" : "Saved Messages"}</strong><small>{locale === "ru" ? "Сохранённые сообщения" : "Your saved messages"}</small></span>
+              </header>
+              <div className="saved-message-list">
+                {savedMessages.length === 0 ? (
+                  <div className="saved-message-empty">
+                    <div className="saved-message-empty-icon"><Bookmark size={28} /></div>
+                    <strong>{locale === "ru" ? "Здесь пока пусто" : "Nothing saved yet"}</strong>
+                    <p>{locale === "ru" ? "Нажми значок закладки под сообщением, чтобы сохранить его здесь." : "Tap the bookmark icon on a message to keep it here."}</p>
+                  </div>
+                ) : [...savedMessages].reverse().map((record) => (
+                  <article className="saved-message-item" key={record.id}>
+                    <div className="saved-message-item-copy">
+                      <span className="saved-message-source">{record.sourceTitle}</span>
+                      {record.message.media?.kind === "photo" && record.message.media.url && <img className="saved-message-media" src={record.message.media.url} alt={locale === "ru" ? "Сохранённое фото" : "Saved photo"} loading="lazy" />}
+                      {record.message.media?.kind === "video" && <span className="saved-message-source">{locale === "ru" ? "Видеосообщение" : "Video message"}</span>}
+                      {record.message.media?.kind === "sticker" && <span className="saved-message-body">{record.message.media.emoji || (locale === "ru" ? "Стикер" : "Sticker")}</span>}
+                      {record.message.media?.kind === "gif" && <span className="saved-message-body">{record.message.media.emoji || "GIF"}</span>}
+                      {record.message.body && <p className="saved-message-body">{record.message.body}</p>}
+                      <small className="saved-message-meta">{new Date(record.savedAt).toLocaleString(locale === "ru" ? "ru-RU" : "en-US")}</small>
+                    </div>
+                    <div className="saved-message-actions">
+                      <button type="button" onClick={() => openSavedConversation(record)} aria-label={locale === "ru" ? "Открыть исходный чат" : "Open source chat"} title={locale === "ru" ? "Открыть чат" : "Open chat"}><MessageCircle size={15} /></button>
+                      <button type="button" className="saved-message-remove" onClick={() => setSavedMessages((current) => current.filter((item) => item.id !== record.id))} aria-label={locale === "ru" ? "Удалить из избранного" : "Remove from Saved Messages"} title={locale === "ru" ? "Удалить" : "Remove"}><Trash2 size={15} /></button>
+                    </div>
+                  </article>
+                ))}
+                <p className="saved-message-disclaimer">{locale === "ru" ? "Избранное хранится локально на этом устройстве и не синхронизируется между устройствами." : "Saved Messages are stored on this device and are not synced across devices."}</p>
+              </div>
+            </div>
+          ) : systemView ? (
             <div className="system-screen">
               <button className="system-mobile-back" onClick={closeConversation} aria-label={t(locale, "inboxBack")}><ArrowLeft size={19} /></button>
               <OfficialPanels
@@ -2033,6 +2196,15 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                           {mine && (!message.media || message.media.kind === "photo" || message.media.kind === "video") && <button type="button" className="message-action-button" onClick={() => { setReplyTarget(null); setEditTarget(message); setDraft(message.body); setPhotoDraft(null); setPhotoCaption(""); }} aria-label={locale === "ru" ? "Редактировать" : "Edit"} title={locale === "ru" ? "Редактировать" : "Edit"}><PencilLine size={13} /></button>}
                           <button
                             type="button"
+                            className={"message-action-button " + (savedMessages.some((item) => item.id === message.conversation_id + ":" + message.id) ? "is-saved" : "")}
+                            onClick={() => toggleSavedMessage(message)}
+                            aria-label={savedMessages.some((item) => item.id === message.conversation_id + ":" + message.id) ? (locale === "ru" ? "Убрать из избранного" : "Remove from Saved Messages") : (locale === "ru" ? "Сохранить в избранное" : "Save to Saved Messages")}
+                            title={savedMessages.some((item) => item.id === message.conversation_id + ":" + message.id) ? (locale === "ru" ? "В избранном" : "Saved") : (locale === "ru" ? "Сохранить" : "Save")}
+                          >
+                            {savedMessages.some((item) => item.id === message.conversation_id + ":" + message.id) ? <BookmarkCheck size={15} /> : <Bookmark size={15} />}
+                          </button>
+                          <button
+                            type="button"
                             className={"message-action-button " + (pinnedMessages.some((item) => item.id === message.id) ? "is-pinned" : "")}
                             disabled={pinningMessageIds.includes(message.id)}
                             aria-busy={pinningMessageIds.includes(message.id)}
@@ -2181,6 +2353,24 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
         </section>
       </div>
 
+      {!showComposeScreen && !showNavigation && !showBots && !mediaViewer && !showAttachmentMenu && !photoDraft && !videoDraft && createPortal(
+        <nav className="mobile-bottom-nav mobile-bottom-nav-floating" aria-label={locale === "ru" ? "Основная навигация" : "Main navigation"}>
+          <button type="button" className={mobileTab === "chats" ? "active" : ""} aria-current={mobileTab === "chats" ? "page" : undefined} onClick={() => openMobileTab("chats")}>
+            <MessageCircle size={21} /><span>{locale === "ru" ? "Чаты" : "Chats"}</span>
+          </button>
+          <button type="button" className={mobileTab === "contacts" ? "active" : ""} aria-current={mobileTab === "contacts" ? "page" : undefined} onClick={() => openMobileTab("contacts")}>
+            <Users size={21} /><span>{locale === "ru" ? "Контакты" : "Contacts"}</span>
+          </button>
+          <button type="button" className={mobileTab === "settings" ? "active" : ""} aria-current={mobileTab === "settings" ? "page" : undefined} onClick={() => openMobileTab("settings")}>
+            <Settings2 size={21} /><span>{locale === "ru" ? "Настройки" : "Settings"}</span>
+          </button>
+          <button type="button" className={mobileTab === "profile" ? "active" : ""} aria-current={mobileTab === "profile" ? "page" : undefined} onClick={() => openMobileTab("profile")}>
+            <UserRound size={21} /><span>{locale === "ru" ? "Профиль" : "Profile"}</span>
+          </button>
+        </nav>,
+        document.body,
+      )}
+
       {error && !activeConversation && !systemView && !activeCommunityRoomId && !communityCreateKind && <div className="global-error" role="alert">{error}<button onClick={() => setError("")} aria-label={t(locale, "dismiss")}><X size={14} /></button></div>}
 
       {showNavigation && (
@@ -2200,6 +2390,8 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
             onOpenBots={openBots}
             onOpenAdmin={() => openSystemView("admin")}
             onOpenMyProfile={() => void openUserProfile(user.id)}
+            onOpenSaved={openSavedMessages}
+            onOpenFolders={openFolderManager}
           />
         </Suspense>
       )}
