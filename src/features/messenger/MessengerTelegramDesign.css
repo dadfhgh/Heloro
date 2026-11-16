@@ -3639,7 +3639,7 @@ html[data-theme="dark"] .media-editor-sheet { border-color: #354b5b; background:
   background: #f1f5f8 !important;
   opacity: 1 !important;
   transform: none !important;
-  z-index: 1200 !important;
+  z-index: 2100 !important;
 }
 .profile-view-overlay > .profile-view-card {
   position: relative !important;
