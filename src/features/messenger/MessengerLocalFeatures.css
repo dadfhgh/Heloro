@@ -1,0 +1,106 @@
+/* HELORO local messenger features and persistent mobile navigation. */
+.chat-folders-shell { flex: 0 0 auto; min-width: 0; padding: 7px 10px 8px; border-bottom: 1px solid #e8eef2; background: #fff; }
+.chat-folders-bar { display: flex; align-items: center; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+.chat-folders-bar::-webkit-scrollbar { display: none; }
+.chat-folders-bar button { min-height: 32px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 0 11px; border: 1px solid transparent; border-radius: 999px; color: #6b7c88; background: #f2f6f9; font: inherit; font-size: 11px; font-weight: 650; white-space: nowrap; transition: color .18s ease, background .18s ease, transform .18s ease, border-color .18s ease; }
+.chat-folders-bar button:active { transform: scale(.96); }
+.chat-folders-bar button.active { color: #1669a6; border-color: #cfe4f5; background: #eaf5fd; }
+.chat-folders-bar .chat-folders-manage-trigger { width: 32px; padding: 0; border-color: #e2eaf0; color: #277db8; background: #fff; }
+.chat-folders-backdrop { position: fixed; z-index: 2147483002; inset: 0; display: flex; align-items: flex-end; justify-content: center; padding: 12px; background: rgba(10,24,35,.4); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); animation: heloro-feature-fade .18s ease-out; }
+.chat-folders-dialog { display: flex; width: min(100%, 520px); max-height: min(86dvh, 760px); flex-direction: column; overflow: hidden; border: 1px solid #dbe6ee; border-radius: 22px; color: #213647; background: #fff; box-shadow: 0 24px 70px rgba(10,35,55,.28); animation: heloro-sheet-rise .24s cubic-bezier(.2,.8,.2,1); }
+.chat-folders-dialog-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 17px 18px 13px; border-bottom: 1px solid #edf1f4; }
+.chat-folders-dialog-header div { display: grid; gap: 4px; }
+.chat-folders-dialog-header strong { font-size: 16px; }
+.chat-folders-dialog-header small { color: #81919d; font-size: 11px; }
+.chat-folders-dialog-header > button, .chat-folder-manager-row > button:not(.chat-folder-manager-name) { width: 34px; height: 34px; display: grid; place-items: center; border: 0; border-radius: 10px; color: #6c7f8d; background: #f2f6f9; }
+.chat-folders-manager-list { max-height: 160px; flex: 0 1 auto; overflow-y: auto; padding: 6px 14px; }
+.chat-folders-empty { margin: 8px 4px; color: #8998a4; font-size: 12px; }
+.chat-folder-manager-row { display: flex; align-items: center; gap: 6px; padding: 5px 0; border-bottom: 1px solid #f0f3f5; }
+.chat-folder-manager-name { min-width: 0; flex: 1; display: flex; align-items: center; gap: 10px; padding: 6px 4px; border: 0; color: #2c536c; text-align: left; background: transparent; }
+.chat-folder-manager-name span { min-width: 0; display: grid; gap: 3px; }
+.chat-folder-manager-name strong { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.chat-folder-manager-name small { color: #8b9aa4; font-size: 10px; }
+.chat-folders-form { min-height: 0; display: flex; flex: 1 1 auto; flex-direction: column; gap: 11px; padding: 13px 17px 12px; border-top: 1px solid #edf1f4; }
+.chat-folders-form > label { display: grid; gap: 6px; color: #6d7d88; font-size: 11px; font-weight: 650; }
+.chat-folders-form input:not([type="checkbox"]) { width: 100%; min-height: 40px; box-sizing: border-box; padding: 0 11px; border: 1px solid #dce6ed; border-radius: 10px; outline: none; color: #213647; background: #f8fbfd; font: inherit; font-size: 13px; }
+.chat-folders-form input:focus { border-color: #81b9df; box-shadow: 0 0 0 3px rgba(51,144,236,.1); }
+.chat-folders-choice-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: #415b6d; font-size: 11px; }
+.chat-folders-choice-heading small { color: #8998a4; }
+.chat-folders-choice-list { min-height: 60px; flex: 1 1 auto; overflow-y: auto; padding: 2px 4px; border: 1px solid #e8eef2; border-radius: 11px; }
+.chat-folders-choice { display: flex; align-items: center; gap: 9px; min-height: 43px; padding: 4px 5px; border-bottom: 1px solid #f0f3f5; color: #334c5e; }
+.chat-folders-choice:last-child { border-bottom: 0; }
+.chat-folders-choice input { width: 17px; height: 17px; accent-color: #278bd0; }
+.chat-folders-choice span { min-width: 0; flex: 1; display: grid; gap: 2px; }
+.chat-folders-choice strong { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.chat-folders-choice small { overflow: hidden; color: #93a0a9; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.chat-folders-choice > svg { color: #278bd0; }
+.chat-folders-form-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 7px; }
+.chat-folders-form-actions button { min-height: 36px; padding: 0 13px; border: 1px solid transparent; border-radius: 9px; font: inherit; font-size: 11px; font-weight: 650; }
+.chat-folders-secondary { color: #577083; background: #f0f5f8; }
+.chat-folders-primary { color: #fff; background: #278bd0; }
+.chat-folders-primary:disabled { opacity: .45; }
+.chat-folders-local-note { margin: 0; color: #96a3ac; font-size: 10px; text-align: center; }
+
+.saved-messages-screen { height: 100%; min-height: 0; display: flex; flex-direction: column; overflow: hidden; color: #20384a; background: #f4f8fb; }
+.saved-messages-header { min-height: 62px; flex: 0 0 auto; display: flex; align-items: center; gap: 11px; padding: 0 14px; border-bottom: 1px solid #e3ebf1; background: #fff; }
+.saved-messages-header button { width: 38px; height: 38px; display: grid; place-items: center; border: 0; border-radius: 50%; color: #547083; background: #f1f6f9; }
+.saved-messages-header span { min-width: 0; flex: 1; display: grid; gap: 3px; }
+.saved-messages-header strong { font-size: 14px; }
+.saved-messages-header small { color: #8697a3; font-size: 10px; }
+.saved-message-list { min-height: 0; flex: 1; overflow-y: auto; padding: 14px; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.saved-message-empty { max-width: 260px; margin: 18vh auto 0; display: grid; justify-items: center; gap: 9px; color: #7c8e9b; text-align: center; }
+.saved-message-empty-icon { width: 62px; height: 62px; display: grid; place-items: center; border-radius: 20px; color: #278bd0; background: #e5f3fd; }
+.saved-message-empty strong { color: #3e586b; font-size: 14px; }
+.saved-message-empty p { margin: 0; font-size: 11px; line-height: 1.5; }
+.saved-message-item { display: flex; align-items: flex-start; gap: 10px; margin: 0 auto 10px; padding: 12px; border: 1px solid #e0eaf1; border-radius: 15px; background: #fff; box-shadow: 0 4px 12px rgba(34,70,95,.045); animation: heloro-feature-fade .2s ease-out; }
+.saved-message-item-copy { min-width: 0; flex: 1; display: grid; gap: 6px; }
+.saved-message-source { color: #2782bd; font-size: 10px; font-weight: 700; }
+.saved-message-body { margin: 0; color: #294357; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.saved-message-media { max-width: 150px; max-height: 110px; border-radius: 9px; object-fit: cover; }
+.saved-message-meta { color: #91a0aa; font-size: 10px; }
+.saved-message-actions { display: flex; flex: 0 0 auto; flex-direction: column; gap: 5px; }
+.saved-message-actions button { width: 31px; height: 31px; display: grid; place-items: center; border: 0; border-radius: 9px; color: #6e8798; background: #f2f6f9; }
+.saved-message-actions button.saved-message-remove { color: #9a6d6d; }
+.saved-message-disclaimer { margin: 8px 4px 2px; color: #96a4ae; font-size: 10px; text-align: center; }
+
+.mobile-bottom-nav-floating { position: fixed !important; z-index: 2147483001 !important; right: 0; bottom: 0; left: 0; display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); min-height: 64px; padding: 6px 7px max(6px,env(safe-area-inset-bottom)); border-top: 1px solid rgba(195,215,229,.7); border-radius: 17px 17px 0 0; background: rgba(255,255,255,.88); box-shadow: 0 -8px 28px rgba(27,64,88,.12); backdrop-filter: blur(20px) saturate(1.35); -webkit-backdrop-filter: blur(20px) saturate(1.35); box-sizing: border-box; }
+.mobile-bottom-nav-floating button { min-height: 50px; border-radius: 12px; color: #7990a1; transition: transform .18s ease, color .18s ease, background .18s ease; }
+.mobile-bottom-nav-floating button:active { transform: scale(.94); }
+.mobile-bottom-nav-floating button.active { color: #167cbd; background: #e6f4fd; }
+.mobile-bottom-nav-floating button.active svg { animation: heloro-nav-icon-in .22s ease-out; }
+.mobile-bottom-nav-floating button span { font-size: 10px; letter-spacing: .01em; }
+@keyframes heloro-nav-icon-in { from { transform: translateY(2px) scale(.86); opacity: .55; } to { transform: translateY(0) scale(1); opacity: 1; } }
+@keyframes heloro-feature-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes heloro-sheet-rise { from { opacity: 0; transform: translateY(18px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
+
+html[data-theme="dark"] .chat-folders-shell { border-color: #273d4f; background: #142431; }
+html[data-theme="dark"] .chat-folders-bar button { color: #a6bbc9; background: #1d3445; }
+html[data-theme="dark"] .chat-folders-bar button.active { color: #9bd4ff; border-color: #315c79; background: #1d3d55; }
+html[data-theme="dark"] .chat-folders-bar .chat-folders-manage-trigger { border-color: #30485b; background: #182e3f; }
+html[data-theme="dark"] .chat-folders-dialog { border-color: #30475a; color: #e8f2f8; background: #172a38; }
+html[data-theme="dark"] .chat-folders-dialog-header, html[data-theme="dark"] .chat-folders-form { border-color: #2b4051; }
+html[data-theme="dark"] .chat-folders-dialog-header small, html[data-theme="dark"] .chat-folder-manager-name small, html[data-theme="dark"] .chat-folders-form .chat-folders-local-note { color: #94a9b8; }
+html[data-theme="dark"] .chat-folder-manager-row, html[data-theme="dark"] .chat-folders-choice { border-color: #2b4051; }
+html[data-theme="dark"] .chat-folder-manager-name, html[data-theme="dark"] .chat-folders-choice { color: #d5e5ef; }
+html[data-theme="dark"] .chat-folders-form input:not([type="checkbox"]) { border-color: #355064; color: #eaf4fa; background: #10212d; }
+html[data-theme="dark"] .chat-folders-choice-list { border-color: #355064; }
+html[data-theme="dark"] .chat-folders-dialog-header > button, html[data-theme="dark"] .chat-folder-manager-row > button:not(.chat-folder-manager-name) { color: #b6cbd8; background: #243c4d; }
+html[data-theme="dark"] .chat-folders-secondary { color: #c0d3df; background: #294356; }
+html[data-theme="dark"] .saved-messages-screen { color: #e5f1f8; background: #102331; }
+html[data-theme="dark"] .saved-messages-header { border-color: #2a4050; background: #152b3a; }
+html[data-theme="dark"] .saved-messages-header button, html[data-theme="dark"] .saved-message-actions button { color: #b3cede; background: #223d50; }
+html[data-theme="dark"] .saved-message-empty strong, html[data-theme="dark"] .saved-message-body { color: #e0edf5; }
+html[data-theme="dark"] .saved-message-empty-icon { color: #8ac9f5; background: #1b4059; }
+html[data-theme="dark"] .saved-message-item { border-color: #2c4557; background: #182f40; }
+html[data-theme="dark"] .saved-message-disclaimer, html[data-theme="dark"] .saved-message-meta { color: #9ab0bf; }
+html[data-theme="dark"] .mobile-bottom-nav-floating { border-color: #2a4050; background: rgba(16,34,47,.86); box-shadow: 0 -8px 28px rgba(0,0,0,.22); }
+html[data-theme="dark"] .mobile-bottom-nav-floating button { color: #9db5c5; }
+html[data-theme="dark"] .mobile-bottom-nav-floating button.active { color: #8cc9fa; background: #1c3d55; }
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-folders-backdrop, .chat-folders-dialog, .saved-message-item,
+  .mobile-bottom-nav-floating button, .mobile-bottom-nav-floating button.active svg {
+    animation: none !important;
+    transition: none !important;
+  }
+}
