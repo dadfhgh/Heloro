@@ -1006,6 +1006,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   }
 
   async function openUserProfile(userId: string) {
+    if (userId === user.id) setMobileTab("profile");
     setShowProfile(true);
     setProfileEditing(false);
     setViewedProfile(null);
@@ -2340,7 +2341,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
         </section>
       </div>
 
-      {!showComposeScreen && !showNavigation && !showBots && !mediaViewer && !showAttachmentMenu && !photoDraft && !videoDraft && createPortal(
+      {!showComposeScreen && !showNavigation && !showBots && !showReport && !mediaViewer && !showAttachmentMenu && !photoDraft && !videoDraft && createPortal(
         <nav className="mobile-bottom-nav mobile-bottom-nav-floating" aria-label={locale === "ru" ? "Основная навигация" : "Main navigation"}>
           <button type="button" className={mobileTab === "chats" ? "active" : ""} aria-current={mobileTab === "chats" ? "page" : undefined} onClick={() => openMobileTab("chats")}>
             <MessageCircle size={21} /><span>{locale === "ru" ? "Чаты" : "Chats"}</span>
