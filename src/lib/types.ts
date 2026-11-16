@@ -28,7 +28,7 @@ export interface Message {
   edited_at?: string | null;
   reply_to?: string | null;
   reply?: { id: string; sender_id: string; body: string; created_at: string } | null;
-  media?: { kind: "photo" | "sticker" | "gif"; url: string; path?: string } | null;
+  media?: { kind: "photo" | "sticker" | "gif" | "video"; url?: string; path?: string; emoji?: string; animation?: "pop" | "float" | "pulse" | "spin"; trimStart?: number; trimEnd?: number } | null;
 }
 
 export interface PublicProfile {

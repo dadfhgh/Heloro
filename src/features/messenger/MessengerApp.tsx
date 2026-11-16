@@ -1,9 +1,12 @@
-import { Fragment, lazy, Suspense, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { Fragment, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { createPortal } from "react-dom";
 import type { RealtimeChannel, User } from "@supabase/supabase-js";
 import {
   ArrowLeft,
   ArrowUp,
   BadgeCheck,
+  Bookmark,
+  BookmarkCheck,
   Check,
   CheckCheck,
   CalendarDays,
@@ -43,9 +46,11 @@ import {
   getPublicProfile,
   listPublicProfiles,
   searchProfiles,
+  searchDirectMessages,
   saveProfile,
   sendMessage,
   sendMediaMessage,
+  sendBuiltInMediaMessage,
   subscribeToMessages,
   subscribeToUserPresence,
   subscribeToConversationTyping,
@@ -64,6 +69,7 @@ import CommunityHub from "./CommunityHub";
 import ChatMediaPicker from "./ChatMediaPicker";
 import { setVerificationBadge, submitUserReport, submitContentReport } from "../../lib/official";
 import type { SettingsSection } from "./MessengerNavigation";
+import ChatFoldersBar, { type FolderChoice } from "./ChatFoldersBar";
 import type { ThemePreference } from "../../lib/preferences";
 import "./MessengerTelegramDesign.css";
 import "./MessengerCommunity.css";
@@ -71,6 +77,29 @@ import "./MessengerCommunity.css";
 type SystemView = "news" | "discussion" | "support" | "admin";
 type CommunityRoomPreview = { id: string; kind: "group" | "channel"; name: string; username: string; description: string; avatar_url: string | null; is_public: boolean; updated_at: string; badge_type?: "blue" | "gold" | "creator" | null };
 type VisibleChatItem = { kind: "direct"; sortAt: string; conversation: InboxConversation } | { kind: "community"; sortAt: string; room: CommunityRoomPreview };
+type SavedMessageRecord = { id: string; conversationId: string; sourceTitle: string; savedAt: string; message: Message };
+
+function readSavedMessages(userId: string): SavedMessageRecord[] {
+  try {
+    const raw = window.localStorage.getItem("heloro:saved-messages:" + userId);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((item): item is SavedMessageRecord =>
+      Boolean(item) &&
+      typeof item === "object" &&
+      typeof (item as SavedMessageRecord).id === "string" &&
+      typeof (item as SavedMessageRecord).conversationId === "string" &&
+      typeof (item as SavedMessageRecord).sourceTitle === "string" &&
+      typeof (item as SavedMessageRecord).savedAt === "string" &&
+      Boolean((item as SavedMessageRecord).message) &&
+      typeof (item as SavedMessageRecord).message.id === "string" &&
+      typeof (item as SavedMessageRecord).message.created_at === "string",
+    ).slice(-300);
+  } catch {
+    return [];
+  }
+}
 
 type Props = {
   client: SupabaseClient;
@@ -127,19 +156,19 @@ function formatInboxMessagePreview(value: string | null, locale: Locale): string
   const prefix = "HELORO_MEDIA:";
   if (!value.startsWith(prefix)) return value;
   try {
-    const payload = JSON.parse(value.slice(prefix.length)) as { kind?: string; caption?: string };
+    const payload = JSON.parse(value.slice(prefix.length)) as { kind?: string; caption?: string; emoji?: string };
     if (payload.kind === "photo") {
       const photoLabel = locale === "ru" ? "Фото" : "Photo";
-      return payload.caption?.trim() ? `${photoLabel}: ${payload.caption.trim()}` : photoLabel;
+      return payload.caption?.trim() ? photoLabel + ": " + payload.caption.trim() : photoLabel;
     }
-    if (payload.kind === "gif") return "GIF";
-    if (payload.kind === "sticker") return locale === "ru" ? "Стикер" : "Sticker";
+    if (payload.kind === "video") return payload.caption?.trim() ? "Видео: " + payload.caption.trim() : (locale === "ru" ? "Видео" : "Video");
+    if (payload.kind === "gif") return payload.emoji ? "GIF " + payload.emoji : "GIF";
+    if (payload.kind === "sticker") return payload.emoji ? (locale === "ru" ? "Стикер " : "Sticker ") + payload.emoji : (locale === "ru" ? "Стикер" : "Sticker");
   } catch {
     // Older or malformed media messages still get a safe, readable preview.
   }
   return locale === "ru" ? "Медиафайл" : "Media";
 }
-
 function EmptyChat({ locale }: { locale: Locale }) {
   return (
     <div className="empty-chat">
@@ -148,6 +177,52 @@ function EmptyChat({ locale }: { locale: Locale }) {
       <p>{t(locale, "chatSelectDescription")}</p>
     </div>
   );
+}
+
+type PhotoAspect = "original" | "square" | "landscape";
+type MediaViewerState = { kind: "photo" | "video"; url: string; caption?: string };
+
+async function transformPhotoFile(file: File, rotation: number, aspect: PhotoAspect): Promise<File> {
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const image = new Image();
+    image.src = objectUrl;
+    await image.decode();
+    const normalizedRotation = ((rotation % 360) + 360) % 360;
+    const swap = normalizedRotation === 90 || normalizedRotation === 270;
+    const rotatedWidth = swap ? image.naturalHeight : image.naturalWidth;
+    const rotatedHeight = swap ? image.naturalWidth : image.naturalHeight;
+    const rotatedCanvas = document.createElement("canvas");
+    rotatedCanvas.width = rotatedWidth;
+    rotatedCanvas.height = rotatedHeight;
+    const rotatedContext = rotatedCanvas.getContext("2d");
+    if (!rotatedContext) throw new Error("Не удалось открыть редактор фото.");
+    rotatedContext.translate(rotatedWidth / 2, rotatedHeight / 2);
+    rotatedContext.rotate((normalizedRotation * Math.PI) / 180);
+    rotatedContext.drawImage(image, -image.naturalWidth / 2, -image.naturalHeight / 2);
+
+    let cropWidth = rotatedWidth;
+    let cropHeight = rotatedHeight;
+    const targetRatio = aspect === "square" ? 1 : aspect === "landscape" ? 16 / 9 : rotatedWidth / rotatedHeight;
+    if (cropWidth / cropHeight > targetRatio) cropWidth = cropHeight * targetRatio;
+    else cropHeight = cropWidth / targetRatio;
+    const cropX = (rotatedWidth - cropWidth) / 2;
+    const cropY = (rotatedHeight - cropHeight) / 2;
+    const output = document.createElement("canvas");
+    output.width = Math.max(1, Math.round(cropWidth));
+    output.height = Math.max(1, Math.round(cropHeight));
+    const context = output.getContext("2d");
+    if (!context) throw new Error("Не удалось подготовить фото к отправке.");
+    context.drawImage(rotatedCanvas, cropX, cropY, cropWidth, cropHeight, 0, 0, output.width, output.height);
+    const outputType = file.type === "image/png" ? "image/png" : "image/jpeg";
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      output.toBlob((value) => value ? resolve(value) : reject(new Error("Не удалось сохранить отредактированное фото.")), outputType, 0.92);
+    });
+    const extension = outputType === "image/png" ? "png" : "jpg";
+    return new File([blob], file.name.replace(/\.[^.]+$/, "") + "-edited." + extension, { type: outputType, lastModified: Date.now() });
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
 }
 
 const reportReasons = ["spam", "harassment", "scam", "inappropriate", "other"] as const;
@@ -194,6 +269,18 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const [photoDraft, setPhotoDraft] = useState<File | null>(null);
   const [photoCaption, setPhotoCaption] = useState("");
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
+  const [photoRotation, setPhotoRotation] = useState(0);
+  const [photoAspect, setPhotoAspect] = useState<PhotoAspect>("original");
+  const [videoDraft, setVideoDraft] = useState<File | null>(null);
+  const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
+  const [videoCaption, setVideoCaption] = useState("");
+  const [videoDuration, setVideoDuration] = useState(0);
+  const [videoTrimStart, setVideoTrimStart] = useState(0);
+  const [videoTrimEnd, setVideoTrimEnd] = useState(0);
+  const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
+  const [mediaViewer, setMediaViewer] = useState<MediaViewerState | null>(null);
+  const [mediaViewerScale, setMediaViewerScale] = useState(1);
+  const [mediaViewerLoadError, setMediaViewerLoadError] = useState(false);
   const [error, setError] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -216,6 +303,10 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const [directoryRoomsLoaded, setDirectoryRoomsLoaded] = useState(false);
   const [directoryError, setDirectoryError] = useState("");
   const [mobileTab, setMobileTab] = useState<"chats" | "contacts" | "settings" | "profile">("chats");
+  const [showSavedMessages, setShowSavedMessages] = useState(false);
+  const [savedMessages, setSavedMessages] = useState<SavedMessageRecord[]>(() => readSavedMessages(user.id));
+  const [folderChatIds, setFolderChatIds] = useState<string[] | null>(null);
+  const [folderManagerOpen, setFolderManagerOpen] = useState(false);
   const [viewedProfile, setViewedProfile] = useState<PublicProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileBusy, setProfileBusy] = useState(false);
@@ -234,10 +325,16 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const [reportBusy, setReportBusy] = useState(false);
   const [chatFilter, setChatFilter] = useState<"all" | "personal">("all");
   const [showChatActions, setShowChatActions] = useState(false);
+  const [messageSearchOpen, setMessageSearchOpen] = useState(false);
+  const [messageSearchQuery, setMessageSearchQuery] = useState("");
+  const [messageSearchResults, setMessageSearchResults] = useState<Message[]>([]);
+  const [messageSearchLoading, setMessageSearchLoading] = useState(false);
+  const [messageSearchError, setMessageSearchError] = useState("");
   const searchInputRef = useRef<HTMLInputElement>(null);
   const composeSearchInputRef = useRef<HTMLInputElement>(null);
   const contactsSearchInputRef = useRef<HTMLInputElement>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -248,6 +345,72 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const lastTypingBroadcastRef = useRef(0);
   const isStaff = roles.some((role) => role === "owner" || role === "admin" || role === "moderator");
   const canManageBadges = roles.includes("owner") || roles.includes("admin");
+  const handleFolderFilterChange = useCallback((ids: string[] | null) => setFolderChatIds(ids), []);
+
+  useEffect(() => {
+    if (!messageSearchOpen || !activeId) {
+      setMessageSearchResults([]);
+      setMessageSearchLoading(false);
+      setMessageSearchError("");
+      return;
+    }
+
+    const query = messageSearchQuery.trim();
+    if (query.replace(/[%_,]/g, "").length < 2) {
+      setMessageSearchResults([]);
+      setMessageSearchLoading(false);
+      setMessageSearchError("");
+      return;
+    }
+
+    let active = true;
+    setMessageSearchLoading(true);
+    setMessageSearchError("");
+    const timer = window.setTimeout(() => {
+      void searchDirectMessages(activeId, query)
+        .then((items) => { if (active) setMessageSearchResults(items); })
+        .catch((cause: unknown) => {
+          if (active) {
+            setMessageSearchResults([]);
+            setMessageSearchError(cause instanceof Error ? cause.message : (locale === "ru" ? "Не удалось выполнить поиск." : "Search failed."));
+          }
+        })
+        .finally(() => { if (active) setMessageSearchLoading(false); });
+    }, 220);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [messageSearchOpen, messageSearchQuery, activeId, locale]);
+
+  useEffect(() => {
+    if (!messageSearchOpen) return;
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMessageSearchOpen(false);
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [messageSearchOpen]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem("heloro:saved-messages:" + user.id, JSON.stringify(savedMessages));
+    } catch {
+      // Keep the in-memory Saved Messages view usable when storage is full or unavailable.
+    }
+  }, [savedMessages, user.id]);
+
+  // Modal layers are portalled to document.body, and the page behind them must not scroll.
+  useEffect(() => {
+    const hasModal = showProfile || Boolean(mediaViewer) || showAttachmentMenu || Boolean(photoDraft) || Boolean(videoDraft);
+    if (!hasModal) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [showProfile, mediaViewer, showAttachmentMenu, photoDraft, videoDraft]);
 
   const activeConversation = useMemo(
     () => inbox.find((item) => item.conversation_id === activeId) ?? null,
@@ -366,6 +529,26 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
       room,
     })),
   ].sort((left, right) => Date.parse(right.sortAt) - Date.parse(left.sortAt)), [visibleInbox, visibleCommunityRooms]);
+
+  const folderChoices = useMemo<FolderChoice[]>(() => [
+    ...inbox.map((item) => ({
+      id: item.conversation_id,
+      label: item.display_name || item.username || (locale === "ru" ? "Личный чат" : "Direct chat"),
+      subtitle: "@" + item.username,
+    })),
+    ...communityRooms.map((room) => ({
+      id: room.id,
+      label: room.name,
+      subtitle: room.kind === "channel" ? (locale === "ru" ? "Канал" : "Channel") : (locale === "ru" ? "Группа" : "Group"),
+    })),
+  ], [inbox, communityRooms, locale]);
+
+  const folderFilteredChatItems = useMemo(() => {
+    if (!folderChatIds) return visibleChatItems;
+    return visibleChatItems.filter((entry) => folderChatIds.includes(
+      entry.kind === "direct" ? entry.conversation.conversation_id : entry.room.id,
+    ));
+  }, [visibleChatItems, folderChatIds]);
 
   async function refreshInbox(selectId?: string) {
     const updated = await getInbox();
@@ -636,9 +819,28 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   }, [photoDraft]);
 
   useEffect(() => {
+    if (!videoDraft) {
+      setVideoPreviewUrl(null);
+      return;
+    }
+    const previewUrl = URL.createObjectURL(videoDraft);
+    setVideoPreviewUrl(previewUrl);
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [videoDraft]);
+
+  useEffect(() => {
     setPhotoDraft(null);
     setPhotoCaption("");
+    setPhotoRotation(0);
+    setPhotoAspect("original");
+    setVideoDraft(null);
+    setVideoCaption("");
+    setVideoDuration(0);
+    setVideoTrimStart(0);
+    setVideoTrimEnd(0);
+    setShowAttachmentMenu(false);
     if (photoInputRef.current) photoInputRef.current.value = "";
+    if (videoInputRef.current) videoInputRef.current.value = "";
   }, [activeId]);
 
   useEffect(() => {
@@ -662,9 +864,13 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   }, [search, user.id, locale]);
 
   useEffect(() => {
-    if (!showSettings && !showBots && !showReport && !showNavigation && !showProfile && !showComposeScreen && !showContactsScreen) return;
+    if (!showSettings && !showBots && !showReport && !showNavigation && !showProfile && !showComposeScreen && !showContactsScreen && !mediaViewer) return;
     function closeOnEscape(event: KeyboardEvent) {
       if (event.key === "Escape") {
+        if (mediaViewer) {
+          setMediaViewer(null);
+          return;
+        }
         setShowSettings(false);
         setShowBots(false);
         setShowNavigation(false);
@@ -676,11 +882,13 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
         setShowSearch(false);
         setSearch("");
         setResults([]);
+        setShowAttachmentMenu(false);
+        setMediaViewer(null);
       }
     }
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [showSettings, showBots, showNavigation, showReport, showProfile, showComposeScreen, showContactsScreen]);
+  }, [showSettings, showBots, showNavigation, showReport, showProfile, showComposeScreen, showContactsScreen, showSavedMessages, mediaViewer]);
 
   useEffect(() => {
     if (showSearch && !showComposeScreen) searchInputRef.current?.focus();
@@ -783,12 +991,17 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
     if (!activeId) return;
     const currentDraft = draft.trim();
     if (editTarget) {
-      if (!currentDraft && editTarget.media?.kind !== "photo") return;
+      if (!currentDraft && editTarget.media?.kind !== "photo" && editTarget.media?.kind !== "video") return;
       setSending(true);
       setError("");
       try {
         const body = editTarget.media?.path
-          ? `HELORO_MEDIA:${JSON.stringify({ kind: editTarget.media.kind, path: editTarget.media.path, ...(editTarget.media.kind === "photo" ? { caption: currentDraft } : {}) })}`
+          ? "HELORO_MEDIA:" + JSON.stringify({
+              kind: editTarget.media.kind,
+              path: editTarget.media.path,
+              ...(["photo", "video"].includes(editTarget.media.kind) ? { caption: currentDraft } : {}),
+              ...(editTarget.media.kind === "video" ? { trimStart: editTarget.media.trimStart ?? 0, trimEnd: editTarget.media.trimEnd ?? 0 } : {}),
+            })
           : currentDraft;
         const editedAt = new Date().toISOString();
         const { data, error: updateError } = await client.from("messages")
@@ -837,7 +1050,15 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
     }
   }
 
+  function openPhotoViewer(url: string | null | undefined, caption?: string) {
+    if (!url) return;
+    setMediaViewerLoadError(false);
+    setMediaViewer({ kind: "photo", url, caption });
+    setMediaViewerScale(1);
+  }
+
   async function openUserProfile(userId: string) {
+    if (userId === user.id) setMobileTab("profile");
     setShowProfile(true);
     setProfileEditing(false);
     setViewedProfile(null);
@@ -971,23 +1192,60 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
     if (!file || !activeId) return;
     setError("");
     if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
-      setError(locale === "ru" ? "Выбери фото в формате PNG, JPEG или WebP." : "Choose a PNG, JPEG or WebP photo.");
+      setError(locale === "ru" ? "Поддерживаются фото PNG, JPEG и WebP." : "PNG, JPEG and WebP photos are supported.");
       if (photoInputRef.current) photoInputRef.current.value = "";
       return;
     }
     if (file.size < 1 || file.size > 5 * 1024 * 1024) {
-      setError(locale === "ru" ? "Размер фото должен быть не больше 5 МБ." : "Photo must be 5 MB or smaller.");
+      setError(locale === "ru" ? "Сейчас сервер принимает фото до 5 МБ." : "The current server accepts photos up to 5 MB.");
       if (photoInputRef.current) photoInputRef.current.value = "";
       return;
     }
+    setVideoDraft(null);
     setPhotoDraft(file);
     setPhotoCaption("");
+    setPhotoRotation(0);
+    setPhotoAspect("original");
+    setShowAttachmentMenu(false);
+  }
+
+  function handleVideoSelect(file?: File) {
+    if (!file || !activeId) return;
+    setError("");
+    if (!["video/mp4", "video/webm"].includes(file.type)) {
+      setError(locale === "ru" ? "Пока поддерживаются MP4 и WebM." : "MP4 and WebM videos are supported.");
+      if (videoInputRef.current) videoInputRef.current.value = "";
+      return;
+    }
+    if (file.size < 1 || file.size > 5 * 1024 * 1024) {
+      setError(locale === "ru" ? "Лимит текущего хранилища HELORO — 5 МБ на видео." : "The current HELORO storage limit is 5 MB per video.");
+      if (videoInputRef.current) videoInputRef.current.value = "";
+      return;
+    }
+    setPhotoDraft(null);
+    setVideoDraft(file);
+    setVideoCaption("");
+    setVideoDuration(0);
+    setVideoTrimStart(0);
+    setVideoTrimEnd(0);
+    setShowAttachmentMenu(false);
   }
 
   function clearPhotoDraft() {
     setPhotoDraft(null);
     setPhotoCaption("");
+    setPhotoRotation(0);
+    setPhotoAspect("original");
     if (photoInputRef.current) photoInputRef.current.value = "";
+  }
+
+  function clearVideoDraft() {
+    setVideoDraft(null);
+    setVideoCaption("");
+    setVideoDuration(0);
+    setVideoTrimStart(0);
+    setVideoTrimEnd(0);
+    if (videoInputRef.current) videoInputRef.current.value = "";
   }
 
   async function handleSendPhoto() {
@@ -997,10 +1255,29 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
     setMediaSending(true);
     setError("");
     try {
-      await sendMediaMessage(conversationId, user.id, file, "photo", photoCaption);
+      const editedFile = await transformPhotoFile(file, photoRotation, photoAspect);
+      await sendMediaMessage(conversationId, user.id, editedFile, "photo", photoCaption);
       setMessages(await getMessages(conversationId));
       await refreshInbox();
       clearPhotoDraft();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : t(locale, "messageSendFailed"));
+    } finally {
+      setMediaSending(false);
+    }
+  }
+
+  async function handleSendVideo() {
+    const conversationId = activeId;
+    const file = videoDraft;
+    if (!conversationId || !file || mediaSending) return;
+    setMediaSending(true);
+    setError("");
+    try {
+      await sendMediaMessage(conversationId, user.id, file, "video", videoCaption, videoTrimStart, videoTrimEnd);
+      setMessages(await getMessages(conversationId));
+      await refreshInbox();
+      clearVideoDraft();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : t(locale, "messageSendFailed"));
     } finally {
@@ -1014,6 +1291,21 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
     setError("");
     try {
       await sendMediaMessage(activeId, user.id, file, kind);
+      setMessages(await getMessages(activeId));
+      await refreshInbox();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : t(locale, "messageSendFailed"));
+    } finally {
+      setMediaSending(false);
+    }
+  }
+
+  async function handleBuiltInMediaSelect(kind: "sticker" | "gif", emoji: string, motion: "pop" | "float" | "pulse" | "spin") {
+    if (!activeId || mediaSending) return;
+    setMediaSending(true);
+    setError("");
+    try {
+      await sendBuiltInMediaMessage(activeId, user.id, kind, emoji, motion);
       setMessages(await getMessages(activeId));
       await refreshInbox();
     } catch (cause) {
@@ -1140,6 +1432,11 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
 
   function openMobileTab(tab: "chats" | "contacts" | "settings" | "profile") {
     setMobileTab(tab);
+    setShowSettings(false);
+    setShowProfile(false);
+    setShowSavedMessages(false);
+    setShowBots(false);
+    setFolderManagerOpen(false);
     if (tab === "chats") {
       setShowContactsScreen(false);
       closeConversation();
@@ -1153,9 +1450,11 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
     closeConversation();
     if (tab === "settings") openSettings("account");
     else void openUserProfile(user.id);
+    setMobileTab(tab);
   }
 
   function openNewMessageScreen() {
+    setShowSavedMessages(false);
     setActiveId(null);
     setActiveCommunityRoomId(null);
     setCommunityCreateKind(null);
@@ -1178,19 +1477,14 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   }
 
   function openSearch() {
-    setMobileTab("chats");
-    setShowContactsScreen(false);
-    setShowComposeScreen(false);
-    setSystemView(null);
-    setActiveId(null);
-    setActiveCommunityRoomId(null);
-    setCommunityCreateKind(null);
-    setShowSearch(true);
-    setSearch("");
-    setResults([]);
+    setMessageSearchQuery("");
+    setMessageSearchResults([]);
+    setMessageSearchError("");
+    setMessageSearchOpen((current) => !current);
   }
 
   function openSystemView(view: SystemView) {
+    setShowSavedMessages(false);
     setMobileTab("chats");
     setShowContactsScreen(false);
     setShowComposeScreen(false);
@@ -1198,6 +1492,8 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
     setActiveCommunityRoomId(null);
     setCommunityCreateKind(null);
     setSystemView(view);
+    setMessageSearchOpen(false);
+    setMessageSearchQuery("");
     setShowSearch(false);
     setSearch("");
     setResults([]);
@@ -1205,6 +1501,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   }
 
   function closeConversation() {
+    setShowSavedMessages(false);
     setMobileTab("chats");
     setShowContactsScreen(false);
     setShowComposeScreen(false);
@@ -1214,16 +1511,20 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
     setSystemView(null);
     setShowSearch(false);
     setShowChatActions(false);
+    setMessageSearchOpen(false);
+    setMessageSearchQuery("");
     setSearch("");
   }
 
   function openSettings(section: SettingsSection = "account") {
+    setShowSavedMessages(false);
     setSettingsSection(section);
     setShowBots(false);
     setShowSettings(true);
   }
 
   function openBots() {
+    setShowSavedMessages(false);
     setShowSettings(false);
     setShowNavigation(false);
     setShowComposeScreen(false);
@@ -1238,8 +1539,62 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
     setMobileTab("chats");
   }
 
+  function openSavedMessages() {
+    setShowNavigation(false);
+    setShowSettings(false);
+    setShowProfile(false);
+    setShowBots(false);
+    setShowContactsScreen(false);
+    setShowComposeScreen(false);
+    setShowSearch(false);
+    setActiveId(null);
+    setActiveCommunityRoomId(null);
+    setCommunityCreateKind(null);
+    setSystemView(null);
+    setMobileTab("chats");
+    setShowSavedMessages(true);
+  }
+
+  function openFolderManager() {
+    setShowNavigation(false);
+    setShowSettings(false);
+    setShowProfile(false);
+    setShowSavedMessages(false);
+    setShowBots(false);
+    setShowComposeScreen(false);
+    setShowContactsScreen(false);
+    closeConversation();
+    setFolderManagerOpen(true);
+  }
+
+  function toggleSavedMessage(message: Message) {
+    const id = message.conversation_id + ":" + message.id;
+    setSavedMessages((current) => {
+      if (current.some((item) => item.id === id)) return current.filter((item) => item.id !== id);
+      const record: SavedMessageRecord = {
+        id,
+        conversationId: message.conversation_id,
+        sourceTitle: activeConversation?.display_name || activeConversation?.username || (locale === "ru" ? "Личный чат" : "Direct chat"),
+        savedAt: new Date().toISOString(),
+        message: { ...message, media: message.media ? { ...message.media } : message.media },
+      };
+      return [...current, record].slice(-300);
+    });
+  }
+
+  function openSavedConversation(record: SavedMessageRecord) {
+    setShowSavedMessages(false);
+    setShowContactsScreen(false);
+    setShowComposeScreen(false);
+    setSystemView(null);
+    setActiveCommunityRoomId(null);
+    setCommunityCreateKind(null);
+    setActiveId(record.conversationId);
+    setMobileTab("chats");
+  }
+
   return (
-    <main className={`messenger-stage ${activeConversation || systemView || activeCommunityRoomId || communityCreateKind ? "chat-selected" : ""}`}>
+    <main className={`messenger-stage ${activeConversation || systemView || activeCommunityRoomId || communityCreateKind || showSavedMessages ? "chat-selected" : ""}`}>
       <div className="messenger-shell">
         <aside className="inbox-panel">
           <header className="inbox-topbar">
@@ -1291,6 +1646,14 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
               {t(locale, "chatPersonal")}
             </button>
           </div>
+          <ChatFoldersBar
+            userId={user.id}
+            locale={locale}
+            choices={folderChoices}
+            managerOpen={folderManagerOpen}
+            onManagerClose={() => setFolderManagerOpen(false)}
+            onActiveFolderChange={handleFolderFilterChange}
+          />
 
           <section className="conversation-list">
             {showSearch && search.trim().length > 1 ? (
@@ -1353,14 +1716,14 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                 )}
                 {loadingInbox ? (
                   <div className="list-placeholder"><span /><span /><span /><span /></div>
-                ) : visibleChatItems.length === 0 ? (
+                ) : folderFilteredChatItems.length === 0 ? (
                   <div className="inbox-empty">
                     <div className="inbox-empty-icon"><MessageCircle size={21} /></div>
                     <strong>{t(locale, "inboxEmptyTitle")}</strong>
                     <p>{t(locale, "inboxEmptyDescription")}</p>
                     <button onClick={openSearch}>{t(locale, "inboxFindSomeone")}</button>
                   </div>
-                ) : visibleChatItems.map((entry) => entry.kind === "community" ? (
+                ) : folderFilteredChatItems.map((entry) => entry.kind === "community" ? (
                   <button
                     className={`conversation-item community-inbox-item ${activeCommunityRoomId === entry.room.id ? "selected" : ""}`}
                     type="button"
@@ -1495,22 +1858,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
               )}
             </section>
           )}
-          {!showComposeScreen && !showSettings && !showBots && !showProfile && !showNavigation && (
-            <nav className="mobile-bottom-nav" aria-label={locale === "ru" ? "Основная навигация" : "Main navigation"}>
-              <button type="button" className={mobileTab === "chats" ? "active" : ""} aria-current={mobileTab === "chats" ? "page" : undefined} onClick={() => openMobileTab("chats")}>
-                <MessageCircle size={21} /><span>{locale === "ru" ? "Чаты" : "Chats"}</span>
-              </button>
-              <button type="button" className={mobileTab === "contacts" ? "active" : ""} aria-current={mobileTab === "contacts" ? "page" : undefined} onClick={() => openMobileTab("contacts")}>
-                <Users size={21} /><span>{locale === "ru" ? "Контакты" : "Contacts"}</span>
-              </button>
-              <button type="button" className={mobileTab === "settings" ? "active" : ""} aria-current={mobileTab === "settings" ? "page" : undefined} onClick={() => openMobileTab("settings")}>
-                <Settings2 size={21} /><span>{locale === "ru" ? "Настройки" : "Settings"}</span>
-              </button>
-              <button type="button" className={mobileTab === "profile" ? "active" : ""} aria-current={mobileTab === "profile" ? "page" : undefined} onClick={() => openMobileTab("profile")}>
-                <UserRound size={21} /><span>{locale === "ru" ? "Профиль" : "Profile"}</span>
-              </button>
-            </nav>
-          )}
+
           {showComposeScreen && (
             <section className="new-message-screen" aria-label={locale === "ru" ? "Новое сообщение" : "New message"}>
               <header className="new-message-header">
@@ -1610,7 +1958,40 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
         </aside>
 
         <section className="conversation-panel">
-          {systemView ? (
+          {showSavedMessages ? (
+            <div className="saved-messages-screen">
+              <header className="saved-messages-header">
+                <button type="button" onClick={closeConversation} aria-label={locale === "ru" ? "Назад к чатам" : "Back to chats"}><ArrowLeft size={20} /></button>
+                <span><strong>{locale === "ru" ? "Избранное" : "Saved Messages"}</strong><small>{locale === "ru" ? "Сохранённые сообщения" : "Your saved messages"}</small></span>
+              </header>
+              <div className="saved-message-list">
+                {savedMessages.length === 0 ? (
+                  <div className="saved-message-empty">
+                    <div className="saved-message-empty-icon"><Bookmark size={28} /></div>
+                    <strong>{locale === "ru" ? "Здесь пока пусто" : "Nothing saved yet"}</strong>
+                    <p>{locale === "ru" ? "Нажми значок закладки под сообщением, чтобы сохранить его здесь." : "Tap the bookmark icon on a message to keep it here."}</p>
+                  </div>
+                ) : [...savedMessages].reverse().map((record) => (
+                  <article className="saved-message-item" key={record.id}>
+                    <div className="saved-message-item-copy">
+                      <span className="saved-message-source">{record.sourceTitle}</span>
+                      {record.message.media?.kind === "photo" && record.message.media.url && <img className="saved-message-media" src={record.message.media.url} alt={locale === "ru" ? "Сохранённое фото" : "Saved photo"} loading="lazy" />}
+                      {record.message.media?.kind === "video" && <span className="saved-message-source">{locale === "ru" ? "Видеосообщение" : "Video message"}</span>}
+                      {record.message.media?.kind === "sticker" && <span className="saved-message-body">{record.message.media.emoji || (locale === "ru" ? "Стикер" : "Sticker")}</span>}
+                      {record.message.media?.kind === "gif" && <span className="saved-message-body">{record.message.media.emoji || "GIF"}</span>}
+                      {record.message.body && <p className="saved-message-body">{record.message.body}</p>}
+                      <small className="saved-message-meta">{new Date(record.savedAt).toLocaleString(locale === "ru" ? "ru-RU" : "en-US")}</small>
+                    </div>
+                    <div className="saved-message-actions">
+                      <button type="button" onClick={() => openSavedConversation(record)} aria-label={locale === "ru" ? "Открыть исходный чат" : "Open source chat"} title={locale === "ru" ? "Открыть чат" : "Open chat"}><MessageCircle size={15} /></button>
+                      <button type="button" className="saved-message-remove" onClick={() => setSavedMessages((current) => current.filter((item) => item.id !== record.id))} aria-label={locale === "ru" ? "Удалить из избранного" : "Remove from Saved Messages"} title={locale === "ru" ? "Удалить" : "Remove"}><Trash2 size={15} /></button>
+                    </div>
+                  </article>
+                ))}
+                <p className="saved-message-disclaimer">{locale === "ru" ? "Избранное хранится локально на этом устройстве и не синхронизируется между устройствами." : "Saved Messages are stored on this device and are not synced across devices."}</p>
+              </div>
+            </div>
+          ) : systemView ? (
             <div className="system-screen">
               <button className="system-mobile-back" onClick={closeConversation} aria-label={t(locale, "inboxBack")}><ArrowLeft size={19} /></button>
               <OfficialPanels
@@ -1715,6 +2096,61 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                   </div>
                 </div>
               </header>
+                {messageSearchOpen && (
+                  <section className="chat-message-search-panel" aria-label={locale === "ru" ? "Поиск по переписке" : "Search in conversation"}>
+                    <div className="chat-message-search-input-row">
+                      <Search size={17} aria-hidden="true" />
+                      <input
+                        autoFocus
+                        type="search"
+                        value={messageSearchQuery}
+                        onChange={(event) => setMessageSearchQuery(event.target.value)}
+                        placeholder={locale === "ru" ? "Найти сообщение в чате" : "Find a message in this chat"}
+                        aria-label={locale === "ru" ? "Поиск сообщений" : "Search messages"}
+                      />
+                      {messageSearchQuery && (
+                        <button type="button" onClick={() => setMessageSearchQuery("")} aria-label={locale === "ru" ? "Очистить поиск" : "Clear search"}>
+                          <X size={16} />
+                        </button>
+                      )}
+                      <button type="button" onClick={() => setMessageSearchOpen(false)} aria-label={locale === "ru" ? "Закрыть поиск" : "Close search"}>
+                        <X size={18} />
+                      </button>
+                    </div>
+                    <div className="chat-message-search-status" aria-live="polite">
+                      {messageSearchLoading
+                        ? (locale === "ru" ? "Поиск…" : "Searching…")
+                        : messageSearchError
+                          ? messageSearchError
+                          : messageSearchQuery.trim().length < 2
+                            ? (locale === "ru" ? "Введите минимум 2 символа" : "Enter at least 2 characters")
+                            : messageSearchResults.length === 0
+                              ? (locale === "ru" ? "Ничего не найдено" : "No messages found")
+                              : (locale === "ru" ? `Найдено: ${messageSearchResults.length}` : `Found: ${messageSearchResults.length}`)}
+                    </div>
+                    {messageSearchResults.length > 0 && (
+                      <div className="chat-message-search-results">
+                        {messageSearchResults.map((result) => (
+                          <button
+                            type="button"
+                            className="chat-message-search-result"
+                            key={result.id}
+                            onClick={() => {
+                              setMessageSearchOpen(false);
+                              void jumpToMessage(result.id);
+                            }}
+                          >
+                            <span className="chat-message-search-result-copy">
+                              <strong>{result.sender_id === user.id ? (locale === "ru" ? "Вы" : "You") : activeConversation.display_name}</strong>
+                              <span>{result.body || result.media?.emoji || (locale === "ru" ? "Медиафайл" : "Media")}</span>
+                            </span>
+                            <time>{formatMessageTime(result.created_at)}</time>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </section>
+                )}
                 {pinnedMessages.length > 0 && (
                   <div className="pinned-messages-panel">
                     <div className="pinned-message-head">
@@ -1796,31 +2232,70 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                             <strong>{message.reply.body || (locale === "ru" ? "Медиафайл" : "Media")}</strong>
                           </button>
                         )}
-                        {message.media?.url ? (
+                        {message.media?.kind === "video" && message.media.url ? (
                           <>
-                            <img
-                              className={
-                                message.media.kind === "gif"
-                                  ? "message-media message-gif"
-                                  : message.media.kind === "photo"
-                                    ? "message-media message-photo"
-                                    : "message-media message-sticker"
-                              }
+                            <video
+                              className="message-media message-video"
                               src={message.media.url}
-                              alt={message.media.kind === "gif"
-                                ? "GIF"
-                                : message.media.kind === "photo"
-                                  ? (locale === "ru" ? "Фото" : "Photo")
-                                  : (locale === "ru" ? "Стикер" : "Sticker")}
-                              loading="lazy"
+                              controls
+                              playsInline
+                              preload="metadata"
+                              onLoadedMetadata={(event) => {
+                                const startAt = message.media?.trimStart ?? 0;
+                                if (startAt > 0) event.currentTarget.currentTime = startAt;
+                              }}
+                              onTimeUpdate={(event) => {
+                                const endAt = message.media?.trimEnd ?? 0;
+                                if (endAt > 0 && event.currentTarget.currentTime >= endAt) {
+                                  event.currentTarget.pause();
+                                  event.currentTarget.currentTime = endAt;
+                                }
+                              }}
                             />
+                            {message.body && <p className="message-media-caption">{message.body}</p>}
+                          </>
+                        ) : message.media?.url ? (
+                          <>
+                            {message.media.kind === "photo" ? (
+                              <button
+                                type="button"
+                                className="message-media-open"
+                                onClick={(event) => { event.preventDefault(); event.stopPropagation(); openPhotoViewer(message.media?.url, message.body); }}
+                                onPointerUp={(event) => { if (event.pointerType === "touch") { event.preventDefault(); event.stopPropagation(); openPhotoViewer(message.media?.url, message.body); } }}
+                                aria-label={locale === "ru" ? "Открыть фото на весь экран" : "Open photo fullscreen"}
+                                title={locale === "ru" ? "Открыть фото" : "Open photo"}
+                              >
+                                <img className="message-media message-photo" src={message.media.url} alt={locale === "ru" ? "Фото" : "Photo"} loading="lazy" />
+                                <span>{locale === "ru" ? "Открыть фото" : "Open photo"}</span>
+                              </button>
+                            ) : (
+                              <img
+                                className={message.media.kind === "gif" ? "message-media message-gif" : "message-media message-sticker"}
+                                src={message.media.url}
+                                alt={message.media.kind === "gif" ? "GIF" : (locale === "ru" ? "Стикер" : "Sticker")}
+                                loading="lazy"
+                              />
+                            )}
                             {message.media.kind === "photo" && message.body && <p className="message-media-caption">{message.body}</p>}
                           </>
+                        ) : message.media?.emoji ? (
+                          <div className={"message-built-in-media " + message.media.kind + " motion-" + (message.media.animation ?? "pop")} role="img" aria-label={message.media.kind === "gif" ? "GIF" : (locale === "ru" ? "Стикер" : "Sticker")}>
+                            {message.media.emoji}
+                          </div>
                         ) : message.body ? <p>{message.body}</p> : null}
                         <div className="message-meta">
                           <span>{formatMessageTime(message.created_at)} {mine && <CheckCheck size={13} />} {message.edited_at && <small className="message-edited-label">{locale === "ru" ? "изменено" : "edited"}</small>}</span>
                           <button type="button" className="message-action-button" onClick={() => { setEditTarget(null); setReplyTarget(message); }} aria-label={locale === "ru" ? "Ответить" : "Reply"} title={locale === "ru" ? "Ответить" : "Reply"}><MessageSquareReply size={13} /></button>
-                          {mine && (!message.media || message.media.kind === "photo") && <button type="button" className="message-action-button" onClick={() => { setReplyTarget(null); setEditTarget(message); setDraft(message.body); setPhotoDraft(null); setPhotoCaption(""); }} aria-label={locale === "ru" ? "Редактировать" : "Edit"} title={locale === "ru" ? "Редактировать" : "Edit"}><PencilLine size={13} /></button>}
+                          {mine && (!message.media || message.media.kind === "photo" || message.media.kind === "video") && <button type="button" className="message-action-button" onClick={() => { setReplyTarget(null); setEditTarget(message); setDraft(message.body); setPhotoDraft(null); setPhotoCaption(""); }} aria-label={locale === "ru" ? "Редактировать" : "Edit"} title={locale === "ru" ? "Редактировать" : "Edit"}><PencilLine size={13} /></button>}
+                          <button
+                            type="button"
+                            className={"message-action-button " + (savedMessages.some((item) => item.id === message.conversation_id + ":" + message.id) ? "is-saved" : "")}
+                            onClick={() => toggleSavedMessage(message)}
+                            aria-label={savedMessages.some((item) => item.id === message.conversation_id + ":" + message.id) ? (locale === "ru" ? "Убрать из избранного" : "Remove from Saved Messages") : (locale === "ru" ? "Сохранить в избранное" : "Save to Saved Messages")}
+                            title={savedMessages.some((item) => item.id === message.conversation_id + ":" + message.id) ? (locale === "ru" ? "В избранном" : "Saved") : (locale === "ru" ? "Сохранить" : "Save")}
+                          >
+                            {savedMessages.some((item) => item.id === message.conversation_id + ":" + message.id) ? <BookmarkCheck size={15} /> : <Bookmark size={15} />}
+                          </button>
                           <button
                             type="button"
                             className={"message-action-button " + (pinnedMessages.some((item) => item.id === message.id) ? "is-pinned" : "")}
@@ -1857,38 +2332,71 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                   <button type="button" onClick={() => { setEditTarget(null); setDraft(""); }} aria-label={locale === "ru" ? "Отменить редактирование" : "Cancel editing"}><X size={16} /></button>
                 </div>
               )}
-              {photoDraft && photoPreviewUrl && (
-                <section className="photo-composer-preview" aria-label={locale === "ru" ? "Предпросмотр фото" : "Photo preview"}>
-                  <div className="photo-composer-image-wrap">
-                    <img src={photoPreviewUrl} alt={locale === "ru" ? "Выбранное фото" : "Selected photo"} />
-                    <button type="button" className="photo-composer-remove" onClick={clearPhotoDraft} disabled={mediaSending} aria-label={locale === "ru" ? "Убрать фото" : "Remove photo"} title={locale === "ru" ? "Убрать фото" : "Remove photo"}>
-                      <X size={17} />
-                    </button>
+              {photoDraft && photoPreviewUrl && createPortal(
+                <div className="media-editor-backdrop" onClick={() => { if (!mediaSending) clearPhotoDraft(); }}>
+                  <section className="photo-composer-preview media-editor-panel media-editor-sheet" onClick={(event) => event.stopPropagation()} aria-label={locale === "ru" ? "Редактор фото" : "Photo editor"}>
+                  <div className="media-editor-heading">
+                    <strong>{locale === "ru" ? "Предпросмотр фото" : "Photo preview"}</strong>
+                    <button type="button" className="photo-composer-remove" onClick={clearPhotoDraft} disabled={mediaSending} aria-label={locale === "ru" ? "Убрать фото" : "Remove photo"}><X size={17} /></button>
+                  </div>
+                  <div className={"photo-composer-image-wrap crop-" + photoAspect}>
+                    <img src={photoPreviewUrl} alt={locale === "ru" ? "Выбранное фото" : "Selected photo"} style={{ transform: "rotate(" + photoRotation + "deg)" }} />
                     <span className="photo-composer-size">{(photoDraft.size / (1024 * 1024)).toFixed(1)} MB</span>
                   </div>
+                  <div className="media-editor-tools">
+                    <div className="media-editor-tool-group">
+                      <span>{locale === "ru" ? "Кадрирование" : "Crop"}</span>
+                      <div>
+                        <button type="button" className={photoAspect === "original" ? "active" : ""} onClick={() => setPhotoAspect("original")}>{locale === "ru" ? "Оригинал" : "Original"}</button>
+                        <button type="button" className={photoAspect === "square" ? "active" : ""} onClick={() => setPhotoAspect("square")}>1:1</button>
+                        <button type="button" className={photoAspect === "landscape" ? "active" : ""} onClick={() => setPhotoAspect("landscape")}>16:9</button>
+                      </div>
+                    </div>
+                    <button type="button" className="media-editor-rotate" onClick={() => setPhotoRotation((angle) => (angle + 90) % 360)}><span aria-hidden="true">↻</span>{locale === "ru" ? "Повернуть" : "Rotate"}</button>
+                  </div>
                   <div className="photo-composer-caption-row">
-                    <textarea
-                      value={photoCaption}
-                      onChange={(event) => setPhotoCaption(event.target.value.slice(0, 4000))}
-                      rows={2}
-                      maxLength={4000}
-                      placeholder={locale === "ru" ? "Добавить подпись…" : "Add a caption…"}
-                      aria-label={locale === "ru" ? "Подпись к фото" : "Photo caption"}
-                      disabled={mediaSending}
-                    />
-                    <button type="button" className="send-button photo-composer-send" onClick={() => void handleSendPhoto()} disabled={mediaSending} aria-label={locale === "ru" ? "Отправить фото" : "Send photo"} title={locale === "ru" ? "Отправить фото" : "Send photo"}>
+                    <textarea value={photoCaption} onChange={(event) => setPhotoCaption(event.target.value.slice(0, 4000))} rows={2} maxLength={4000} placeholder={locale === "ru" ? "Добавить подпись…" : "Add a caption…"} aria-label={locale === "ru" ? "Подпись к фото" : "Photo caption"} disabled={mediaSending} />
+                    <button type="button" className="send-button photo-composer-send" onClick={() => void handleSendPhoto()} disabled={mediaSending}>
                       {mediaSending ? <span className="button-spinner" /> : <ArrowUp size={20} />}
                     </button>
                   </div>
-                </section>
+                  </section>
+                </div>,
+                document.body,
+              )}
+              {videoDraft && videoPreviewUrl && createPortal(
+                <div className="media-editor-backdrop" onClick={() => { if (!mediaSending) clearVideoDraft(); }}>
+                  <section className="photo-composer-preview media-editor-panel video-editor-panel media-editor-sheet" onClick={(event) => event.stopPropagation()} aria-label={locale === "ru" ? "Редактор видео" : "Video editor"}>
+                  <div className="media-editor-heading">
+                    <strong>{locale === "ru" ? "Предпросмотр видео" : "Video preview"}</strong>
+                    <button type="button" className="photo-composer-remove" onClick={clearVideoDraft} disabled={mediaSending} aria-label={locale === "ru" ? "Убрать видео" : "Remove video"}><X size={17} /></button>
+                  </div>
+                  <video className="video-editor-preview" src={videoPreviewUrl} controls playsInline preload="metadata" onLoadedMetadata={(event) => { const duration = Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : 0; setVideoDuration(duration); setVideoTrimEnd(duration); }} />
+                  <div className="video-trim-control">
+                    <label>{locale === "ru" ? "Начало" : "Start"} <strong>{videoTrimStart.toFixed(1)} c</strong></label>
+                    <input type="range" min="0" max={Math.max(videoDuration, 0.1)} step="0.1" value={Math.min(videoTrimStart, Math.max(videoDuration, 0))} onChange={(event) => setVideoTrimStart(Math.min(Number(event.target.value), Math.max(videoTrimEnd - 0.1, 0)))} disabled={!videoDuration || mediaSending} />
+                  </div>
+                  <div className="video-trim-control">
+                    <label>{locale === "ru" ? "Конец" : "End"} <strong>{(videoTrimEnd || videoDuration).toFixed(1)} c</strong></label>
+                    <input type="range" min={Math.min(videoTrimStart + 0.1, Math.max(videoDuration, 0))} max={Math.max(videoDuration, 0.1)} step="0.1" value={Math.min(videoTrimEnd || videoDuration, Math.max(videoDuration, 0.1))} onChange={(event) => setVideoTrimEnd(Number(event.target.value))} disabled={!videoDuration || mediaSending} />
+                  </div>
+                  <div className="photo-composer-caption-row">
+                    <textarea value={videoCaption} onChange={(event) => setVideoCaption(event.target.value.slice(0, 4000))} rows={2} maxLength={4000} placeholder={locale === "ru" ? "Подпись к видео…" : "Add a video caption…"} aria-label={locale === "ru" ? "Подпись к видео" : "Video caption"} disabled={mediaSending} />
+                    <button type="button" className="send-button photo-composer-send" onClick={() => void handleSendVideo()} disabled={mediaSending}><ArrowUp size={20} /></button>
+                  </div>
+                  </section>
+                </div>,
+                document.body,
               )}
               <form className="composer" onSubmit={handleSend}>
                 <ChatMediaPicker
                   locale={locale}
                   disabled={mediaSending || Boolean(editTarget)}
                   onEmojiSelect={(emoji) => setDraft((current) => (current + emoji).slice(0, 4000))}
-                  onStickerSelect={(file) => void handleMediaSelect("sticker", file)}
-                  onGifSelect={(file) => void handleMediaSelect("gif", file)}
+                  onStickerSelect={(emoji, motion) => void handleBuiltInMediaSelect("sticker", emoji, motion)}
+                  onGifSelect={(emoji, motion) => void handleBuiltInMediaSelect("gif", emoji, motion)}
+                  onStickerUpload={(file) => void handleMediaSelect("sticker", file)}
+                  onGifUpload={(file) => void handleMediaSelect("gif", file)}
                 />
                 <input
                   value={draft}
@@ -1898,11 +2406,35 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                   aria-label={t(locale, "messagePlaceholder")}
                   maxLength={4000}
                 />
-                <button type="button" className="icon-button composer-media-button" onClick={() => photoInputRef.current?.click()} disabled={mediaSending || Boolean(editTarget)} aria-label={locale === "ru" ? "Прикрепить фото" : "Attach a photo"} title={locale === "ru" ? "Прикрепить фото" : "Attach a photo"}>
+                <button type="button" className={"icon-button composer-media-button " + (showAttachmentMenu ? "is-open" : "")} onClick={() => setShowAttachmentMenu((value) => !value)} disabled={mediaSending || Boolean(editTarget)} aria-label={locale === "ru" ? "Прикрепить фото или видео" : "Attach photo or video"} title={locale === "ru" ? "Прикрепить фото или видео" : "Attach photo or video"}>
                   <Paperclip size={19} />
                 </button>
-                <input ref={photoInputRef} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(event) => { handlePhotoSelect(event.target.files?.[0]); event.target.value = ""; }} />
-                <button type="submit" disabled={sending || (!draft.trim() && editTarget?.media?.kind !== "photo")} aria-label={editTarget ? (locale === "ru" ? "Сохранить" : "Save") : t(locale, "messageSend")} className="send-button">
+                {showAttachmentMenu && createPortal(
+                  <div className="heloro-sheet-backdrop" onClick={() => setShowAttachmentMenu(false)}>
+                    <section className="heloro-attachment-menu" role="dialog" aria-modal="true" aria-label={locale === "ru" ? "Выбор вложения" : "Choose attachment"} onClick={(event) => event.stopPropagation()}>
+                      <span className="heloro-sheet-handle" aria-hidden="true" />
+                      <div className="heloro-sheet-heading">
+                        <strong>{locale === "ru" ? "Прикрепить" : "Attach"}</strong>
+                        <button type="button" onClick={() => setShowAttachmentMenu(false)} aria-label={locale === "ru" ? "Закрыть" : "Close"}><X size={19} /></button>
+                      </div>
+                      <div className="heloro-attachment-options">
+                        <button type="button" onClick={() => { setShowAttachmentMenu(false); photoInputRef.current?.click(); }}>
+                          <span className="heloro-attachment-icon"><ImagePlus size={23} /></span>
+                          <span><strong>{locale === "ru" ? "Фото" : "Photo"}</strong><small>{locale === "ru" ? "Выбрать изображение" : "Choose an image"}</small></span>
+                        </button>
+                        <button type="button" onClick={() => { setShowAttachmentMenu(false); videoInputRef.current?.click(); }}>
+                          <span className="heloro-attachment-icon"><Video size={23} /></span>
+                          <span><strong>{locale === "ru" ? "Видео" : "Video"}</strong><small>{locale === "ru" ? "Выбрать ролик" : "Choose a video"}</small></span>
+                        </button>
+                      </div>
+                      <p className="heloro-sheet-hint">{locale === "ru" ? "После выбора откроется предпросмотр и редактор." : "Preview and editor open after selection."}</p>
+                    </section>
+                  </div>,
+                  document.body,
+                )}
+                <input ref={photoInputRef} type="file" accept="image/*" hidden onChange={(event) => { handlePhotoSelect(event.target.files?.[0]); event.target.value = ""; }} />
+                <input ref={videoInputRef} type="file" accept="video/mp4,video/webm" hidden onChange={(event) => { handleVideoSelect(event.target.files?.[0]); event.target.value = ""; }} />
+                <button type="submit" disabled={sending || (!draft.trim() && editTarget?.media?.kind !== "photo" && editTarget?.media?.kind !== "video")} aria-label={editTarget ? (locale === "ru" ? "Сохранить" : "Save") : t(locale, "messageSend")} className="send-button">
                   {sending ? <span className="button-spinner" /> : editTarget ? <Check size={20} /> : <ArrowUp size={20} />}
                 </button>
               </form>
@@ -1913,6 +2445,24 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
           )}
         </section>
       </div>
+
+      {!showComposeScreen && !showNavigation && !showBots && !showReport && !mediaViewer && !showAttachmentMenu && !photoDraft && !videoDraft && createPortal(
+        <nav className="mobile-bottom-nav mobile-bottom-nav-floating" aria-label={locale === "ru" ? "Основная навигация" : "Main navigation"}>
+          <button type="button" className={mobileTab === "chats" ? "active" : ""} aria-current={mobileTab === "chats" ? "page" : undefined} onClick={() => openMobileTab("chats")}>
+            <MessageCircle size={21} /><span>{locale === "ru" ? "Чаты" : "Chats"}</span>
+          </button>
+          <button type="button" className={mobileTab === "contacts" ? "active" : ""} aria-current={mobileTab === "contacts" ? "page" : undefined} onClick={() => openMobileTab("contacts")}>
+            <Users size={21} /><span>{locale === "ru" ? "Контакты" : "Contacts"}</span>
+          </button>
+          <button type="button" className={mobileTab === "settings" ? "active" : ""} aria-current={mobileTab === "settings" ? "page" : undefined} onClick={() => openMobileTab("settings")}>
+            <Settings2 size={21} /><span>{locale === "ru" ? "Настройки" : "Settings"}</span>
+          </button>
+          <button type="button" className={mobileTab === "profile" ? "active" : ""} aria-current={mobileTab === "profile" ? "page" : undefined} onClick={() => openMobileTab("profile")}>
+            <UserRound size={21} /><span>{locale === "ru" ? "Профиль" : "Profile"}</span>
+          </button>
+        </nav>,
+        document.body,
+      )}
 
       {error && !activeConversation && !systemView && !activeCommunityRoomId && !communityCreateKind && <div className="global-error" role="alert">{error}<button onClick={() => setError("")} aria-label={t(locale, "dismiss")}><X size={14} /></button></div>}
 
@@ -1933,6 +2483,8 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
             onOpenBots={openBots}
             onOpenAdmin={() => openSystemView("admin")}
             onOpenMyProfile={() => void openUserProfile(user.id)}
+            onOpenSaved={openSavedMessages}
+            onOpenFolders={openFolderManager}
           />
         </Suspense>
       )}
@@ -1966,7 +2518,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
         </Suspense>
       )}
 
-      {showProfile && (
+      {showProfile && createPortal(
         <div className="profile-view-overlay" onClick={() => { setShowProfile(false); setMobileTab("chats"); }}>
           <section className="profile-view-card" role="dialog" aria-modal="true" aria-labelledby="profile-view-title" onClick={(event) => event.stopPropagation()}>
             <header className="profile-view-topbar">
@@ -1986,7 +2538,9 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
               <div className="profile-view-cover" aria-hidden="true" />
               {profileLoading ? <p className="profile-view-loading">{t(locale, "appLoading")}</p> : viewedProfile ? <>
                 <div className="profile-view-hero">
-                  <Avatar label={viewedProfile.display_name || viewedProfile.username} className="profile-view-avatar" src={viewedProfile.avatar_url} crown={Boolean(crownMap[viewedProfile.id])} />
+                  <button type="button" className="profile-view-avatar-button" onClick={() => openPhotoViewer(viewedProfile.avatar_url)} disabled={!viewedProfile.avatar_url} aria-label={locale === "ru" ? "Увеличить фото профиля" : "Enlarge profile photo"}>
+                    <Avatar label={viewedProfile.display_name || viewedProfile.username} className="profile-view-avatar" src={viewedProfile.avatar_url} crown={Boolean(crownMap[viewedProfile.id])} />
+                  </button>
                   <h2 id="profile-view-title">
                     <span className="profile-display-name">{viewedProfile.display_name || viewedProfile.username}</span>
                     <PurpleCrownNameMark active={Boolean(crownMap[viewedProfile.id])} />
@@ -2072,7 +2626,34 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
               {profileError && viewedProfile && <p className="profile-view-error" role="alert">{profileError}</p>}
             </div>
           </section>
-        </div>
+        </div>,
+        document.body,
+      )}
+
+      {mediaViewer && createPortal(
+        <div className="media-viewer-overlay" role="dialog" aria-modal="true" aria-label={mediaViewer.kind === "photo" ? (locale === "ru" ? "Просмотр фото" : "Photo viewer") : (locale === "ru" ? "Просмотр видео" : "Video viewer")} onClick={() => setMediaViewer(null)}>
+          <button type="button" className="media-viewer-close" onClick={() => setMediaViewer(null)} aria-label={locale === "ru" ? "Закрыть просмотр" : "Close viewer"}><X size={23} /></button>
+          {mediaViewer.kind === "photo" ? (
+            <>
+              <div className="media-viewer-zoom-tools" onClick={(event) => event.stopPropagation()}>
+                <button type="button" onClick={() => setMediaViewerScale((value) => Math.max(1, Number((value - 0.25).toFixed(2))))} disabled={mediaViewerScale <= 1} aria-label={locale === "ru" ? "Уменьшить" : "Zoom out"}>−</button>
+                <span>{Math.round(mediaViewerScale * 100)}%</span>
+                <button type="button" onClick={() => setMediaViewerScale((value) => Math.min(3, Number((value + 0.25).toFixed(2))))} disabled={mediaViewerScale >= 3} aria-label={locale === "ru" ? "Увеличить" : "Zoom in"}>+</button>
+              </div>
+              <div className="media-viewer-scroll" onClick={(event) => event.stopPropagation()}>
+                {mediaViewerLoadError ? (
+                  <p className="media-viewer-load-error" role="alert">{locale === "ru" ? "Не удалось загрузить фото. Попробуйте открыть его ещё раз." : "Could not load this photo. Please try opening it again."}</p>
+                ) : (
+                  <img className="media-viewer-image" src={mediaViewer.url} alt={mediaViewer.caption || (locale === "ru" ? "Фото" : "Photo")} draggable={false} onLoad={() => setMediaViewerLoadError(false)} onError={() => setMediaViewerLoadError(true)} style={{ transform: "scale(" + mediaViewerScale + ")" }} />
+                )}
+              </div>
+            </>
+          ) : (
+            <video className="media-viewer-video" src={mediaViewer.url} controls playsInline autoPlay onClick={(event) => event.stopPropagation()} />
+          )}
+          {mediaViewer.caption && <p className="media-viewer-caption">{mediaViewer.caption}</p>}
+        </div>,
+        document.body,
       )}
 
       {showReport && activeConversation && (

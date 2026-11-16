@@ -25,11 +25,14 @@ type NavigationProps = {
   onOpenBots: () => void;
   onOpenAdmin: () => void;
   onOpenMyProfile: () => void;
+  onOpenSaved: () => void;
+  onOpenFolders: () => void;
 };
 
 export function MessengerNavigation({
   profile, locale, roles, onClose, onOpenInbox, onOpenContacts, onCreateGroup,
   onCreateChannel, onOpenNews, onOpenSupport, onOpenSettings, onOpenBots, onOpenAdmin, onOpenMyProfile,
+  onOpenSaved, onOpenFolders,
 }: NavigationProps) {
   const ru = locale === "ru";
   const staff = roles.some((role) => role === "owner" || role === "admin" || role === "moderator");
@@ -61,8 +64,8 @@ export function MessengerNavigation({
           <div className="navigation-separator" />
           <div className="navigation-group-label">{ru ? "ВОЗМОЖНОСТИ" : "FEATURES"}</div>
           <button type="button" className="navigation-item navigation-item-disabled" disabled><History size={19} /><span>{ru ? "Истории" : "Stories"}</span><small>{ru ? "Скоро" : "Soon"}</small></button>
-          <button type="button" className="navigation-item navigation-item-disabled" disabled><Bookmark size={19} /><span>{ru ? "Избранное" : "Saved Messages"}</span><small>{ru ? "Скоро" : "Soon"}</small></button>
-          <button type="button" className="navigation-item navigation-item-disabled" disabled><Folder size={19} /><span>{ru ? "Папки чатов" : "Chat folders"}</span><small>{ru ? "Скоро" : "Soon"}</small></button>
+          <button type="button" className="navigation-item" onClick={() => run(onOpenSaved)}><Bookmark size={19} /><span>{ru ? "Избранное" : "Saved Messages"}</span><ChevronRight size={16} className="navigation-chevron" /></button>
+          <button type="button" className="navigation-item" onClick={() => run(onOpenFolders)}><Folder size={19} /><span>{ru ? "Папки чатов" : "Chat folders"}</span><ChevronRight size={16} className="navigation-chevron" /></button>
           <button type="button" className="navigation-item" onClick={() => run(onOpenBots)}><Bot size={19} /><span>{ru ? "Боты" : "Bots"}</span><ChevronRight size={16} className="navigation-chevron" /></button>
           <button type="button" className="navigation-item navigation-item-disabled" disabled><Phone size={19} /><span>{ru ? "Звонки" : "Calls"}</span><small>{ru ? "Ожидают настройки" : "Not enabled"}</small></button>
           <div className="navigation-separator" />
