@@ -77,6 +77,9 @@ export default function ChatFoldersBar({
 
   function closeDialog() {
     setDialogOpen(false);
+    setEditingId(null);
+    setDraftName("");
+    setSelectedIds([]);
     onManagerClose();
   }
 
