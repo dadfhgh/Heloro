@@ -850,3 +850,115 @@ html[data-theme="dark"] .chat-folders-primary { color: #111111 !important; backg
     scroll-behavior: auto !important;
   }
 }
+
+
+/* Motion polish v2: consistent, lightweight feedback across the whole HELORO UI. */
+:root {
+  --heloro-motion-slow: 280ms;
+  --heloro-motion-fast: 130ms;
+  --heloro-motion-normal: 200ms;
+  --heloro-motion-ease: cubic-bezier(.2, .72, .2, 1);
+}
+@media (prefers-reduced-motion: no-preference) {
+  :where(button, a, [role="button"], input, select, textarea) {
+    -webkit-tap-highlight-color: transparent;
+  }
+  :where(button:not(:disabled), a, [role="button"]:not([aria-disabled="true"])) {
+    transition:
+      color var(--heloro-motion-normal) var(--heloro-motion-ease),
+      background-color var(--heloro-motion-normal) var(--heloro-motion-ease),
+      border-color var(--heloro-motion-normal) var(--heloro-motion-ease),
+      box-shadow var(--heloro-motion-normal) var(--heloro-motion-ease),
+      opacity var(--heloro-motion-normal) var(--heloro-motion-ease),
+      transform var(--heloro-motion-fast) var(--heloro-motion-ease);
+  }
+  :where(button:not(:disabled), [role="button"]:not([aria-disabled="true"])):active {
+    transform: scale(.975);
+  }
+  :where(button:disabled, [aria-disabled="true"]) {
+    cursor: not-allowed;
+    transition: opacity var(--heloro-motion-normal) ease;
+  }
+  :where(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+    transition:
+      border-color var(--heloro-motion-normal) var(--heloro-motion-ease),
+      box-shadow var(--heloro-motion-normal) var(--heloro-motion-ease),
+      background-color var(--heloro-motion-normal) var(--heloro-motion-ease);
+  }
+  :where(input:not([type="checkbox"]):not([type="radio"]), select, textarea):focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 13%, transparent);
+  }
+  :where(button, a, input, select, textarea, [role="button"]):focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 3px;
+  }
+  :where(.conversation-item, .person-result, .settings-home-row, .settings-home-profile,
+    .saved-message-item, .admin-stat-card, .admin-record-card, .profile-info-card,
+    .community-pane, .system-post-card) {
+    transition:
+      background-color var(--heloro-motion-normal) var(--heloro-motion-ease),
+      border-color var(--heloro-motion-normal) var(--heloro-motion-ease),
+      box-shadow var(--heloro-motion-normal) var(--heloro-motion-ease),
+      transform var(--heloro-motion-normal) var(--heloro-motion-ease);
+  }
+  :where(.conversation-item, .person-result, .settings-home-row, .saved-message-item):active {
+    transform: scale(.992);
+  }
+  :where(.conversation-item, .person-result, .settings-home-row, .saved-message-item):hover {
+    box-shadow: 0 5px 18px rgba(0, 0, 0, .055);
+  }
+  .message-row {
+    animation: heloro-message-arrive 210ms var(--heloro-motion-ease) both;
+  }
+  .message-bubble {
+    transform-origin: bottom left;
+  }
+  .message-row.mine .message-bubble {
+    transform-origin: bottom right;
+  }
+  .message-row:active .message-bubble {
+    transform: scale(.995);
+  }
+  :where(.mobile-bottom-nav-floating button, .chat-filter-tabs button, .chat-folders-bar button) {
+    will-change: transform;
+  }
+  .mobile-bottom-nav-floating button.active svg,
+  .chat-filter-tabs button.active svg {
+    animation: heloro-icon-select 220ms var(--heloro-motion-ease) both;
+  }
+  :where(.heloro-sheet-backdrop, .media-editor-backdrop, .chat-media-picker-backdrop,
+    .settings-page-overlay, .navigation-overlay, .profile-view-overlay, .media-viewer-overlay) {
+    will-change: opacity;
+  }
+  :where(.heloro-attachment-menu, .media-editor-sheet, .chat-media-picker-panel,
+    .navigation-drawer, .settings-page-card, .chat-folders-dialog) {
+    transform-origin: center bottom;
+  }
+  .send-button:not(:disabled):active,
+  .primary-button:not(:disabled):active {
+    filter: brightness(.94);
+  }
+}
+@keyframes heloro-message-arrive {
+  from { opacity: 0; transform: translate3d(0, 9px, 0) scale(.985); }
+  to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+@keyframes heloro-icon-select {
+  0% { transform: scale(.82); }
+  65% { transform: scale(1.13); }
+  100% { transform: scale(1); }
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  :where(button:not(:disabled), a, [role="button"]:not([aria-disabled="true"])):hover {
+    filter: brightness(.985);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
