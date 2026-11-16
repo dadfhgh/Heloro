@@ -1397,9 +1397,11 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
     closeConversation();
     if (tab === "settings") openSettings("account");
     else void openUserProfile(user.id);
+    setMobileTab(tab);
   }
 
   function openNewMessageScreen() {
+    setShowSavedMessages(false);
     setActiveId(null);
     setActiveCommunityRoomId(null);
     setCommunityCreateKind(null);
@@ -1805,22 +1807,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
               )}
             </section>
           )}
-          {!showComposeScreen && !showSettings && !showBots && !showProfile && !showNavigation && (
-            <nav className="mobile-bottom-nav" aria-label={locale === "ru" ? "Основная навигация" : "Main navigation"}>
-              <button type="button" className={mobileTab === "chats" ? "active" : ""} aria-current={mobileTab === "chats" ? "page" : undefined} onClick={() => openMobileTab("chats")}>
-                <MessageCircle size={21} /><span>{locale === "ru" ? "Чаты" : "Chats"}</span>
-              </button>
-              <button type="button" className={mobileTab === "contacts" ? "active" : ""} aria-current={mobileTab === "contacts" ? "page" : undefined} onClick={() => openMobileTab("contacts")}>
-                <Users size={21} /><span>{locale === "ru" ? "Контакты" : "Contacts"}</span>
-              </button>
-              <button type="button" className={mobileTab === "settings" ? "active" : ""} aria-current={mobileTab === "settings" ? "page" : undefined} onClick={() => openMobileTab("settings")}>
-                <Settings2 size={21} /><span>{locale === "ru" ? "Настройки" : "Settings"}</span>
-              </button>
-              <button type="button" className={mobileTab === "profile" ? "active" : ""} aria-current={mobileTab === "profile" ? "page" : undefined} onClick={() => openMobileTab("profile")}>
-                <UserRound size={21} /><span>{locale === "ru" ? "Профиль" : "Profile"}</span>
-              </button>
-            </nav>
-          )}
+
           {showComposeScreen && (
             <section className="new-message-screen" aria-label={locale === "ru" ? "Новое сообщение" : "New message"}>
               <header className="new-message-header">
