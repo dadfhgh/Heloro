@@ -2142,7 +2142,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                           >
                             <span className="chat-message-search-result-copy">
                               <strong>{result.sender_id === user.id ? (locale === "ru" ? "Вы" : "You") : activeConversation.display_name}</strong>
-                              <span>{result.media?.caption || result.media?.emoji || (result.body && !result.body.startsWith("HELORO_MEDIA:") ? result.body : (locale === "ru" ? "Медиафайл" : "Media"))}</span>
+                              <span>{result.body || result.media?.emoji || (locale === "ru" ? "Медиафайл" : "Media")}</span>
                             </span>
                             <time>{formatMessageTime(result.created_at)}</time>
                           </button>
