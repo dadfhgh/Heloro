@@ -31,6 +31,16 @@ export interface Message {
   media?: { kind: "photo" | "sticker" | "gif" | "video"; url?: string; path?: string; emoji?: string; animation?: "pop" | "float" | "pulse" | "spin"; trimStart?: number; trimEnd?: number } | null;
 }
 
+export type MessageReactionEmoji = "👍" | "❤️" | "😂" | "😮" | "😢" | "🎉";
+
+export interface MessageReaction {
+  message_id: string;
+  conversation_id: string;
+  user_id: string;
+  emoji: MessageReactionEmoji;
+  created_at: string;
+}
+
 export interface PublicProfile {
   id: string;
   username: string;
