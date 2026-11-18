@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { MessageReaction, MessageReactionEmoji } from "./types";
 
 export const usernameSchema = z
   .string()
@@ -80,4 +81,32 @@ export function formatLastSeen(value: string | null | undefined, locale: "ru" | 
     return ru ? "был(а) " + shortDate + " в " + time : "last seen " + shortDate + " at " + time;
   }
   return ru ? "был(а) давно" : "last seen a long time ago";
+}
+
+
+export interface MessageReactionSummary {
+  emoji: MessageReactionEmoji;
+  count: number;
+  selectedByMe: boolean;
+}
+
+export function summarizeMessageReactions(
+  reactions: ReadonlyArray<Pick<MessageReaction, "emoji" | "user_id">>,
+  currentUserId: string,
+): MessageReactionSummary[] {
+  const grouped = new Map<MessageReactionEmoji, MessageReactionSummary>();
+  for (const reaction of reactions) {
+    const current = grouped.get(reaction.emoji);
+    if (current) {
+      current.count += 1;
+      current.selectedByMe ||= reaction.user_id === currentUserId;
+    } else {
+      grouped.set(reaction.emoji, {
+        emoji: reaction.emoji,
+        count: 1,
+        selectedByMe: reaction.user_id === currentUserId,
+      });
+    }
+  }
+  return [...grouped.values()].sort((left, right) => right.count - left.count);
 }
