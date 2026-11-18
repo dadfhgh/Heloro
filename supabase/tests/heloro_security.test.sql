@@ -1,6 +1,6 @@
 begin;
 
-select plan(33);
+select plan(44);
 
 select has_table('public', 'profiles', 'profiles table exists');
 select has_table('public', 'conversations', 'conversations table exists');
@@ -38,5 +38,17 @@ select ok(exists (select 1 from pg_policies where schemaname = 'storage' and tab
 select has_function('public', 'heloro_admin_list_communities', array[]::text[], 'HELORO S community list RPC exists');
 select has_function('public', 'heloro_admin_delete_community', array['uuid'], 'HELORO S community deletion RPC exists');
 select ok(has_function_privilege('authenticated', 'public.heloro_admin_delete_community(uuid)', 'execute') and not has_function_privilege('anon', 'public.heloro_admin_delete_community(uuid)', 'execute'), 'community deletion RPC is restricted to authenticated users');
+select has_table('public', 'message_reactions', 'direct message reactions table exists');
+select ok((select relrowsecurity from pg_class where oid = 'public.message_reactions'::regclass), 'RLS is enabled on message reactions');
+select ok(not has_table_privilege('anon', 'public.message_reactions', 'select'), 'anonymous users cannot read message reactions');
+select ok(has_table_privilege('authenticated', 'public.message_reactions', 'select'), 'authenticated users can read reactions in their conversations');
+select ok(has_table_privilege('authenticated', 'public.message_reactions', 'insert'), 'authenticated users can add message reactions');
+select ok(has_column_privilege('authenticated', 'public.message_reactions', 'emoji', 'update'), 'authenticated users can change their reaction emoji');
+select ok(has_table_privilege('authenticated', 'public.message_reactions', 'delete'), 'authenticated users can remove their own reactions');
+select ok(exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'message_reactions' and policyname = 'Members read direct message reactions' and cmd = 'SELECT'), 'reaction reads are limited by conversation membership');
+select ok(exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'message_reactions' and policyname = 'Members add their own direct message reactions' and cmd = 'INSERT'), 'reaction inserts enforce the authenticated user and matching message');
+select ok(exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'message_reactions' and policyname = 'Members update their own direct message reactions' and cmd = 'UPDATE'), 'reaction updates are restricted to the reaction owner');
+select ok(exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'message_reactions' and policyname = 'Members remove their own direct message reactions' and cmd = 'DELETE'), 'reaction deletes are restricted to the reaction owner');
+
 select * from finish();
 rollback;
