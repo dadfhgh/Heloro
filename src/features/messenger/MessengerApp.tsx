@@ -31,6 +31,7 @@ import {
   Search,
   Settings2,
   ShieldCheck,
+  SmilePlus,
   Trash2,
   Video,
   X,
@@ -40,6 +41,10 @@ import {
   deleteDirectMessage,
   getInbox,
   getMessages,
+  getMessageReactions,
+  MESSAGE_REACTION_EMOJIS,
+  toggleMessageReaction,
+  subscribeToMessageReactions,
   getPinnedMessages,
   getDirectMessageById,
   setDirectMessagePinned,
@@ -59,8 +64,8 @@ import {
   getVisibleLastSeen,
   uploadAvatar,
 } from "../../lib/messenger";
-import { formatInboxTime, formatLastSeen, formatMessageDayLabel, formatMessageTime, initials, messageBodySchema, usernameSchema, displayNameSchema } from "../../lib/domain";
-import type { InboxConversation, Message, Profile, PublicProfile, BadgeType } from "../../lib/types";
+import { formatInboxTime, formatLastSeen, formatMessageDayLabel, formatMessageTime, initials, messageBodySchema, usernameSchema, displayNameSchema, summarizeMessageReactions } from "../../lib/domain";
+import type { InboxConversation, Message, MessageReaction, MessageReactionEmoji, Profile, PublicProfile, BadgeType } from "../../lib/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { t, type Locale } from "../../lib/i18n";
 import OfficialPanels from "./OfficialPanels";
@@ -248,6 +253,10 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const [activeId, setActiveId] = useState<string | null>(null);
   const [systemView, setSystemView] = useState<SystemView | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [messageReactions, setMessageReactions] = useState<MessageReaction[]>([]);
+  const [reactionsAvailable, setReactionsAvailable] = useState(false);
+  const [reactionPickerFor, setReactionPickerFor] = useState<string | null>(null);
+  const [reactingMessageIds, setReactingMessageIds] = useState<string[]>([]);
   const [draft, setDraft] = useState("");
   const [replyTarget, setReplyTarget] = useState<Message | null>(null);
   const [editTarget, setEditTarget] = useState<Message | null>(null);
@@ -765,6 +774,36 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
 
   useEffect(() => {
     if (!activeId) {
+      setMessageReactions([]);
+      setReactionsAvailable(false);
+      setReactionPickerFor(null);
+      return;
+    }
+    let active = true;
+    const refreshReactions = () => {
+      void getMessageReactions(activeId)
+        .then((items) => {
+          if (!active) return;
+          setMessageReactions(items);
+          setReactionsAvailable(true);
+        })
+        .catch((cause: unknown) => {
+          if (!active) return;
+          setMessageReactions([]);
+          setReactionsAvailable(false);
+          console.warn("HELORO message reactions are unavailable until the database migration is applied:", cause);
+        });
+    };
+    refreshReactions();
+    const channel = subscribeToMessageReactions(refreshReactions);
+    return () => {
+      active = false;
+      void client.removeChannel(channel);
+    };
+  }, [activeId, client]);
+
+  useEffect(() => {
+    if (!activeId) {
       setIsTyping(false);
       return;
     }
@@ -960,6 +999,24 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
     element?.scrollIntoView({ behavior: "smooth", block: "center" });
     element?.classList.add("message-jump-highlight");
     window.setTimeout(() => element?.classList.remove("message-jump-highlight"), 1200);
+  }
+
+  async function changeMessageReaction(messageId: string, emoji: MessageReactionEmoji) {
+    const conversationId = activeId;
+    if (!conversationId || reactingMessageIds.includes(messageId)) return;
+    setReactingMessageIds((current) => current.includes(messageId) ? current : [...current, messageId]);
+    setError("");
+    try {
+      await toggleMessageReaction(conversationId, messageId, user.id, emoji);
+      const refreshed = await getMessageReactions(conversationId);
+      setMessageReactions(refreshed);
+      setReactionPickerFor(null);
+    } catch (cause) {
+      console.warn("HELORO could not update a message reaction:", cause);
+      setError(t(locale, "messageReactionError"));
+    } finally {
+      setReactingMessageIds((current) => current.filter((id) => id !== messageId));
+    }
   }
 
   async function togglePinnedMessage(message: Message) {
@@ -2217,6 +2274,10 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                   const mine = message.sender_id === user.id;
                   const previous = messages[index - 1];
                   const showDay = !previous || new Date(previous.created_at).toDateString() !== new Date(message.created_at).toDateString();
+                  const reactionSummary = summarizeMessageReactions(
+                    messageReactions.filter((reaction) => reaction.message_id === message.id),
+                    user.id,
+                  );
                   return (
                     <Fragment key={message.id}>
                       {showDay && <div className="chat-date-pill">{formatMessageDayLabel(message.created_at, locale)}</div>}
@@ -2310,6 +2371,39 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                           <button type="button" className="message-delete-button" onClick={() => void removeDirectMessage(message)} aria-label={t(locale, "messageDelete")} title={t(locale, "messageDelete")}><Trash2 size={13} /></button>
                           {!mine && <button type="button" className="message-delete-button" onClick={() => { setReportMessageTargetId(message.id); setReportReason("other"); setReportDetails(""); setShowReport(true); }} aria-label={locale === "ru" ? "Пожаловаться на сообщение" : "Report message"} title={locale === "ru" ? "Пожаловаться на сообщение" : "Report message"}><Flag size={13} /></button>}
                         </div>
+                        {reactionsAvailable && (
+                          <div className="message-reactions">
+                            {reactionSummary.map((reaction) => (
+                              <button key={reaction.emoji} type="button"
+                                className={"message-reaction-chip" + (reaction.selectedByMe ? " is-selected" : "")}
+                                aria-pressed={reaction.selectedByMe}
+                                aria-label={reaction.emoji + ", " + reaction.count}
+                                disabled={reactingMessageIds.includes(message.id)}
+                                onClick={() => void changeMessageReaction(message.id, reaction.emoji)}>
+                                <span>{reaction.emoji}</span><small>{reaction.count}</small>
+                              </button>
+                            ))}
+                            <div className="message-reaction-picker-wrap">
+                              <button type="button" className="message-reaction-add"
+                                aria-label={t(locale, "messageAddReaction")}
+                                aria-expanded={reactionPickerFor === message.id}
+                                title={t(locale, "messageAddReaction")}
+                                disabled={reactingMessageIds.includes(message.id)}
+                                onClick={() => setReactionPickerFor((current) => current === message.id ? null : message.id)}>
+                                <SmilePlus size={14} />
+                              </button>
+                              {reactionPickerFor === message.id && (
+                                <div className="message-reaction-picker" role="group" aria-label={t(locale, "messageChooseReaction")}>
+                                  {MESSAGE_REACTION_EMOJIS.map((emoji) => (
+                                    <button key={emoji} type="button" aria-label={emoji}
+                                      disabled={reactingMessageIds.includes(message.id)}
+                                      onClick={() => void changeMessageReaction(message.id, emoji)}>{emoji}</button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                     </Fragment>

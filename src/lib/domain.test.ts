@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { displayNameSchema, formatInboxTime, formatLastSeen, formatMessageDayLabel, formatMessageTime, initials, messageBodySchema, usernameSchema } from "./domain";
+import { displayNameSchema, formatInboxTime, formatLastSeen, formatMessageDayLabel, formatMessageTime, initials, messageBodySchema, summarizeMessageReactions, usernameSchema } from "./domain";
 
 describe("usernameSchema", () => {
   it("normalizes usernames to lowercase", () => {
@@ -71,5 +71,23 @@ describe("message day separators", () => {
     expect(formatLastSeen(null, "ru", true, "within_week")).toBe("был(а) на этой неделе");
     expect(formatLastSeen(null, "ru", true, "within_month")).toBe("был(а) в этом месяце");
     expect(formatLastSeen(null, "ru", true, "long_ago")).toBe("был(а) давно");
+  });
+});
+
+
+describe("summarizeMessageReactions", () => {
+  it("groups emoji counts and marks the current user's reaction", () => {
+    const summary = summarizeMessageReactions([
+      { emoji: "👍", user_id: "user-1" },
+      { emoji: "❤️", user_id: "user-2" },
+      { emoji: "👍", user_id: "user-3" },
+      { emoji: "❤️", user_id: "user-1" },
+    ], "user-1");
+    expect(summary).toHaveLength(2);
+    expect(summary.find((item) => item.emoji === "👍")).toEqual({ emoji: "👍", count: 2, selectedByMe: true });
+    expect(summary.find((item) => item.emoji === "❤️")).toEqual({ emoji: "❤️", count: 2, selectedByMe: true });
+  });
+  it("returns an empty list when a message has no reactions", () => {
+    expect(summarizeMessageReactions([], "user-1")).toEqual([]);
   });
 });

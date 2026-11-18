@@ -187,6 +187,17 @@ a { color: inherit; }
 .message-bubble p { margin: 0; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; white-space: pre-wrap; }
 .message-meta { display: flex; justify-content: flex-end; align-items: center; gap: 7px; margin-top: 4px; }
 .message-meta > span { display: flex; align-items: center; gap: 4px; color: rgba(255,255,255,.72); font-size: 9px; }
+.message-reactions { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 7px; }
+.message-reaction-chip, .message-reaction-add, .message-reaction-picker button { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-width: 29px; min-height: 27px; padding: 3px 7px; border: 1px solid rgba(125,171,184,.25); border-radius: 14px; color: #547c89; background: rgba(255,255,255,.76); cursor: pointer; }
+.message-reaction-chip span, .message-reaction-picker button { font-size: 13px; line-height: 1; }
+.message-reaction-chip small { color: inherit; font-size: 10px; font-weight: 700; }
+.message-reaction-chip.is-selected { border-color: rgba(63,160,165,.7); color: #287d81; background: rgba(211,244,239,.9); }
+.message-reaction-chip:disabled, .message-reaction-add:disabled, .message-reaction-picker button:disabled { opacity: .55; cursor: wait; }
+.message-reaction-picker-wrap { position: relative; display: inline-flex; }
+.message-reaction-add { width: 29px; min-width: 29px; padding: 0; color: #6e9aa4; }
+.message-reaction-picker { position: absolute; z-index: 40; left: 0; bottom: calc(100% + 7px); display: flex; gap: 3px; padding: 5px; border: 1px solid rgba(125,171,184,.28); border-radius: 13px; background: rgba(255,255,255,.98); box-shadow: 0 8px 24px rgba(40,82,95,.18); }
+.message-reaction-picker button { width: 31px; min-width: 31px; padding: 0; border: 0; background: transparent; }
+.message-reaction-picker button:hover, .message-reaction-chip:hover, .message-reaction-add:hover { background: rgba(210,241,239,.8); }
 .message-row.theirs .message-meta > span { color: #a3b3ba; }
 .message-delete-button { display: inline-grid; place-items: center; width: 24px; height: 22px; padding: 0; border: 0; border-radius: 7px; color: rgba(255,255,255,.86); background: rgba(28,80,95,.18); cursor: pointer; }
 .message-delete-button:hover { background: rgba(28,80,95,.35); }
@@ -1087,6 +1098,13 @@ html[data-theme="dark"] .settings-card,
 html[data-theme="dark"] .settings-page-card { border-color: #354957; color: #d8e5eb; background: #223440; }
 html[data-theme="dark"] .message-row.mine .message-bubble,
 html[data-theme="dark"] .system-message-row.mine .system-message-bubble { border-color: #315a5a; color: #e0eeeb; background: #294747; }
+html[data-theme="dark"] .message-reaction-chip,
+html[data-theme="dark"] .message-reaction-add,
+html[data-theme="dark"] .message-reaction-picker { border-color: #405c69; color: #c0d5dd; background: #1d303c; }
+html[data-theme="dark"] .message-reaction-chip.is-selected { border-color: #4d9e9a; color: #a4e0d6; background: #284b4b; }
+html[data-theme="dark"] .message-reaction-picker button:hover,
+html[data-theme="dark"] .message-reaction-chip:hover,
+html[data-theme="dark"] .message-reaction-add:hover { background: #2a4a55; }
 html[data-theme="dark"] .message-bubble p,
 html[data-theme="dark"] .system-message-bubble p,
 html[data-theme="dark"] .system-post-card > p { color: #d8e5eb; }

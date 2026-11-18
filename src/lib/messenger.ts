@@ -1,7 +1,9 @@
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { messageBodySchema } from "./domain";
 import { supabase, type SupabaseClient } from "./supabase";
-import type { InboxConversation, Message, Profile, PublicProfile } from "./types";
+import type { InboxConversation, Message, MessageReaction, MessageReactionEmoji, Profile, PublicProfile } from "./types";
+
+export const MESSAGE_REACTION_EMOJIS: readonly MessageReactionEmoji[] = ["👍", "❤️", "😂", "😮", "😢", "🎉"];
 
 function client(): SupabaseClient {
   if (!supabase) throw new Error("HELORO backend is not configured.");
@@ -433,6 +435,54 @@ export async function deleteDirectMessage(message: Message, currentUserId: strin
     const { error: mediaError } = await client().storage.from("message-media").remove([message.media.path]);
     if (mediaError) console.warn("Message was deleted, but its media cleanup failed.", mediaError);
   }
+}
+
+export async function getMessageReactions(conversationId: string): Promise<MessageReaction[]> {
+  const { data, error } = await client().from("message_reactions")
+    .select("message_id, conversation_id, user_id, emoji, created_at")
+    .eq("conversation_id", conversationId)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as MessageReaction[];
+}
+
+export async function toggleMessageReaction(
+  conversationId: string,
+  messageId: string,
+  userId: string,
+  emoji: MessageReactionEmoji,
+): Promise<void> {
+  if (!MESSAGE_REACTION_EMOJIS.includes(emoji)) throw new Error("Unsupported reaction.");
+  const database = client();
+  const { data: existing, error: lookupError } = await database.from("message_reactions")
+    .select("emoji")
+    .eq("message_id", messageId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (lookupError) throw lookupError;
+  if (existing) {
+    if (existing.emoji === emoji) {
+      const { error } = await database.from("message_reactions")
+        .delete().eq("message_id", messageId).eq("user_id", userId);
+      if (error) throw error;
+      return;
+    }
+    const { error } = await database.from("message_reactions")
+      .update({ emoji }).eq("message_id", messageId).eq("user_id", userId);
+    if (error) throw error;
+    return;
+  }
+  const { error } = await database.from("message_reactions").insert({
+    conversation_id: conversationId, message_id: messageId, user_id: userId, emoji,
+  });
+  if (error) throw error;
+}
+
+export function subscribeToMessageReactions(onChange: () => void): RealtimeChannel {
+  // No row filter: Postgres Changes does not support filters for DELETE events.
+  return client().channel("heloro:message-reactions")
+    .on("postgres_changes", { event: "*", schema: "public", table: "message_reactions" }, onChange)
+    .subscribe();
 }
 
 export function subscribeToMessages(
