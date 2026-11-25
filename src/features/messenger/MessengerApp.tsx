@@ -79,6 +79,7 @@ import { useMessengerPanels } from "./useMessengerPanels";
 import { Avatar, PurpleCrownNameMark, VerificationMark } from "./MessengerIdentity";
 import type { ThemePreference } from "../../lib/preferences";
 import "./MessengerTelegramDesign.css";
+import "./MessengerNativeDesign.css";
 import "./MessengerCommunity.css";
 
 type SystemView = "news" | "discussion" | "support" | "admin";
@@ -2530,7 +2531,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
         </section>
       </div>
 
-      {!showComposeScreen && !showNavigation && !showBots && !showReport && !mediaViewer && !showAttachmentMenu && !photoDraft && !videoDraft && createPortal(
+      {!activeConversation && !systemView && !activeCommunityRoomId && !communityCreateKind && !showSavedMessages && !showComposeScreen && !showNavigation && !showBots && !showReport && !mediaViewer && !showAttachmentMenu && !photoDraft && !videoDraft && createPortal(
         <nav className="mobile-bottom-nav mobile-bottom-nav-floating" aria-label={locale === "ru" ? "Основная навигация" : "Main navigation"}>
           <button type="button" className={mobileTab === "chats" ? "active" : ""} aria-current={mobileTab === "chats" ? "page" : undefined} onClick={() => openMobileTab("chats")}>
             <MessageCircle size={21} /><span>{locale === "ru" ? "Чаты" : "Chats"}</span>
