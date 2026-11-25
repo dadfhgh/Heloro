@@ -67,13 +67,13 @@ import { formatInboxTime, formatLastSeen, formatMessageDayLabel, formatMessageTi
 import type { InboxConversation, Message, MessageReaction, MessageReactionEmoji, Profile, PublicProfile, BadgeType } from "../../lib/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { t, type Locale } from "../../lib/i18n";
-import OfficialPanels from "./OfficialPanels";
+
 import OfficialAvatar from "./OfficialAvatar";
-import CommunityHub from "./CommunityHub";
-import ChatMediaPicker from "./ChatMediaPicker";
+
+
 import { setVerificationBadge, submitUserReport, submitContentReport } from "../../lib/official";
 import type { SettingsSection } from "./MessengerNavigation";
-import ChatFoldersBar, { type FolderChoice } from "./ChatFoldersBar";
+import type { FolderChoice } from "./ChatFoldersBar";
 import { resetDirectChatPanels } from "./messengerNavigation";
 import { useMessengerPanels } from "./useMessengerPanels";
 import { Avatar, PurpleCrownNameMark, VerificationMark } from "./MessengerIdentity";
@@ -210,6 +210,11 @@ const LazyBotsHub = lazy(async () => {
   const module = await import("./BotsHub");
   return { default: module.default };
 });
+
+const LazyOfficialPanels = lazy(() => import("./OfficialPanels"));
+const LazyCommunityHub = lazy(() => import("./CommunityHub"));
+const LazyChatMediaPicker = lazy(() => import("./ChatMediaPicker"));
+const LazyChatFoldersBar = lazy(() => import("./ChatFoldersBar"));
 
 export default function MessengerApp({ client, user, profile, locale, onLocaleChange, roles, theme, onThemeChange }: Props) {
   const [inbox, setInbox] = useState<InboxConversation[]>([]);
@@ -1694,14 +1699,16 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
               {t(locale, "chatPersonal")}
             </button>
           </div>
-          <ChatFoldersBar
+          <Suspense fallback={null}>
+            <LazyChatFoldersBar
             userId={user.id}
             locale={locale}
             choices={folderChoices}
             managerOpen={folderManagerOpen}
             onManagerClose={() => setFolderManagerOpen(false)}
             onActiveFolderChange={handleFolderFilterChange}
-          />
+            />
+          </Suspense>
 
           <section className="conversation-list">
             {showSearch && search.trim().length > 1 ? (
@@ -2042,7 +2049,8 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
           ) : systemView ? (
             <div className="system-screen">
               <button className="system-mobile-back" onClick={closeConversation} aria-label={t(locale, "inboxBack")}><ArrowLeft size={19} /></button>
-              <OfficialPanels
+              <Suspense fallback={null}>
+                <LazyOfficialPanels
                 view={systemView}
                 client={client}
                 user={user}
@@ -2050,10 +2058,12 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                 roles={roles}
                 onOpenDiscussion={() => void openNewsDiscussion()}
                 onOpenNews={() => openSystemView("news")}
-              />
+                />
+              </Suspense>
             </div>
           ) : (activeCommunityRoomId || communityCreateKind) ? (
-            <CommunityHub
+            <Suspense fallback={null}>
+              <LazyCommunityHub
               key={`${activeCommunityRoomId ?? "new"}-${communityCreateKind ?? ""}`}
               client={client}
               user={user}
@@ -2071,7 +2081,8 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
               initialCreateKind={communityCreateKind}
               onRoomsChanged={() => { void refreshCommunityRooms().catch(() => undefined); }}
               onClose={closeCommunity}
-            />
+              />
+            </Suspense>
           ) : activeConversation ? (
             <>
               <header className="chat-header">
@@ -2474,7 +2485,8 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                 document.body,
               )}
               <form className="composer" onSubmit={handleSend}>
-                <ChatMediaPicker
+                <Suspense fallback={null}>
+                  <LazyChatMediaPicker
                   locale={locale}
                   disabled={mediaSending || Boolean(editTarget)}
                   onEmojiSelect={(emoji) => setDraft((current) => (current + emoji).slice(0, 4000))}
@@ -2482,7 +2494,8 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                   onGifSelect={(emoji, motion) => void handleBuiltInMediaSelect("gif", emoji, motion)}
                   onStickerUpload={(file) => void handleMediaSelect("sticker", file)}
                   onGifUpload={(file) => void handleMediaSelect("gif", file)}
-                />
+                  />
+                </Suspense>
                 <input
                   value={draft}
                   onChange={(event) => handleDraftChange(event.target.value)}
