@@ -3,63 +3,63 @@
   border: 1px solid #dedede; border-radius: 12px; background: #fafafa;
 }
 .bot-lua-heading { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.bot-lua-heading-icon { display: grid; place-items: center; width: 38px; height: 38px; flex: 0 0 38px; border-radius: 10px; color: #222; background: #e8e8e8; }
+.bot-lua-heading-icon { display: grid; place-items: center; width: 38px; height: 38px; flex: 0 0 38px; border-radius: 10px; color: #222222; background: #e8e8e8; }
 .bot-lua-heading-copy { display: grid; gap: 3px; min-width: 0; }
-.bot-lua-heading-copy strong { color: #222; font-size: 13px; }
-.bot-lua-heading-copy small { color: #888; font-size: 10px; }
-.bot-lua-status { margin-left: auto; padding: 5px 8px; border: 1px solid #ddd; border-radius: 20px; color: #555; background: #fff; font-size: 9px; font-weight: 700; white-space: nowrap; }
-.bot-lua-version-row { display: flex; justify-content: space-between; gap: 8px; color: #888; font-size: 10px; }
-.bot-lua-editor-wrap { overflow: hidden; border: 1px solid #333; border-radius: 10px; background: #171717; }
-.bot-lua-editor-toolbar, .bot-lua-editor-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 11px; color: #aaa; background: #202020; font: 10px ui-monospace, SFMono-Regular, Menlo, monospace; }
-.bot-lua-editor-toolbar { border-bottom: 1px solid #333; }
-.bot-lua-editor-toolbar > span:first-child { display: flex; align-items: center; gap: 7px; color: #eee; }
-.bot-lua-live-dot { width: 7px; height: 7px; border-radius: 50%; background: #8bc59a; }
+.bot-lua-heading-copy strong { color: #222222; font-size: 13px; }
+.bot-lua-heading-copy small { color: #888888; font-size: 10px; }
+.bot-lua-status { margin-left: auto; padding: 5px 8px; border: 1px solid #dddddd; border-radius: 20px; color: #555555; background: #ffffff; font-size: 9px; font-weight: 700; white-space: nowrap; }
+.bot-lua-version-row { display: flex; justify-content: space-between; gap: 8px; color: #888888; font-size: 10px; }
+.bot-lua-editor-wrap { overflow: hidden; border: 1px solid #333333; border-radius: 10px; background: #171717; }
+.bot-lua-editor-toolbar, .bot-lua-editor-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 11px; color: #aaaaaa; background: #202020; font: 10px ui-monospace, SFMono-Regular, Menlo, monospace; }
+.bot-lua-editor-toolbar { border-bottom: 1px solid #333333; }
+.bot-lua-editor-toolbar > span:first-child { display: flex; align-items: center; gap: 7px; color: #eeeeee; }
+.bot-lua-live-dot { width: 7px; height: 7px; border-radius: 50%; background: #b6b6b6; }
 .bot-lua-editor { display: block; width: 100%; min-height: 260px; padding: 14px; border: 0; outline: 0; resize: vertical; color: #e8e8e8; background: #171717; font: 12px/1.65 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; tab-size: 2; white-space: pre; overflow: auto; }
-.bot-lua-editor:focus { box-shadow: inset 0 0 0 1px #888; }
-.bot-lua-editor-footer { border-top: 1px solid #333; font-size: 9px; }
+.bot-lua-editor:focus { box-shadow: inset 0 0 0 1px #888888; }
+.bot-lua-editor-footer { border-top: 1px solid #333333; font-size: 9px; }
 .bot-lua-snippets { display: flex; flex-wrap: wrap; gap: 6px; }
-.bot-lua-snippets button { min-height: 32px; padding: 0 9px; border: 1px solid #ddd; border-radius: 7px; color: #555; background: #fff; font: inherit; font-size: 10px; cursor: pointer; }
+.bot-lua-snippets button { min-height: 32px; padding: 0 9px; border: 1px solid #dddddd; border-radius: 7px; color: #555555; background: #ffffff; font: inherit; font-size: 10px; cursor: pointer; }
 .bot-lua-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.bot-lua-actions button { display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 42px; padding: 0 10px; border: 1px solid #ccc; border-radius: 8px; font: inherit; font-size: 11px; font-weight: 700; cursor: pointer; }
-.bot-lua-secondary { color: #333; background: #fff; }
-.bot-lua-publish { color: #fff; border-color: #222 !important; background: #222; }
+.bot-lua-actions button { display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 42px; padding: 0 10px; border: 1px solid #cccccc; border-radius: 8px; font: inherit; font-size: 11px; font-weight: 700; cursor: pointer; }
+.bot-lua-secondary { color: #333333; background: #ffffff; }
+.bot-lua-publish { color: #ffffff; border-color: #222222 !important; background: #222222; }
 .bot-lua-actions button:disabled, .bot-lua-test button:disabled { opacity: .5; cursor: not-allowed; }
-.bot-lua-test { display: grid; gap: 10px; padding: 12px; border: 1px solid #e2e2e2; border-radius: 9px; background: #fff; }
+.bot-lua-test { display: grid; gap: 10px; padding: 12px; border: 1px solid #e2e2e2; border-radius: 9px; background: #ffffff; }
 .bot-lua-test-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.bot-lua-test-heading > div { display: flex; align-items: center; gap: 7px; color: #333; font-size: 11px; }
-.bot-lua-test-heading > span { color: #888; font-size: 9px; text-align: right; }
-.bot-lua-test label { display: grid; gap: 6px; color: #666; font-size: 10px; font-weight: 650; }
+.bot-lua-test-heading > div { display: flex; align-items: center; gap: 7px; color: #333333; font-size: 11px; }
+.bot-lua-test-heading > span { color: #888888; font-size: 9px; text-align: right; }
+.bot-lua-test label { display: grid; gap: 6px; color: #666666; font-size: 10px; font-weight: 650; }
 .bot-lua-test-input { display: flex; gap: 6px; min-width: 0; }
-.bot-lua-test-input input { flex: 1; min-width: 0; height: 39px; padding: 0 10px; border: 1px solid #ddd; border-radius: 7px; color: #222; background: #fff; font: inherit; font-size: 12px; }
-.bot-lua-test-input button { display: flex; align-items: center; justify-content: center; gap: 5px; min-width: 88px; padding: 0 9px; border: 1px solid #222; border-radius: 7px; color: #fff; background: #222; font: inherit; font-size: 10px; font-weight: 700; }
-.bot-lua-error { display: flex; align-items: flex-start; gap: 7px; padding: 9px 10px; border: 1px solid #e4caca; border-radius: 7px; color: #943d3d; background: #fff5f5; font-size: 10px; line-height: 1.5; }
-.bot-lua-output { display: grid; gap: 6px; padding: 10px; border: 1px solid #ddd; border-radius: 8px; background: #fff; }
-.bot-lua-output-title { display: flex; align-items: center; gap: 6px; color: #426b4c; font-size: 10px; font-weight: 700; }
-.bot-lua-output pre { margin: 0; padding: 8px; border-radius: 6px; color: #ddd; background: #222; font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
-.bot-lua-output pre.bot-lua-log { color: #aaa; }
-.bot-lua-output pre.bot-lua-error-line { color: #ffb5b5; }
-.bot-lua-output small { color: #888; font-size: 9px; }
-.bot-lua-api-note { display: flex; align-items: flex-start; gap: 8px; color: #777; }
+.bot-lua-test-input input { flex: 1; min-width: 0; height: 39px; padding: 0 10px; border: 1px solid #dddddd; border-radius: 7px; color: #222222; background: #ffffff; font: inherit; font-size: 12px; }
+.bot-lua-test-input button { display: flex; align-items: center; justify-content: center; gap: 5px; min-width: 88px; padding: 0 9px; border: 1px solid #222222; border-radius: 7px; color: #ffffff; background: #222222; font: inherit; font-size: 10px; font-weight: 700; }
+.bot-lua-error { display: flex; align-items: flex-start; gap: 7px; padding: 9px 10px; border: 1px solid #d0d0d0; border-radius: 7px; color: #4f4f4f; background: #f7f7f7; font-size: 10px; line-height: 1.5; }
+.bot-lua-output { display: grid; gap: 6px; padding: 10px; border: 1px solid #dddddd; border-radius: 8px; background: #ffffff; }
+.bot-lua-output-title { display: flex; align-items: center; gap: 6px; color: #606060; font-size: 10px; font-weight: 700; }
+.bot-lua-output pre { margin: 0; padding: 8px; border-radius: 6px; color: #dddddd; background: #222222; font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+.bot-lua-output pre.bot-lua-log { color: #aaaaaa; }
+.bot-lua-output pre.bot-lua-error-line { color: #c5c5c5; }
+.bot-lua-output small { color: #888888; font-size: 9px; }
+.bot-lua-api-note { display: flex; align-items: flex-start; gap: 8px; color: #777777; }
 .bot-lua-api-note svg { flex: 0 0 auto; margin-top: 2px; }
 .bot-lua-api-note p { margin: 0; font-size: 10px; line-height: 1.5; }
-.bot-lua-history { border-top: 1px solid #e3e3e3; padding-top: 10px; color: #666; font-size: 10px; }
+.bot-lua-history { border-top: 1px solid #e3e3e3; padding-top: 10px; color: #666666; font-size: 10px; }
 .bot-lua-history summary { display: flex; align-items: center; gap: 6px; cursor: pointer; font-weight: 650; list-style: none; }
-.bot-lua-history > div { display: flex; justify-content: space-between; gap: 10px; padding: 7px 2px; border-bottom: 1px solid #eee; }
-.bot-lua-history time { color: #999; font-size: 9px; }
-.bot-lua-loading { color: #888; font-size: 10px; }
+.bot-lua-history > div { display: flex; justify-content: space-between; gap: 10px; padding: 7px 2px; border-bottom: 1px solid #eeeeee; }
+.bot-lua-history time { color: #999999; font-size: 9px; }
+.bot-lua-loading { color: #888888; font-size: 10px; }
 html[data-theme="dark"] .bot-lua-studio { border-color: #343434; background: #202020; }
-html[data-theme="dark"] .bot-lua-heading-icon { color: #eee; background: #333; }
-html[data-theme="dark"] .bot-lua-heading-copy strong { color: #eee; }
+html[data-theme="dark"] .bot-lua-heading-icon { color: #eeeeee; background: #333333; }
+html[data-theme="dark"] .bot-lua-heading-copy strong { color: #eeeeee; }
 html[data-theme="dark"] .bot-lua-status,
 html[data-theme="dark"] .bot-lua-snippets button,
 html[data-theme="dark"] .bot-lua-test,
-html[data-theme="dark"] .bot-lua-output { border-color: #444; color: #ccc; background: #292929; }
+html[data-theme="dark"] .bot-lua-output { border-color: #444444; color: #cccccc; background: #292929; }
 html[data-theme="dark"] .bot-lua-version-row,
 html[data-theme="dark"] .bot-lua-api-note,
-html[data-theme="dark"] .bot-lua-history { color: #aaa; }
-html[data-theme="dark"] .bot-lua-test-heading > div { color: #eee; }
-html[data-theme="dark"] .bot-lua-test-input input { border-color: #444; color: #eee; background: #181818; }
-html[data-theme="dark"] .bot-lua-secondary { border-color: #555; color: #eee; background: #303030; }
+html[data-theme="dark"] .bot-lua-history { color: #aaaaaa; }
+html[data-theme="dark"] .bot-lua-test-heading > div { color: #eeeeee; }
+html[data-theme="dark"] .bot-lua-test-input input { border-color: #444444; color: #eeeeee; background: #181818; }
+html[data-theme="dark"] .bot-lua-secondary { border-color: #555555; color: #eeeeee; background: #303030; }
 html[data-theme="dark"] .bot-lua-history { border-color: #383838; }
 html[data-theme="dark"] .bot-lua-history > div { border-color: #383838; }
 @media (max-width: 640px) {
@@ -70,61 +70,61 @@ html[data-theme="dark"] .bot-lua-history > div { border-color: #383838; }
 }
 
 .bot-lua-mode-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 4px; border: 1px solid #dedede; border-radius: 9px; background: #f0f0f0; }
-.bot-lua-mode-tabs button { display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 36px; border: 1px solid transparent; border-radius: 7px; color: #777; background: transparent; font: inherit; font-size: 11px; font-weight: 700; cursor: pointer; }
-.bot-lua-mode-tabs button.is-active { border-color: #ddd; color: #222; background: #fff; box-shadow: 0 1px 2px #0000000d; }
+.bot-lua-mode-tabs button { display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 36px; border: 1px solid transparent; border-radius: 7px; color: #777777; background: transparent; font: inherit; font-size: 11px; font-weight: 700; cursor: pointer; }
+.bot-lua-mode-tabs button.is-active { border-color: #dddddd; color: #222222; background: #ffffff; box-shadow: 0 1px 2px #0000000d; }
 .bot-lua-code-surface { position: relative; min-height: 260px; overflow: hidden; background: #171717; }
 .bot-lua-highlight, .bot-lua-code-surface .bot-lua-editor { box-sizing: border-box; width: 100%; min-height: 260px; margin: 0; padding: 14px; border: 0; font: 12px/1.65 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; tab-size: 2; white-space: pre; overflow-wrap: normal; }
 .bot-lua-highlight { position: absolute; inset: 0; z-index: 1; overflow: hidden; color: #e8e8e8; pointer-events: none; }
-.bot-lua-code-surface .bot-lua-editor { position: relative; z-index: 2; display: block; resize: vertical; overflow: auto; color: transparent; -webkit-text-fill-color: transparent; caret-color: #fff; background: transparent; outline: 0; }
+.bot-lua-code-surface .bot-lua-editor { position: relative; z-index: 2; display: block; resize: vertical; overflow: auto; color: transparent; -webkit-text-fill-color: transparent; caret-color: #ffffff; background: transparent; outline: 0; }
 .bot-lua-code-surface .bot-lua-editor::selection { color: transparent; -webkit-text-fill-color: transparent; background: #ffffff35; }
-.bot-lua-token-comment { color: #7f9b80; }
-.bot-lua-token-string { color: #d5b879; }
-.bot-lua-token-keyword { color: #c792ea; }
-.bot-lua-token-builtin { color: #82b8df; }
-.bot-lua-token-number { color: #e79a75; }
-.bot-lua-modules { border: 1px solid #e2e2e2; border-radius: 9px; padding: 10px; color: #666; background: #fff; font-size: 10px; }
-.bot-lua-modules summary { display: flex; align-items: center; gap: 7px; cursor: pointer; color: #444; font-weight: 700; list-style: none; }
-.bot-lua-modules > p { margin: 8px 0; color: #888; font-size: 9px; line-height: 1.5; }
+.bot-lua-token-comment { color: #939393; }
+.bot-lua-token-string { color: #bababa; }
+.bot-lua-token-keyword { color: #a4a4a4; }
+.bot-lua-token-builtin { color: #afafaf; }
+.bot-lua-token-number { color: #a8a8a8; }
+.bot-lua-modules { border: 1px solid #e2e2e2; border-radius: 9px; padding: 10px; color: #666666; background: #ffffff; font-size: 10px; }
+.bot-lua-modules summary { display: flex; align-items: center; gap: 7px; cursor: pointer; color: #444444; font-weight: 700; list-style: none; }
+.bot-lua-modules > p { margin: 8px 0; color: #888888; font-size: 9px; line-height: 1.5; }
 .bot-lua-module-list { display: grid; gap: 6px; margin-top: 9px; }
-.bot-lua-module-list button { display: grid; gap: 3px; padding: 9px 10px; border: 1px solid #e5e5e5; border-radius: 7px; text-align: left; color: #444; background: #fafafa; cursor: pointer; }
+.bot-lua-module-list button { display: grid; gap: 3px; padding: 9px 10px; border: 1px solid #e5e5e5; border-radius: 7px; text-align: left; color: #444444; background: #fafafa; cursor: pointer; }
 .bot-lua-module-list button strong { font-size: 10px; }
-.bot-lua-module-list button small { color: #888; font-size: 9px; }
-.bot-lua-diagnostics { display: grid; gap: 6px; padding: 10px; border: 1px solid #e2e2e2; border-radius: 9px; background: #fff; }
-.bot-lua-diagnostics-title { color: #555; font-size: 10px; font-weight: 750; }
+.bot-lua-module-list button small { color: #888888; font-size: 9px; }
+.bot-lua-diagnostics { display: grid; gap: 6px; padding: 10px; border: 1px solid #e2e2e2; border-radius: 9px; background: #ffffff; }
+.bot-lua-diagnostics-title { color: #555555; font-size: 10px; font-weight: 750; }
 .bot-lua-diagnostic { display: flex; align-items: flex-start; gap: 7px; font-size: 9px; line-height: 1.5; }
 .bot-lua-diagnostic svg { flex: 0 0 auto; margin-top: 1px; }
-.bot-lua-diagnostic.is-error { color: #b44e4e; }
-.bot-lua-diagnostic.is-warning { color: #9a773d; }
-.bot-lua-diagnostic.is-info { color: #53815e; }
-.bot-lua-block-notice, .bot-lua-block-note, .bot-lua-publish-hint { padding: 9px 10px; border: 1px solid #e5d9b8; border-radius: 8px; color: #80673a; background: #fffaf0; font-size: 9px; line-height: 1.5; }
-.bot-lua-block-note { border-color: #dfe7ef; color: #627589; background: #f6f9fc; }
-.bot-lua-publish-hint { border-color: #dedede; color: #777; background: #f5f5f5; }
+.bot-lua-diagnostic.is-error { color: #646464; }
+.bot-lua-diagnostic.is-warning { color: #7a7a7a; }
+.bot-lua-diagnostic.is-info { color: #757575; }
+.bot-lua-block-notice, .bot-lua-block-note, .bot-lua-publish-hint { padding: 9px 10px; border: 1px solid #d9d9d9; border-radius: 8px; color: #696969; background: #fafafa; font-size: 9px; line-height: 1.5; }
+.bot-lua-block-note { border-color: #e6e6e6; color: #727272; background: #f9f9f9; }
+.bot-lua-publish-hint { border-color: #dedede; color: #777777; background: #f5f5f5; }
 html[data-theme="dark"] .bot-lua-mode-tabs { border-color: #393939; background: #181818; }
-html[data-theme="dark"] .bot-lua-mode-tabs button { color: #aaa; }
-html[data-theme="dark"] .bot-lua-mode-tabs button.is-active { border-color: #454545; color: #eee; background: #303030; }
-html[data-theme="dark"] .bot-lua-token-comment { color: #8aaa8b; }
-html[data-theme="dark"] .bot-lua-token-string { color: #e1c58c; }
-html[data-theme="dark"] .bot-lua-token-keyword { color: #d6a8f3; }
-html[data-theme="dark"] .bot-lua-token-builtin { color: #8ec6e9; }
-html[data-theme="dark"] .bot-lua-token-number { color: #f0a080; }
+html[data-theme="dark"] .bot-lua-mode-tabs button { color: #aaaaaa; }
+html[data-theme="dark"] .bot-lua-mode-tabs button.is-active { border-color: #454545; color: #eeeeee; background: #303030; }
+html[data-theme="dark"] .bot-lua-token-comment { color: #a1a1a1; }
+html[data-theme="dark"] .bot-lua-token-string { color: #c7c7c7; }
+html[data-theme="dark"] .bot-lua-token-keyword { color: #b7b7b7; }
+html[data-theme="dark"] .bot-lua-token-builtin { color: #bdbdbd; }
+html[data-theme="dark"] .bot-lua-token-number { color: #afafaf; }
 html[data-theme="dark"] .bot-lua-modules,
-html[data-theme="dark"] .bot-lua-diagnostics { border-color: #444; color: #ccc; background: #292929; }
+html[data-theme="dark"] .bot-lua-diagnostics { border-color: #444444; color: #cccccc; background: #292929; }
 html[data-theme="dark"] .bot-lua-modules summary,
-html[data-theme="dark"] .bot-lua-diagnostics-title { color: #eee; }
-html[data-theme="dark"] .bot-lua-module-list button { border-color: #444; color: #ddd; background: #202020; }
-html[data-theme="dark"] .bot-lua-block-notice { border-color: #625333; color: #e0c78f; background: #302919; }
-html[data-theme="dark"] .bot-lua-block-note { border-color: #3a4a5c; color: #b3c3d5; background: #222e3b; }
-html[data-theme="dark"] .bot-lua-publish-hint { border-color: #444; color: #aaa; background: #292929; }
+html[data-theme="dark"] .bot-lua-diagnostics-title { color: #eeeeee; }
+html[data-theme="dark"] .bot-lua-module-list button { border-color: #444444; color: #dddddd; background: #202020; }
+html[data-theme="dark"] .bot-lua-block-notice { border-color: #545454; color: #c8c8c8; background: #292929; }
+html[data-theme="dark"] .bot-lua-block-note { border-color: #484848; color: #c1c1c1; background: #2c2c2c; }
+html[data-theme="dark"] .bot-lua-publish-hint { border-color: #444444; color: #aaaaaa; background: #292929; }
 @media (max-width: 640px) {
   .bot-lua-code-surface, .bot-lua-highlight, .bot-lua-code-surface .bot-lua-editor { min-height: 230px; }
   .bot-lua-highlight, .bot-lua-code-surface .bot-lua-editor { font-size: 11px; }
 }
 
 /* Beginner-first defaults */
-.bot-lua-mode-tabs button.is-active { border-color: #cfe5f7; color: #176da7; background: #fff; }
-.bot-lua-publish { border-color: #2189c7 !important; background: #2189c7; }
-.bot-lua-publish-hint { border-color: #d7e7f4; color: #426d8a; background: #f1f8fd; }
-.bot-lua-block-note { border-color: #d5e7f3; color: #55748c; background: #f2f8fc; }
-html[data-theme="dark"] .bot-lua-mode-tabs button.is-active { border-color: #31516a; color: #9ed5fb; background: #263747; }
-html[data-theme="dark"] .bot-lua-publish-hint { border-color: #3a4c5b; color: #b4d2e5; background: #222e38; }
-html[data-theme="dark"] .bot-lua-block-note { border-color: #3a4c5b; color: #b4d2e5; background: #222e38; }
+.bot-lua-mode-tabs button.is-active { border-color: #e2e2e2; color: #5f5f5f; background: #ffffff; }
+.bot-lua-publish { border-color: #777777 !important; background: #777777; }
+.bot-lua-publish-hint { border-color: #e5e5e5; color: #666666; background: #f7f7f7; }
+.bot-lua-block-note { border-color: #e4e4e4; color: #6f6f6f; background: #f7f7f7; }
+html[data-theme="dark"] .bot-lua-mode-tabs button.is-active { border-color: #4c4c4c; color: #cccccc; background: #353535; }
+html[data-theme="dark"] .bot-lua-publish-hint { border-color: #494949; color: #cdcdcd; background: #2c2c2c; }
+html[data-theme="dark"] .bot-lua-block-note { border-color: #494949; color: #cdcdcd; background: #2c2c2c; }
