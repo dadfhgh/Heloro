@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import { ArrowRight, Check, Cloud, LockKeyhole, ShieldCheck } from "lucide-react";
 import { supabase, type SupabaseClient as HeloroClient } from "./lib/supabase";
@@ -6,7 +6,7 @@ import { getProfile } from "./lib/messenger";
 import type { Profile } from "./lib/types";
 import AuthScreen from "./features/auth/AuthScreen";
 import ProfileSetup from "./features/profile/ProfileSetup";
-import MessengerApp from "./features/messenger/MessengerApp";
+const MessengerApp = lazy(() => import("./features/messenger/MessengerApp"));
 import { getInitialLocale, saveLocale, t, type Locale } from "./lib/i18n";
 import { parseThemePreference, serializeThemePreference, type ThemePreference } from "./lib/preferences";
 
@@ -155,7 +155,11 @@ function AuthenticatedApp({
   if (!profile?.username) {
     return <ProfileSetup client={client} userId={session.user.id} onSaved={setProfile} locale={locale} />;
   }
-  return <MessengerApp client={client} user={session.user} profile={profile} locale={locale} onLocaleChange={onLocaleChange} roles={roles} theme={theme} onThemeChange={onThemeChange} />;
+  return (
+    <Suspense fallback={<LoadingScreen locale={locale} />}>
+      <MessengerApp client={client} user={session.user} profile={profile} locale={locale} onLocaleChange={onLocaleChange} roles={roles} theme={theme} onThemeChange={onThemeChange} />
+    </Suspense>
+  );
 }
 
 export default function App() {
