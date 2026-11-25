@@ -76,6 +76,7 @@ import { setVerificationBadge, submitUserReport, submitContentReport } from "../
 import type { SettingsSection } from "./MessengerNavigation";
 import ChatFoldersBar, { type FolderChoice } from "./ChatFoldersBar";
 import { resetDirectChatPanels } from "./messengerNavigation";
+import { useMessengerPanels } from "./useMessengerPanels";
 import type { ThemePreference } from "../../lib/preferences";
 import "./MessengerTelegramDesign.css";
 import "./MessengerCommunity.css";
@@ -292,17 +293,28 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const [mediaViewerScale, setMediaViewerScale] = useState(1);
   const [mediaViewerLoadError, setMediaViewerLoadError] = useState(false);
   const [error, setError] = useState("");
+  const {
+    showSettings, setShowSettings,
+    showBots, setShowBots,
+    showNavigation, setShowNavigation,
+    showProfile, setShowProfile,
+    showComposeScreen, setShowComposeScreen,
+    showContactsScreen, setShowContactsScreen,
+    showSavedMessages, setShowSavedMessages,
+    folderManagerOpen, setFolderManagerOpen,
+  } = useMessengerPanels();
+
   const [showSearch, setShowSearch] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
-  const [showBots, setShowBots] = useState(false);
-  const [showNavigation, setShowNavigation] = useState(false);
-  const [showProfile, setShowProfile] = useState(false);
+
+
+
+
   const [activeCommunityRoomId, setActiveCommunityRoomId] = useState<string | null>(null);
   const [communityCreateKind, setCommunityCreateKind] = useState<"group" | "channel" | null>(null);
   const [communityRooms, setCommunityRooms] = useState<CommunityRoomPreview[]>([]);
   const [communitySearchRooms, setCommunitySearchRooms] = useState<CommunityRoomPreview[]>([]);
-  const [showComposeScreen, setShowComposeScreen] = useState(false);
-  const [showContactsScreen, setShowContactsScreen] = useState(false);
+
+
   const [directoryTab, setDirectoryTab] = useState<"users" | "groups" | "channels">("users");
   const [directoryUsers, setDirectoryUsers] = useState<PublicProfile[]>([]);
   const [directoryUsersOffset, setDirectoryUsersOffset] = useState(0);
@@ -313,10 +325,10 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   const [directoryRoomsLoaded, setDirectoryRoomsLoaded] = useState(false);
   const [directoryError, setDirectoryError] = useState("");
   const [mobileTab, setMobileTab] = useState<"chats" | "contacts" | "settings" | "profile">("chats");
-  const [showSavedMessages, setShowSavedMessages] = useState(false);
+
   const [savedMessages, setSavedMessages] = useState<SavedMessageRecord[]>(() => readSavedMessages(user.id));
   const [folderChatIds, setFolderChatIds] = useState<string[] | null>(null);
-  const [folderManagerOpen, setFolderManagerOpen] = useState(false);
+
   const [viewedProfile, setViewedProfile] = useState<PublicProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileBusy, setProfileBusy] = useState(false);
