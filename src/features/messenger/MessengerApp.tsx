@@ -11,7 +11,6 @@ import {
   CheckCheck,
   CalendarDays,
   Copy,
-  Crown,
   Flag,
   Headphones,
   ImagePlus,
@@ -64,7 +63,7 @@ import {
   getVisibleLastSeen,
   uploadAvatar,
 } from "../../lib/messenger";
-import { formatInboxTime, formatLastSeen, formatMessageDayLabel, formatMessageTime, initials, messageBodySchema, usernameSchema, displayNameSchema, summarizeMessageReactions } from "../../lib/domain";
+import { formatInboxTime, formatLastSeen, formatMessageDayLabel, formatMessageTime, messageBodySchema, usernameSchema, displayNameSchema, summarizeMessageReactions } from "../../lib/domain";
 import type { InboxConversation, Message, MessageReaction, MessageReactionEmoji, Profile, PublicProfile, BadgeType } from "../../lib/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { t, type Locale } from "../../lib/i18n";
