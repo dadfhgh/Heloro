@@ -559,14 +559,35 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
     ));
   }, [visibleChatItems, folderChatIds]);
 
+  function openDirectConversation(conversationId: string) {
+    // A direct conversation is a top-level mobile destination. Clear every
+    // competing panel before selecting it so a stale menu cannot cover the chat.
+    setShowNavigation(false);
+    setShowSettings(false);
+    setShowProfile(false);
+    setShowBots(false);
+    setShowComposeScreen(false);
+    setShowContactsScreen(false);
+    setShowSavedMessages(false);
+    setFolderManagerOpen(false);
+    setMobileTab("chats");
+    setActiveId(conversationId);
+    setSystemView(null);
+    setActiveCommunityRoomId(null);
+    setCommunityCreateKind(null);
+    setShowSearch(false);
+    setSearch("");
+    setResults([]);
+    setShowChatActions(false);
+    setMessageSearchOpen(false);
+    setMessageSearchQuery("");
+  }
+
   async function refreshInbox(selectId?: string) {
     const updated = await getInbox();
     setInbox(updated);
     if (selectId) {
-      setActiveId(selectId);
-      setSystemView(null);
-      setActiveCommunityRoomId(null);
-      setCommunityCreateKind(null);
+      openDirectConversation(selectId);
     } else if (activeId && !updated.some((item) => item.conversation_id === activeId)) {
       setActiveId(null);
     }
@@ -1640,14 +1661,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   }
 
   function openSavedConversation(record: SavedMessageRecord) {
-    setShowSavedMessages(false);
-    setShowContactsScreen(false);
-    setShowComposeScreen(false);
-    setSystemView(null);
-    setActiveCommunityRoomId(null);
-    setCommunityCreateKind(null);
-    setActiveId(record.conversationId);
-    setMobileTab("chats");
+    openDirectConversation(record.conversationId);
   }
 
   return (
@@ -1805,7 +1819,7 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
                     <button
                       className={`conversation-item ${activeId === item.conversation_id ? "selected" : ""}`}
                       key={item.conversation_id}
-                      onClick={() => { setActiveCommunityRoomId(null); setCommunityCreateKind(null); setActiveId(item.conversation_id); setSystemView(null); setShowSearch(false); }}
+                      onClick={() => openDirectConversation(item.conversation_id)}
                     >
                       <Avatar label={label} className={onlineMap[item.other_user_id] ? "presence-online-avatar" : ""} src={item.avatar_url} crown={Boolean(crownMap[item.other_user_id])} />
                       <span className="conversation-copy">
