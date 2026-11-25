@@ -75,6 +75,7 @@ import ChatMediaPicker from "./ChatMediaPicker";
 import { setVerificationBadge, submitUserReport, submitContentReport } from "../../lib/official";
 import type { SettingsSection } from "./MessengerNavigation";
 import ChatFoldersBar, { type FolderChoice } from "./ChatFoldersBar";
+import { resetDirectChatPanels } from "./messengerNavigation";
 import type { ThemePreference } from "../../lib/preferences";
 import "./MessengerTelegramDesign.css";
 import "./MessengerCommunity.css";
@@ -562,14 +563,16 @@ export default function MessengerApp({ client, user, profile, locale, onLocaleCh
   function openDirectConversation(conversationId: string) {
     // A direct conversation is a top-level mobile destination. Clear every
     // competing panel before selecting it so a stale menu cannot cover the chat.
-    setShowNavigation(false);
-    setShowSettings(false);
-    setShowProfile(false);
-    setShowBots(false);
-    setShowComposeScreen(false);
-    setShowContactsScreen(false);
-    setShowSavedMessages(false);
-    setFolderManagerOpen(false);
+    resetDirectChatPanels({
+      setShowNavigation,
+      setShowSettings,
+      setShowProfile,
+      setShowBots,
+      setShowComposeScreen,
+      setShowContactsScreen,
+      setShowSavedMessages,
+      setFolderManagerOpen,
+    });
     setMobileTab("chats");
     setActiveId(conversationId);
     setSystemView(null);
